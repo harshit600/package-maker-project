@@ -32,7 +32,6 @@ export default function App() {
       <Route path="/signup" element={<SignUp />} />
       <Route element={<PrivateRoutes />}>
       <Route path="/create-activity" element={<CreateActivities/>} />
-      </Route> 
       <Route path="/destinations" element={<Destinations />} />
       <Route path="/destinations/:country" element={<CountryStates />} />
       <Route path="/destinations/:country/:state" element={<StatesCities />}/>
@@ -44,6 +43,7 @@ export default function App() {
       <Route path="/activities-listing" element={<Activities />} />
       <Route path="/create-packages" element={<CreatePackage />} />
       <Route path="/packages" element={<Packages />} />
+      </Route> 
       <Route path="/about" element={<About />} />
     </Routes>
     </BrowserRouter>

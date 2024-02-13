@@ -1,0 +1,147 @@
+.destinationheading{
+    text-align: center;
+    padding: 20px 0;
+}
+
+.formdiv{
+    display: flex;
+}
+
+.destflexit{
+    display: flex;
+    width: 100%;
+    flex-wrap: wrap;
+}
+
+/* Destinations.css */
+
+.destform {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Arial', sans-serif;
+  }
+  
+  .formdiv {
+    padding: 20px;
+
+    flex-wrap: wrap;
+  }
+  
+  .destflexit {
+    margin-top: 15px;
+  }
+  
+  label {
+    display: block;
+    margin-bottom: 8px;
+    color: #495057;
+    font-weight: bold;
+    width: 100%;
+  }
+  
+  input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+  
+  .btn {
+    color: #000;
+    padding: 10px 20px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .btn:hover {
+    background-color: #ccc;
+  }
+  
+  .btnaddcountry {
+    margin-top: 20px;
+    text-align: center;
+  }
+  
+  /* Add more styles as needed */
+  
+  /* Additional styles for button alignment */
+  .btn-primary {
+    margin-right: 10px;
+  }
+  
+  .btnadd {
+    margin-left: 10px;
+  }
+  
+  .formcountrylabel{
+    width: 100%;
+  }
+
+  .statediv{
+    width: 100%;
+    display: flex;
+    gap: 10px;
+  }
+
+  .closebtn{
+    position: absolute;
+    right: 10px;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .addcountry{
+    margin: auto;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+
+  .destform{
+    height: 100%;
+    width: 100%;
+    max-width: 1000px;
+    margin: auto;
+    padding: 20px;
+    max-height: 500px;
+    margin: auto;
+    background-color: #f8f9fa;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    overflow: scroll;
+    position: relative;
+  }
+
+  .destform input{
+    padding: 10px !important;
+    margin-top: 10px;
+  }
+
+  .flexit{
+    display: flex;
+    width: 100%;
+  }
+
+  .citydiv{
+    width: 100%;
+    display: flex;
+  }
+
+  .btnadd{
+    height: 43px;
+    position: relative;
+    top: 35px;
+    margin-left: 10px;
+    
+  }
+
+  .countriesadded{
+    text-align: center;
+    margin-top: 40px;
+  }

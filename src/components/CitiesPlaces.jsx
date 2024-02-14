@@ -325,7 +325,24 @@ const Places = () => {
               />
             </div>
           </div>
-          <div className="row">
+        
+          {/* Paid */}
+          <div className="mb-3 form-check">
+            <input
+              type="checkbox"
+              className="form-check-input"
+              id="paid"
+              checked={newPlace.paid}
+              onChange={handlePaidChange}
+            />
+            <label className="form-check-label" htmlFor="paid">
+              Paid
+            </label>
+          </div>
+
+          {/* Price */}
+          {newPlace.paid && (
+            <div className="row">
             {/* Cost for Sedan */}
             <div className="col-md-4 mb-3">
               <label htmlFor="costSedan" className="form-label">
@@ -381,34 +398,6 @@ const Places = () => {
               />
             </div>
           </div>
-          {/* Paid */}
-          <div className="mb-3 form-check">
-            <input
-              type="checkbox"
-              className="form-check-input"
-              id="paid"
-              checked={newPlace.paid}
-              onChange={handlePaidChange}
-            />
-            <label className="form-check-label" htmlFor="paid">
-              Paid
-            </label>
-          </div>
-
-          {/* Price */}
-          {newPlace.paid && (
-            <div className="mb-3">
-              <label htmlFor="price" className="form-label">
-                Price
-              </label>
-              <input
-                type="number"
-                className="form-control"
-                id="price"
-                value={newPlace.price}
-                onChange={handlePriceChange}
-              />
-            </div>
           )}
           <div className="row">
             {/* Image URLs */}
@@ -524,80 +513,7 @@ const Places = () => {
         />
       </div>
     </div>
-    <div className="row">
-      {/* Cost */}
-      <div className="col-md-4 mb-3">
-        <label htmlFor="editCostSedan" className="form-label">
-          Cost (Sedan)
-        </label>
-        <input
-          type="text"
-          className="form-control"
-          id="editCostSedan"
-          value={selectedPlace?.cost.Sedan}
-          onChange={(e) =>
-            setSelectedPlace({
-              ...selectedPlace,
-              cost: { ...selectedPlace.cost, Sedan: e.target.value },
-            })
-          }
-        />
-      </div>
-      {/* Cost for SUV */}
-      <div className="col-md-4 mb-3">
-        <label htmlFor="editCostSUV" className="form-label">
-          Cost (SUV)
-        </label>
-        <input
-          type="text"
-          className="form-control"
-          id="editCostSUV"
-          value={selectedPlace?.cost.SUV}
-          onChange={(e) =>
-            setSelectedPlace({
-              ...selectedPlace,
-              cost: { ...selectedPlace.cost, SUV: e.target.value },
-            })
-          }
-        />
-      </div>
-      {/* Cost for Traveller */}
-      <div className="col-md-4 mb-3">
-        <label htmlFor="editCostTraveller" className="form-label">
-          Cost (Traveller)
-        </label>
-        <input
-          type="text"
-          className="form-control"
-          id="editCostTraveller"
-          value={selectedPlace?.cost.Traveller}
-          onChange={(e) =>
-            setSelectedPlace({
-              ...selectedPlace,
-              cost: { ...selectedPlace.cost, Traveller: e.target.value },
-            })
-          }
-        />
-      </div>
-      {/* Time */}
-      <div className="col-md-6 mb-3">
-        <label htmlFor="editTime" className="form-label">
-          Time
-        </label>
-        <input
-          type="number"
-          className="form-control"
-          id="editTime"
-          value={selectedPlace?.time}
-          onChange={(e) =>
-            setSelectedPlace({
-              ...selectedPlace,
-              time: e.target.value,
-            })
-          }
-        />
-      </div>
-    </div>
+    
     <div className="row">
       {/* Image URLs */}
       <div className="mb-3">
@@ -676,23 +592,80 @@ const Places = () => {
     </div>
     {/* Price */}
     {selectedPlace?.paid && (
-      <div className="mb-3">
-        <label htmlFor="editPrice" className="form-label">
-          Price
-        </label>
-        <input
-          type="number"
-          className="form-control"
-          id="editPrice"
-          value={selectedPlace?.price}
-          onChange={(e) =>
-            setSelectedPlace({
-              ...selectedPlace,
-              price: e.target.value,
-            })
-          }
-        />
-      </div>
+     <div className="row">
+     {/* Cost */}
+     <div className="col-md-4 mb-3">
+       <label htmlFor="editCostSedan" className="form-label">
+         Cost (Sedan)
+       </label>
+       <input
+         type="text"
+         className="form-control"
+         id="editCostSedan"
+         value={selectedPlace?.cost.Sedan}
+         onChange={(e) =>
+           setSelectedPlace({
+             ...selectedPlace,
+             cost: { ...selectedPlace.cost, Sedan: e.target.value },
+           })
+         }
+       />
+     </div>
+     {/* Cost for SUV */}
+     <div className="col-md-4 mb-3">
+       <label htmlFor="editCostSUV" className="form-label">
+         Cost (SUV)
+       </label>
+       <input
+         type="text"
+         className="form-control"
+         id="editCostSUV"
+         value={selectedPlace?.cost.SUV}
+         onChange={(e) =>
+           setSelectedPlace({
+             ...selectedPlace,
+             cost: { ...selectedPlace.cost, SUV: e.target.value },
+           })
+         }
+       />
+     </div>
+     {/* Cost for Traveller */}
+     <div className="col-md-4 mb-3">
+       <label htmlFor="editCostTraveller" className="form-label">
+         Cost (Traveller)
+       </label>
+       <input
+         type="text"
+         className="form-control"
+         id="editCostTraveller"
+         value={selectedPlace?.cost.Traveller}
+         onChange={(e) =>
+           setSelectedPlace({
+             ...selectedPlace,
+             cost: { ...selectedPlace.cost, Traveller: e.target.value },
+           })
+         }
+       />
+     </div>
+     {/* Time */}
+     <div className="col-md-6 mb-3">
+       <label htmlFor="editTime" className="form-label">
+         Time
+       </label>
+       <input
+         type="number"
+         className="form-control"
+         id="editTime"
+         value={selectedPlace?.time}
+         onChange={(e) =>
+           setSelectedPlace({
+             ...selectedPlace,
+             time: e.target.value,
+           })
+         }
+       />
+     </div>
+   </div>
     )}
   </Modal.Body>
   <Modal.Footer>

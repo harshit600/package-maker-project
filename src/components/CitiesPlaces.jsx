@@ -173,7 +173,7 @@ const Places = () => {
       stateName: params?.state,
       country: params?.country,
     });
-  }, [params?.city, params?.state, params?.country]);
+  }, [params?.city, params?.state, params?.country, newPlace]);
 
   const handleEditPlace = async (placeId) => {
     // Fetch the place details for editing

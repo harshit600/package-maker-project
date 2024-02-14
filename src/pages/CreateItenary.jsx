@@ -156,17 +156,19 @@ const ItineraryMaster = () => {
   const fetchPlaces = async (country, city) => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `${config.API_HOST}/api/places/getallplaces/${country}/${city}`
-      );
-      const data = await response.json();
-      setPlaces(data);
-      setLoading(false);
+        const response = await fetch(
+            `${config.API_HOST}/api/places/getallplaces/${country}/${city}`
+        );
+        const newData = await response.json();
+        // Merge new data with existing places
+        setPlaces(prevPlaces => [...prevPlaces, ...newData]);
+        setLoading(false);
     } catch (error) {
-      setLoading(false);
-      console.error("Error fetching places:", error);
+        setLoading(false);
+        console.error("Error fetching places:", error);
     }
-  };
+};
+
 
   const handleTypeFilterChange = (e) => {
     setTypeFilter(e.target.value);
@@ -315,8 +317,6 @@ const ItineraryMaster = () => {
     fetchPlaces(selectedCountry, city);
   };
 
-  console.log(formData)
-
   const handlePlaceSelect = (place) => {
     setSelectedPlaces([...selectedPlaces, place.placeName]);
     setFormData({
@@ -330,6 +330,10 @@ const ItineraryMaster = () => {
     const updatedPlaces = [...selectedPlaces];
     updatedPlaces.splice(placeIndex, 1);
     setSelectedPlaces(updatedPlaces);
+    setFormData({
+      ...formData,
+      cityArea: [...updatedPlaces]
+    })
   };
 
   const handleDescriptionChange = (e) => {
@@ -414,6 +418,8 @@ const ItineraryMaster = () => {
       setSelectedOption(data.itineraryType);
       setSearchResults(data.cityArea);
       setSelectedPlaces(data.cityArea); // Set selected places with city area data
+      fetchPlaces(data?.country, data?.cityName);
+      fetchPlaces(data?.country, data?.connectingCity);
       setFormData({
         ...formData,
         // Populate other form fields with data retrieved from the API

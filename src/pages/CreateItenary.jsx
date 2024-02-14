@@ -6,6 +6,7 @@ import SideBar from "../components/SideBar";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Table } from "react-bootstrap";
+import config from "../../config";
 
 const ItineraryMaster = () => {
   const [selectedOption, setSelectedOption] = useState("sightseeing");

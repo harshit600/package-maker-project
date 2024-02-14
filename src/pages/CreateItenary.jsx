@@ -75,6 +75,7 @@ const ItineraryMaster = () => {
   const toggleForm = () => {
     setShowForm(!showForm);
     setIsEditMode(false); 
+   
   };
 
   const dropdownRef = useRef(null);
@@ -269,7 +270,7 @@ const ItineraryMaster = () => {
     setSelectedPlace(""); // Reset selected place when city changes
     setFormData({
       ...formData,
-      cityName: city, // Set city name when city changes
+      connectingCity: city, // Set city name when city changes
     });
     fetchPlaces(selectedCountry, city);
   };
@@ -304,6 +305,7 @@ const ItineraryMaster = () => {
 
   const handleCityChange = (e) => {
     const city = e.target.value;
+    console.log(city)
     setSelectedCity(city);
     setSelectedPlace(""); // Reset selected place when city changes
     setFormData({
@@ -312,6 +314,8 @@ const ItineraryMaster = () => {
     });
     fetchPlaces(selectedCountry, city);
   };
+
+  console.log(formData)
 
   const handlePlaceSelect = (place) => {
     setSelectedPlaces([...selectedPlaces, place.placeName]);
@@ -401,8 +405,11 @@ const ItineraryMaster = () => {
       }
       const data = await response.json();
 
+      console.log(data)
+
       fetchCities(data?.country);
       setSelectedCountry(data.country);
+      setConnectingCity(data?.connectingCity);
       setSelectedCity(data.cityName);
       setSelectedOption(data.itineraryType);
       setSearchResults(data.cityArea);
@@ -412,8 +419,10 @@ const ItineraryMaster = () => {
         // Populate other form fields with data retrieved from the API
         cityName: data.cityName,
         country: data.country,
+        connectingCity: data?.connectingCity,
         cityArea: data.cityArea,
         itineraryTitle: data.itineraryTitle,
+        itineraryType: data.itineraryType,
         itineraryDescription: data.itineraryDescription,
         specialNotes: data.specialNotes,
         totalHours: data.totalHours,
@@ -546,7 +555,7 @@ const ItineraryMaster = () => {
               </Form.Group>
 
               <Form.Group className="mb-3">
-                <Form.Label>Select City Area:</Form.Label>
+                <Form.Label>Select City Places:</Form.Label>
                 <div ref={dropdownRef} className="search-input-container">
                   {/* Selected places */}
                   <div className="selected-places">
@@ -565,7 +574,7 @@ const ItineraryMaster = () => {
 
                   <Form.Control
                     type="text"
-                    placeholder="Search City Area"
+                    placeholder="Search City Places"
                     value={searchInput}
                     onChange={handleCityAreaChange}
                   />
@@ -743,9 +752,9 @@ const ItineraryMaster = () => {
               {currentPageData.map((item) => (
                 <tr key={item._id}>
                   <td>{item.cityName}</td>
-                  <td className="woverflow">{item.cityArea.join(", ")}</td>
+                  <td className="woverflow ellipse">{item.cityArea.join(", ")}</td>
                   <td>{item.itineraryTitle}</td>
-                  <td>{item.itineraryDescription}</td>
+                  <td className="ellipse" >{item.itineraryDescription}</td>
                   <td>{item.itineraryType}</td>
                   <td>{item.totalHours}</td>
                   <td>{item.distance}</td>

@@ -424,3 +424,10 @@ h4 {
     z-index: 2;
     width: 95%;
 }
+
+.ellipse{
+  max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

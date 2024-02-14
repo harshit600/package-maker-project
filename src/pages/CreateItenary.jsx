@@ -404,6 +404,7 @@ const ItineraryMaster = () => {
       fetchCities(data?.country);
       setSelectedCountry(data.country);
       setSelectedCity(data.cityName);
+      setSelectedOption(data.itineraryType);
       setSearchResults(data.cityArea);
       setSelectedPlaces(data.cityArea); // Set selected places with city area data
       setFormData({

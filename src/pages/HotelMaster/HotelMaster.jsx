@@ -1,6 +1,6 @@
 import React from 'react'
-import HotelSideBar from '../components/HotelSideBar'
-import HotelManagement from '../components/HotelManagement'
+import HotelSideBar from '../../components/HotelSideBar'
+import HotelManagement from '../../components/HotelManagement'
 
 function HotelMaster() {
   return (

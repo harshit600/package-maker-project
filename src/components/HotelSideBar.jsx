@@ -41,18 +41,10 @@ function HotelSideBar() {
                             </button>
                             {isMenuExpanded("ratesInventory") && (
                                 <ul className="pl-4">
-                                    <li>
-                                        <Link to="/manage-rates" className="text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Manage Rates</Link>
+                                    <li className='mt-3 mb-3'>
+                                        <Link to="/managehotel/manage-rates" className="text-gray-900 text-xs dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Manage Rates and Inventory</Link>
                                     </li>
-                                    <li>
-                                        <Link to="/manage-inventory" className="text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Manage Inventory</Link>
-                                    </li>
-                                    <li>
-                                        <Link to="/default-rates" className="text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Default Rates</Link>
-                                    </li>
-                                    <li>
-                                        <Link to="/default-inventory" className="text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Default Inventory</Link>
-                                    </li>
+                                   
                                 </ul>
                             )}
                         </div>
@@ -71,26 +63,26 @@ function HotelSideBar() {
                             </button>
                             {isMenuExpanded("property") && (
                                 <ul className="pl-4">
-                                    <li>
-                                        <Link to="/basic-info" className="text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Basic Info</Link>
+                                    <li className='mt-3 mb-3'>
+                                        <Link to="/managehotel/basic-info" className="text-gray-900 text-xs dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Basic Info</Link>
                                     </li>
-                                    <li>
-                                        <Link to="/amenities-services" className="text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Amenities & Services</Link>
+                                    <li className='mt-3 mb-3'>
+                                        <Link to="/managehotel/amenities-services" className="text-gray-900 text-xs dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Amenities & Services</Link>
                                     </li>
-                                    <li>
-                                        <Link to="/rooms" className="text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Rooms</Link>
+                                    <li className='mt-3 mb-3'>
+                                        <Link to="/managehotel/rooms" className="text-gray-900 dark:text-white text-xs hover:text-gray-700 dark:hover:text-gray-200">Rooms</Link>
                                     </li>
-                                    <li>
-                                        <Link to="/inclusions" className="text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Inclusions</Link>
+                                    <li className='mt-3 mb-3'>
+                                        <Link to="/inclusions" className="text-gray-900 dark:text-white text-xs hover:text-gray-700 dark:hover:text-gray-200">Inclusions</Link>
                                     </li>
-                                    <li>
-                                        <Link to="/photos" className="text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Photos</Link>
+                                    <li className='mt-3 mb-3'>
+                                        <Link to="/photos" className="text-gray-900 dark:text-white text-xs hover:text-gray-700 dark:hover:text-gray-200">Photos</Link>
                                     </li>
-                                    <li>
-                                        <Link to="/videos" className="text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Videos</Link>
+                                    <li className='mt-3 mb-3'>
+                                        <Link to="/videos" className="text-gray-900 dark:text-white text-xs hover:text-gray-700 dark:hover:text-gray-200">Videos</Link>
                                     </li>
-                                    <li>
-                                        <Link to="/policies" className="text-gray-900 dark:text-white hover:text-gray-700 dark:hover:text-gray-200">Policies</Link>
+                                    <li className='mt-3 mb-3'>
+                                        <Link to="/policies" className="text-gray-900 dark:text-white text-xs hover:text-gray-700 dark:hover:text-gray-200">Policies</Link>
                                     </li>
                                 </ul>
                             )}

@@ -106,7 +106,7 @@ const CountryStates = () => {
     if (confirmDelete) {
       try {
         const response = await fetch(
-          `${config.API_HOST}/api/country/${params?.country}/${params?.state}/cities/delete/${cityId}`,
+          `${config.API_HOST}/api/cities/delete/${cityId}`,
           {
             method: "DELETE",
           }

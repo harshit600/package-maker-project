@@ -7,9 +7,7 @@ const CreatePackage = () => {
 
   return (
     <div className="container flexitdest">
-      <div className="sidebarpluto">
-        <SideBar />
-      </div>
+     
       <PackageCreation />
     </div>
   );

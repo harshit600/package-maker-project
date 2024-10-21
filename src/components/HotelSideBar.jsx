@@ -15,7 +15,7 @@ function HotelSideBar() {
     };
 
     return (
-        <aside id="logo-sidebar" className="fixed asidepluto top-0 left-0 z-12 w-64 h-screen pt-20 transition-transform -translate-x-full bg-gray-800 border-r border-gray-200 sm:translate-x-0 dark:bg-gray-800 dark:border-gray-700" aria-label="Sidebar">
+        <aside id="logo-sidebar" className="fixed asidepluto top-[70px] ml-2 rounded shadow-sm left-0 z-12 w-64 pt-2 bg-gray-50 transition-transform -translate-x-full  border-r border-gray-200 sm:translate-x-0 dark:bg-gray-800 dark:border-gray-700" aria-label="Sidebar" style={{height: 'calc(100vh - 80px'}}>
             <div className="h-full px-3 pb-4 overflow-y-auto  dark:bg-gray-800">
                 <ul className="space-y-2 font-medium">
                     <li>

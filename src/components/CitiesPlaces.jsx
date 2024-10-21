@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Modal, Button } from "react-bootstrap";
+import { Modal } from "react-bootstrap";
 import {
   getDownloadURL,
   getStorage,
@@ -9,6 +9,12 @@ import {
 } from "firebase/storage";
 import { app } from "../firebase";
 import config from "../../config";
+import Button from './ui-kit/atoms/Button';
+import { Icons } from '../icons/index';
+
+const { ArrowLeftIcon } = Icons;
+
+console.log(ArrowLeftIcon)
 
 const Places = () => {
   const params = useParams();
@@ -173,7 +179,7 @@ const Places = () => {
       stateName: params?.state,
       country: params?.country,
     });
-  }, [params?.city, params?.state, params?.country, newPlace]);
+  }, []);
 
   const handleEditPlace = async (placeId) => {
     // Fetch the place details for editing
@@ -261,30 +267,9 @@ const Places = () => {
         {params?.city.replace("-", " ").toUpperCase()} Places
       </h1>
       <div className="addstate">
-        <button
-          className="btn btn-primary text-white"
-          onClick={() => navigate(-1)}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            fill="currentColor"
-            class="bi bi-arrow-left"
-            viewBox="0 0 16 16"
-          >
-            <path
-              fillRule="evenodd"
-              d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8"
-            />
-          </svg>
-        </button>
-        <button
-          className="btn btn-primary text-white"
-          onClick={() => setShowAddPlaceModal(true)}
-        >
-          Add Place
-        </button>
+      <Button text="" variant="outlined" onClick={() => navigate(-1)} icon={<ArrowLeftIcon />} iconPosition="left" cssClassesProps="mr-2"/>
+      <Button text="Add Place" variant="primary" onClick={() => setShowAddPlaceModal(true)}/>
+       
       </div>
       <Modal
         show={showAddPlaceModal}

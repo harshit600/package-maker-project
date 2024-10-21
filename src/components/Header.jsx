@@ -6,25 +6,8 @@ export default function Header() {
   const { currentUser } = useSelector(state => state.user);
   return (
     <header className='h-14  border-b border-gray-200 dark:bg-gray-800 dark:border-gray-700'>
-        {/* <div className='flex justify-between items-center max-w-6xl mx-auto p-3'>
-            <Link to="/">
-        <h1 className='font-bold text-sm sm:text-xl flex flex-wrap'>
-        <span className='text-slate-500'>Pluto</span>
-        <span className='text-slate-700'>Tours</span>
-        </h1>
-        </Link>
-        <form className='bg-slate-100 p-3 rounded-lg flex items-center'>
-            <input type="text" placeholder='Search...' className='bg-transparent focus:outline-none w-24 sm:w-64'/>
-            <FaSearch className='text-slate-600' />
-        </form>
-        <ul className='flex gap-4'>
-        <Link to="/"><li className='hidden sm:inline text-slate-700 hover:underline cursor-pointer'>Home</li></Link>
-        <Link to="/about"> <li className='hidden sm:inline text-slate-700 hover:underline cursor-pointer'>About</li></Link>
-        <Link to="/profile">{currentUser ? <img className='rounded-full w-7 h-7 object-cover' src={currentUser.avatar} alt='' /> : <li className='text-slate-700 hover:underline cursor-pointer'>Sign in</li>}</Link>
-       
-        </ul>
-        </div> */}
-         <nav className="fixed top-0 z-50 w-full">
+        
+         <nav className="fixed top-0 z-50 bg-gray-50 shadow-sm w-full">
   <div className="px-3 py-3 lg:px-5 lg:pl-3">
     <div className="flex items-center justify-between">
       <div className="flex items-center justify-start rtl:justify-end">
@@ -36,7 +19,7 @@ export default function Header() {
          </button>
         <a href="/" className="flex ms-2 md:me-24">
           {/* <img src="https://flowbite.com/docs/images/logo.svg" className="h-8 me-3" alt="FlowBite Logo" /> */}
-          <span className="self-center text-xl font-semibold text-white sm:text-2xl whitespace-nowrap dark:text-white">PlutoTours</span>
+          <span className="self-center text-xl font-semibold text-blue-600 sm:text-2xl whitespace-nowrap dark:text-white">PlutoTours</span>
         </a>
       </div>
       <div className="flex items-center">

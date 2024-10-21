@@ -4,7 +4,7 @@
 @tailwind utilities;
 
 body {
-  background-color: rgb(241, 245, 241);
+  background-color: white;
   font-family: 'poppins';
 }
 
@@ -54,17 +54,14 @@ h4 {
 
 .right-side {
   position: relative;
-  left: 300px;
-  padding: 30px;
-  max-width: 1200px;
   display: flex;
   flex-wrap: wrap;
+  width: 100%;
 }
 
 
 .box1 {
   padding: 30px;
-  box-shadow: rgba(50, 50, 93, 0.25) 0px 50px 100px -20px, rgba(0, 0, 0, 0.3) 0px 30px 60px -30px, rgba(10, 37, 64, 0.35) 0px -2px 6px 0px inset;
   width: 300px;
   /* height: 100px; */
   cursor: pointer;

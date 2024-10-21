@@ -479,9 +479,6 @@ const ItineraryMaster = () => {
 
   return (
     <div className="container flexitdest">
-      <div className="sidebarpluto">
-        <SideBar />
-      </div>
       <div className="itediv">
         <div className="itenavbar">
           <div className="itelogo">Itinerary</div>

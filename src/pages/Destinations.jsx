@@ -5,9 +5,7 @@ import SideBar from '../components/SideBar'
 function Destinations() {
   return (
     <div className='flexitdest'>
-      <div className='sidebarpluto'>
-      <SideBar />
-      </div>
+      
       <DestinationsPage />
     </div>
   )

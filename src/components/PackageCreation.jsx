@@ -705,19 +705,19 @@ console.log(itineraryDays)
     <div style={{ width: "100%" }}>
       {/* Top bar */}
       <div
-        style={{ backgroundColor: "#343a40", color: "white", padding: "10px" }}
+       className="bg-gray-100 rounded p-2 text-xl font-semibold mb-2"
       >
         Edit Package
       </div>
 
       {/* Basic Information section */}
 
-      <h2 className="mt-6 mb-6">Basic Information</h2>
+      {/* <div className="mt-6 mb-6 text-lg font-semibold ">Basic Information</div> */}
       <Form onSubmit={handleSubmit}>
         <Container
           style={{
             paddingTop: "10px",
-            border: "1px solid #ccc",
+            // border: "1px solid #ccc",
             boxShadow:
               "rgba(50, 50, 93, 0.25) 0px 2px 5px -1px, rgba(0, 0, 0, 0.3) 0px 1px 3px -1px",
           }}

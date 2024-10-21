@@ -1,5 +1,5 @@
 const config = {
-	API_HOST: "https://fathomless-castle-13554-a664f7e7daac.herokuapp.com",
+	API_HOST: "http://localhost:3000",
 }
 
 export default config;

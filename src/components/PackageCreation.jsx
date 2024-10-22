@@ -10,6 +10,7 @@ import {
 } from "firebase/storage";
 import { app } from "../firebase";
 import config from "../../config";
+import  Button  from './ui-kit/atoms/Button'
 
 const PackageCreation = () => {
   const [showIteniraryBoxes, setShowIteniraryBoxes] = useState(false);
@@ -217,7 +218,7 @@ console.log(itineraryDays)
   const renderItineraryBoxes = () => {
     return itineraryDays.map((day, index) => (
       <div key={index} className="mb-4">
-        <Row className="mb-3">
+        <Row className="mb-6">
           <Col>
             <div
               className="mb-0 text-m"
@@ -278,7 +279,7 @@ console.log(itineraryDays)
               borderRadius: "5px",
             }}
           >
-            <h4 className="mb-3">Selected Itinerary Details:</h4>
+            <h4 className="mb-6">Selected Itinerary Details:</h4>
             <p className="mb-1">
               <strong>Title:</strong> {day.selectedItinerary.itineraryTitle}
             </p>
@@ -722,7 +723,7 @@ console.log(itineraryDays)
               "rgba(50, 50, 93, 0.25) 0px 2px 5px -1px, rgba(0, 0, 0, 0.3) 0px 1px 3px -1px",
           }}
         >
-          <Row className="mb-3">
+          <Row className="mb-6">
             <Form.Group as={Col} id="packageType">
               <Form.Label style={{ fontSize: "smaller" }}>
                 Package Type
@@ -775,7 +776,7 @@ console.log(itineraryDays)
               />
             </Form.Group>
           </Row>
-          <Row className="mb-3">
+          <Row className="mb-6">
             <Form.Group as={Col} id="duration">
               <Form.Label style={{ fontSize: "smaller" }}>
                 Duration (Days)
@@ -849,7 +850,7 @@ console.log(itineraryDays)
               </Form.Select>
             </Form.Group>
           </Row>
-          <Row className="mb-3">
+          <Row className="mb-6">
             <Form.Group as={Col} id="pickupLocation">
               <Form.Label style={{ fontSize: "smaller" }}>
                 Pickup Location
@@ -931,7 +932,7 @@ console.log(itineraryDays)
               )}
             </Form.Group>
           </Row>
-          <Row className="mb-3">
+          <Row className="mb-6">
             <Form.Group as={Col} id="validTill">
               <Form.Label style={{ fontSize: "smaller" }}>
                 Valid Till
@@ -987,9 +988,9 @@ console.log(itineraryDays)
                 </label>
               </div>
             </Form.Group>
-            <div className="mb-3 mt-3 w-100">
-              <div className="flex gap-5">
-                <InputGroup style={{ width: "50%" }}>
+            <div className="mb-6 mt-3 w-100">
+              <div className="flex gap-5 rounded">
+                <InputGroup style={{ width: "50%", borderRadius:'8px' }}>
                   <Form.Label style={{ fontSize: "smaller" }}>
                     Amenities:
                   </Form.Label>
@@ -997,6 +998,7 @@ console.log(itineraryDays)
                     value={selectedAminityTag}
                     onChange={handleAmenitiesTagSelection}
                     aria-label="Select tag"
+                    style={{ borderRadius:'8px' }}
                   >
                     <option value="">Select tag</option>
                     <option value="Meals">Meals</option>
@@ -1004,14 +1006,15 @@ console.log(itineraryDays)
                     <option value="Cab">Cab</option>
                     <option value="Hotel">Hotel</option>
                   </Form.Select>
-                  <button
-                    className="btn btn-primary text-white"
-                    id="add-tag"
-                    onClick={handleAddAmenitiesTag}
-                  >
-                    Add
-                  </button>
-                  <div className="mb-3 mt-2 w-100">
+                  
+                  <Button 
+                  text="Add"
+                  id="add-tag"
+                  variant="shade"
+                  onClick={handleAddAmenitiesTag}
+                  cssClassesProps="ml-2"
+                  />
+                  <div className="mb-6 mt-2 w-100">
                     {selectedAmenitiesTags.map((tag, index) => (
                       <Badge
                         variant="secondary"
@@ -1045,19 +1048,19 @@ console.log(itineraryDays)
                       id="image"
                       multiple
                     />
-                    <button
-                      className="btn btn-primary text-white"
-                      onClick={handleImageUpload}
-                    >
-                      upload
-                    </button>
+                   
+                    <Button
+                    text="upload"
+                    onClick={handleImageUpload}
+                    variant="shade"
+                    />
                   </div>
                 </Form.Group>
               </div>
             </div>
 
             <Container className="d-flex flex-row mt-4 align-items-center gap-20">
-              <div className="mb-3 w-100">
+              <div className="mb-6 w-100">
                 <Form.Label style={{ fontSize: "smaller" }}>
                   Add Tags:
                 </Form.Label>
@@ -1074,15 +1077,15 @@ console.log(itineraryDays)
                     <option value="Friends">Friends</option>
                     <option value="Old Aged">Old Aged</option>
                   </Form.Select>
-                  <button
-                    className="btn btn-primary text-white"
-                    id="add-tag"
+                
+                  <Button
+                  text="Add"
+                  id="add-tag"
                     onClick={handleAddTag}
-                  >
-                    Add
-                  </button>
+                    variant="shade"
+                    />
                 </InputGroup>
-                <div className="mb-3 mt-1 w-100">
+                <div className="mb-6 mt-1 w-100">
                   {selectedTags.map((tag, index) => (
                     <Badge
                       variant="secondary"
@@ -1114,7 +1117,7 @@ console.log(itineraryDays)
                 </Form.Control>
               </Form.Group>
 
-              <div className="mb-3 w-100">
+              <div className="mb-6 w-100">
                 <Form.Label style={{ fontSize: "smaller" }}>
                   Price tag:
                 </Form.Label>
@@ -1148,17 +1151,17 @@ console.log(itineraryDays)
                   </Form.Control>
                 </Col>
                 <Col xs={1}>
-                  <button
-                    className="btn btn-primary text-white"
-                    id="add-tag"
+                  
+                  <Button 
+                  text="Add"
+                  id="add-tag"
                     onClick={handleAddTheme}
-                  >
-                    Add
-                  </button>
+                    variant="shade"
+                    />
                 </Col>
               </Row>
               <Row>
-                <div className="mb-3  w-100">
+                <div className="mb-6  w-100">
                   {selectedThemes.map((theme, index) => (
                     <Badge
                       variant="secondary"
@@ -1213,26 +1216,26 @@ console.log(itineraryDays)
           }}
         >
           <Container style={{ borderRight: "1px solid #ccc" }}>
-            <h2 className="mt-6 mb-6">Package Places</h2>
-            <Row className="mb-3">
+            <div className="mt-6 mb-6 text-lg">Package Places</div>
+            <Row className="mb-6">
               <Col>
-                <Form.Label style={{ fontWeight: "bold" }}>
+                <Form.Label>
                   Places Cover
                 </Form.Label>
               </Col>
               <Col>
-                <Form.Label style={{ fontWeight: "bold" }}>
+                <Form.Label>
                   No. of Nights
                 </Form.Label>
               </Col>
               <Col>
-                <Form.Label style={{ fontWeight: "bold" }}>
+                <Form.Label>
                   Place Transfer
                 </Form.Label>
               </Col>
             </Row>
             {packagePlaces.map((place, index) => (
-              <Row key={index} className="mb-3">
+              <Row key={index} className="mb-6">
                 <Col>
                   <Form.Control
                     type="text"
@@ -1318,7 +1321,7 @@ console.log(itineraryDays)
                 )}
               </Row>
             ))}
-            <div className="d-flex justify-content-between mb-3">
+            <div className="d-flex justify-content-between mb-6">
               {maxNightsReached + 1 === maxNights ? (
                 <button
                   className="btn btn-primary text-white rounded text-xs"
@@ -1337,8 +1340,8 @@ console.log(itineraryDays)
             </div>
           </Container>
           <Container>
-            <h2 className="mt-6 mb-6">Package Room Details</h2>
-            <Form.Group as={Row} className="mb-3">
+            <div className="mt-6 mb-6 text-lg">Package Room Details</div>
+            <Form.Group as={Row} className="mb-6">
               <Form.Label column sm={4} style={{ fontSize: "14px" }}>
                 Number of Rooms:
               </Form.Label>
@@ -1357,7 +1360,7 @@ console.log(itineraryDays)
               </Col>
             </Form.Group>
             {[...Array(numRooms).keys()].map((roomIndex) => (
-              <Row key={roomIndex} className="mb-3">
+              <Row key={roomIndex} className="mb-6">
                 <Col>
                   <Form.Control
                     type="text"
@@ -1434,16 +1437,16 @@ console.log(itineraryDays)
           </Container>
         )}
         <div>
-          <h2 className="mt-6 mb-6">Package Other Information</h2>
-          <div className="mb-3">
+          <div className="mt-6 mb-6 text-lg">Package Other Information</div>
+          <div className="mb-6">
             <h5 className="mt-6 mb-6">Package Description</h5>
             <RichTextInput />
           </div>
-          <div className="mb-3">
+          <div className="mb-6">
             <h5 className="mt-6 mb-6">Package Inclusions</h5>
             <RichTextInput />
           </div>
-          <div className="mb-3">
+          <div className="mb-6">
             <h5 className="mt-6 mb-6">Package Exclusions</h5>
             <RichTextInput />
           </div>

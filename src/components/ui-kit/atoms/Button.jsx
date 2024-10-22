@@ -94,9 +94,8 @@ const Button = ({
     shade: `
       bg-gray-50
       hover:bg-gray-200
-      hover:text-white
       active:bg-gray-50
-      border
+      border-2
       border-gray-300
       focus:outline-none 
       focus:ring 

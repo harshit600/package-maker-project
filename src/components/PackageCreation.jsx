@@ -10,7 +10,9 @@ import {
 } from "firebase/storage";
 import { app } from "../firebase";
 import config from "../../config";
-import  Button  from './ui-kit/atoms/Button'
+import Button from "./ui-kit/atoms/Button";
+import Dropdown from "./ui-kit/atoms/Dropdown";
+import SimpleDropdown from "./ui-kit/atoms/SimpleDropdown";
 
 const PackageCreation = () => {
   const [showIteniraryBoxes, setShowIteniraryBoxes] = useState(false);
@@ -25,7 +27,12 @@ const PackageCreation = () => {
   const [selectedTheme, setSelectedTheme] = useState("");
   const [selectedDefaultVehicle, setSelectedDefaultVehicle] = useState("");
   const [initialAmount, setInitialAmount] = useState("");
-  const [tripData, setTripData] = useState([{ fromCity: "", toCity: "", day: 0 }]);
+  const [pickupSearchInput, setPickupSearchInput] = useState(""); 
+  const [dropSearchInput, setDropSearchInput] = useState(""); 
+  const [tripData, setTripData] = useState([
+    { fromCity: "", toCity: "", day: 0 },
+  ]);
+  const [searchInput, setSearchInput] = useState("");
   const [dropLocationSearchResults, setDropLocationSearchResults] = useState(
     []
   );
@@ -86,8 +93,6 @@ const PackageCreation = () => {
     });
   };
 
-
-
   // Function to initialize itinerary days based on maxNights
   const initializeItineraryDays = () => {
     const days = [];
@@ -127,8 +132,6 @@ const PackageCreation = () => {
       return updatedDays;
     });
 
-
-
     // Update the selected itinerary title for the corresponding input field
     setSelectedItineraryTitles((prevTitles) => {
       const updatedTitles = [...prevTitles];
@@ -144,76 +147,72 @@ const PackageCreation = () => {
     });
   };
 
-
-
   const fetchItinerary = async (itineraryTitle) => {
     try {
-        const response = await fetch(`${config.API_HOST}/api/itinerary/searchitineraries?search=${itineraryTitle}`);
-        const data = await response.json();
-        return data;
+      const response = await fetch(
+        `${config.API_HOST}/api/itinerary/searchitineraries?search=${itineraryTitle}`
+      );
+      const data = await response.json();
+      return data;
     } catch (error) {
-        console.error("Error fetching itinerary:", error);
-        return null;
-    }
-};
-
-// Function to handle fetching itineraries for all days mentioned in tripData
-const fetchItinerariesForTripData = async (tripData) => {
-  tripData.forEach(async (entry, index) => {
-    if (entry.day) {
-      const itineraryTitle = `${entry.fromCity} to ${entry.toCity}`;
-      const itineraryData = await fetchItinerary(itineraryTitle);
-      console.log("Itinerary for", itineraryTitle, ":", itineraryData);
-      
-      // Update selected itinerary title in state
-      setSelectedItineraryTitles((prevTitles) => {
-        const updatedTitles = [...prevTitles];
-        updatedTitles[entry.day - 1] = itineraryTitle; // Adjust index to match day
-        return updatedTitles;
-      });
-
-      setItineraryDays((prevDays) => {
-        const updatedDays = [...prevDays];
-        updatedDays[entry.day - 1].selectedItinerary = itineraryData[0]; // Adjust index to match day
-        return updatedDays;
-      });
-      
-      // Handle itinerary data here
-    }
-  });
-};
-
-useEffect(() => {
-  const fetchItineraryData = async () => {
-    const itineraryTitle = `${formData.pickupLocation} to ${tripData[0].fromCity}`;
-    try {
-      const itineraryData = await fetchItinerary(itineraryTitle);
-      console.log("Itinerary for", itineraryTitle, ":", itineraryData);
-
-      setItineraryDays((prevDays) => {
-        const updatedDays = [...prevDays];
-        if (updatedDays.length > 0) {
-          updatedDays[0].selectedItinerary = itineraryData[0]; // Adjust index to match day
-        }
-        return updatedDays;
-      });
-    } catch (error) {
-      console.error("Error fetching itinerary data:", error);
+      console.error("Error fetching itinerary:", error);
+      return null;
     }
   };
 
-  fetchItineraryData();
+  // Function to handle fetching itineraries for all days mentioned in tripData
+  const fetchItinerariesForTripData = async (tripData) => {
+    tripData.forEach(async (entry, index) => {
+      if (entry.day) {
+        const itineraryTitle = `${entry.fromCity} to ${entry.toCity}`;
+        const itineraryData = await fetchItinerary(itineraryTitle);
+        console.log("Itinerary for", itineraryTitle, ":", itineraryData);
 
-}, [formData.pickupLocation, tripData[0].fromCity]);
+        // Update selected itinerary title in state
+        setSelectedItineraryTitles((prevTitles) => {
+          const updatedTitles = [...prevTitles];
+          updatedTitles[entry.day - 1] = itineraryTitle; // Adjust index to match day
+          return updatedTitles;
+        });
 
+        setItineraryDays((prevDays) => {
+          const updatedDays = [...prevDays];
+          updatedDays[entry.day - 1].selectedItinerary = itineraryData[0]; // Adjust index to match day
+          return updatedDays;
+        });
 
-useEffect(() => {
-  fetchItinerariesForTripData(tripData);
-},[tripData])
+        // Handle itinerary data here
+      }
+    });
+  };
 
+  useEffect(() => {
+    const fetchItineraryData = async () => {
+      const itineraryTitle = `${formData.pickupLocation} to ${tripData[0].fromCity}`;
+      try {
+        const itineraryData = await fetchItinerary(itineraryTitle);
+        console.log("Itinerary for", itineraryTitle, ":", itineraryData);
 
-console.log(itineraryDays)
+        setItineraryDays((prevDays) => {
+          const updatedDays = [...prevDays];
+          if (updatedDays.length > 0) {
+            updatedDays[0].selectedItinerary = itineraryData[0]; // Adjust index to match day
+          }
+          return updatedDays;
+        });
+      } catch (error) {
+        console.error("Error fetching itinerary data:", error);
+      }
+    };
 
+    fetchItineraryData();
+  }, [formData.pickupLocation, tripData[0].fromCity]);
+
+  useEffect(() => {
+    fetchItinerariesForTripData(tripData);
+  }, [tripData]);
+
+  console.log(itineraryDays);
 
   const renderItineraryBoxes = () => {
     return itineraryDays.map((day, index) => (
@@ -256,14 +255,14 @@ console.log(itineraryDays)
               {showDropdowns[index] && day.searchResults && (
                 <ul className="list-group dropitdown mt-1">
                   {day.searchResults.slice(0, 5).map((result) => (
-                   <li
-                   key={result._id}
-                   className="list-group-item"
-                   onClick={() => handleItinerarySelection(index, result)}
-                   style={{ cursor: "pointer" }}
-                 >
-                   {result.itineraryTitle}
-                 </li>
+                    <li
+                      key={result._id}
+                      className="list-group-item"
+                      onClick={() => handleItinerarySelection(index, result)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      {result.itineraryTitle}
+                    </li>
                   ))}
                 </ul>
               )}
@@ -475,9 +474,7 @@ console.log(itineraryDays)
     const searchString = value.trim();
     if (searchString) {
       // Make API call to search for places
-      fetch(
-        `${config.API_HOST}/api/places/searchplaces?search=${searchString}`
-      )
+      fetch(`${config.API_HOST}/api/places/searchplaces?search=${searchString}`)
         .then((response) => response.json())
         .then((data) => {
           setSearchResults(data);
@@ -494,17 +491,21 @@ console.log(itineraryDays)
     updatedPlaces[index].placeCover = selectedPlace.placeName;
     setPackagePlaces(updatedPlaces);
     setSearchResults([]);
-  
+
     // Create a new entry with the selected place as the "fromCity"
     const newEntry = { fromCity: selectedPlace.placeName, toCity: "" };
-  
+
     // Update the tripData array by inserting the new entry at the correct position
-    const updatedTripData = [...tripData.slice(0, index), newEntry, ...tripData.slice(index)];
-  
+    const updatedTripData = [
+      ...tripData.slice(0, index),
+      newEntry,
+      ...tripData.slice(index),
+    ];
+
     // Update the "toCity" of the previous entry and calculate the day number
     if (index > 0) {
       updatedTripData[index - 1].toCity = selectedPlace.placeName;
-  
+
       // Calculate the day number based on the cumulative days
       let cumulativeDays = 1; // Start from day 1
       for (let i = 0; i < index; i++) {
@@ -513,16 +514,18 @@ console.log(itineraryDays)
       }
       updatedTripData[index - 1].day = cumulativeDays;
     }
-  
+
     // Remove the last entry if it is empty
-    if (updatedTripData[updatedTripData.length - 1].fromCity === "" && updatedTripData[updatedTripData.length - 1].toCity === "") {
+    if (
+      updatedTripData[updatedTripData.length - 1].fromCity === "" &&
+      updatedTripData[updatedTripData.length - 1].toCity === ""
+    ) {
       updatedTripData.pop();
     }
-  
+
     // Update state with the new tripData
     setTripData(updatedTripData);
   };
-  
 
   const handleImageChange = (e) => {
     setFiles(Array.from(e.target.files));
@@ -625,6 +628,8 @@ console.log(itineraryDays)
     });
   };
 
+  console.log(pickupLocationSearchResults);
+
   const handleDefaultHotelPackageSelection = (e) => {
     setSelectedDefaultHotelPackage(e.target.value);
     setFormData({
@@ -641,73 +646,103 @@ console.log(itineraryDays)
     });
   };
 
-  const handlePickupLocationChange = (e) => {
-    const { value } = e.target;
+  const handlePickupLocationChange = (inputValue) => {
+    console.log(inputValue);
     setFormData((prevFormData) => ({
       ...prevFormData,
-      pickupLocation: value,
+      pickupLocation: inputValue,
     }));
 
     // Fetch data from the API based on the search query
-    fetch(`${config.API_HOST}/api/cities/searchcities?search=${value}`)
+    fetch(`${config.API_HOST}/api/cities/searchcities?search=${inputValue}`)
       .then((response) => response.json())
       .then((data) => {
-        setPickupLocationSearchResults(data.slice(0, 5)); // Limit to maximum 5 results
+        setPickupLocationSearchResults(data.slice(0, 5)); // Limit to 5 results
       })
       .catch((error) => {
         console.error("Error fetching search results:", error);
       });
   };
 
-  const handleSelectSuggestion = (selectedCity) => {
+  const handleSelectSuggestion = (selectedOption) => {
     setFormData((prevFormData) => ({
       ...prevFormData,
-      pickupLocation: selectedCity.cityName,
+      pickupLocation: selectedOption.label, // Update form data with the selected city
     }));
-
-    // addTripEntry(selectedCity.cityName)
-    setPickupLocationSearchResults([]); // Clear search results after selection
   };
 
-  const handleDropLocationChange = (e) => {
-    const { value } = e.target;
+
+  // const handleSelectSuggestion = (selectedCity) => {
+  //   setFormData((prevFormData) => ({
+  //     ...prevFormData,
+  //     pickupLocation: selectedCity.cityName,
+  //   }));
+
+  //   // addTripEntry(selectedCity.cityName)
+  //   setPickupLocationSearchResults([]); // Clear search results after selection
+  // };
+
+  const handleDropLocationChange = (inputValue) => {
     setFormData((prevFormData) => ({
       ...prevFormData,
-      dropLocation: value,
+      dropLocation: inputValue,
     }));
 
-    // Fetch data from the API based on the search query
-    fetch(`${config.API_HOST}/api/cities/searchcities?search=${value}`)
+    // Fetch data for drop location
+    fetch(`${config.API_HOST}/api/cities/searchcities?search=${inputValue}`)
       .then((response) => response.json())
       .then((data) => {
-        setDropLocationSearchResults(data.slice(0, 5)); // Limit to maximum 5 results
+        setDropLocationSearchResults(data.slice(0, 5)); // Limit to 5 results
       })
       .catch((error) => {
-        console.error("Error fetching search results:", error);
+        console.error("Error fetching drop location results:", error);
       });
   };
 
-  const handleSelectDropLocationSuggestion = (selectedCity) => {
+  const handleDropSelectSuggestion = (selectedOption) => {
     setFormData((prevFormData) => ({
       ...prevFormData,
-      dropLocation: selectedCity.cityName,
+      dropLocation: selectedOption.label, // Update drop location
     }));
-    const lastEntryIndex = tripData.length - 1;
-    if (lastEntryIndex >= 0) {
-        const updatedTripData = [...tripData];
-        updatedTripData[lastEntryIndex].toCity = selectedCity.cityName;
-        setTripData(updatedTripData);
-    }
+  };
 
-    setDropLocationSearchResults([]); // Clear search results after selection
+
+  //  // Handle the selection of a city from the dropdown
+  //  const handleSelectSuggestion = (selectedCity) => {
+  //   setFormData((prevFormData) => ({
+  //     ...prevFormData,
+  //     pickupLocation: selectedCity.cityName, // Set input to the selected city name
+  //   }));
+  // };
+
+
+
+  const durationOptions = [
+    { label: "Select Duration", value: "" },
+    { label: "2D/1N", value: "2D/1N" },
+    { label: "3D/2N", value: "3D/2N" },
+    { label: "4D/3N", value: "4D/3N" },
+    { label: "5D/4N", value: "5D/4N" },
+    { label: "6D/5N", value: "6D/5N" },
+    { label: "7D/6N", value: "7D/6N" },
+    { label: "8D/7N", value: "8D/7N" },
+    { label: "9D/8N", value: "9D/8N" },
+    { label: "10D/9N", value: "10D/9N" },
+    { label: "11D/10N", value: "11D/10N" },
+    // Add more options as needed
+  ];
+
+  const handleDurationChange = (selectedOption) => {
+    setFormData((prevFormData) => ({
+      ...prevFormData,
+      duration: selectedOption.value, // Update form data with selected duration
+    }));
   };
 
   return (
     <div style={{ width: "100%" }}>
       {/* Top bar */}
-      <div
-       className="bg-gray-100 rounded p-2 text-xl font-semibold mb-2"
-      >
+      <div className="bg-gray-100 rounded p-2 text-xl font-semibold mb-2">
         Edit Package
       </div>
 
@@ -781,26 +816,11 @@ console.log(itineraryDays)
               <Form.Label style={{ fontSize: "smaller" }}>
                 Duration (Days)
               </Form.Label>
-              <Form.Select
-                name="duration"
-                onChange={handleInputChange}
-                value={formData.duration}
-                size="sm"
-              >
-                <option value="">Select Duration</option>
-                <option value="2D/1N">2D/1N</option>
-                <option value="3D/2N">3D/2N</option>
-                <option value="4D/3N">4D/3N</option>
-                <option value="5D/4N">5D/4N</option>
-                <option value="6D/5N">6D/5N</option>
-                <option value="7D/6N">7D/6N</option>
-                <option value="8D/7N">8D/7N</option>
-                <option value="9D/8N">9D/8N</option>
-                <option value="10D/9N">10D/9N</option>
-                <option value="11D/10N">11D/10N</option>
-
-                {/* Add more options here */}
-              </Form.Select>
+               <SimpleDropdown
+      options={durationOptions}
+      label="Select Duration"
+      onSelect={handleDurationChange} // Handle selection
+    />
             </Form.Group>
             <Form.Group as={Col} id="status">
               <Form.Label style={{ fontSize: "smaller" }}>Status</Form.Label>
@@ -856,29 +876,17 @@ console.log(itineraryDays)
                 Pickup Location
               </Form.Label>
               {/* Use input for search */}
-              <input
-                type="text"
-                name="pickupLocation"
-                className="form-control form-control-sm"
+              <Dropdown
+                options={pickupLocationSearchResults.map((city) => ({
+                  label: `${city.cityName}, ${city.state}, ${city.country}`,
+                  value: city._id, // Each option has an ID or unique value
+                }))}
+                setSearchInput={setSearchInput}
                 onChange={handlePickupLocationChange}
-                value={formData.pickupLocation}
-                placeholder="Search Pickup Location"
+                searchInput={searchInput}
+                label="Search Pickup Location"
+                onSelect={handleSelectSuggestion} // Handle selection
               />
-              {/* Display search suggestions */}
-              {pickupLocationSearchResults.length > 0 && (
-                <ul className="list-group mt-1">
-                  {pickupLocationSearchResults.map((city) => (
-                    <li
-                      key={city._id}
-                      className="list-group-item"
-                      onClick={() => handleSelectSuggestion(city)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      {city.cityName}
-                    </li>
-                  ))}
-                </ul>
-              )}
             </Form.Group>
             <Form.Group as={Col} id="pickupTransfer">
               <Form.Label style={{ fontSize: "smaller" }}>
@@ -907,29 +915,17 @@ console.log(itineraryDays)
                 Drop Location
               </Form.Label>
               {/* Use input for search */}
-              <input
-                type="text"
-                name="dropLocation"
-                className="form-control form-control-sm"
+              <Dropdown
+                options={dropLocationSearchResults.map((city) => ({
+                  label: `${city.cityName}, ${city.state}, ${city.country}`,
+                  value: city._id, // Each option has an ID or unique value
+                }))}
+                setSearchInput={setPickupSearchInput}
                 onChange={handleDropLocationChange}
-                value={formData.dropLocation}
-                placeholder="Search Drop Location"
+                searchInput={pickupSearchInput}
+                label="Search Drop Location"
+                onSelect={handleDropSelectSuggestion} // Handle selection
               />
-              {/* Display search suggestions */}
-              {dropLocationSearchResults.length > 0 && (
-                <ul className="list-group mt-1">
-                  {dropLocationSearchResults.map((city) => (
-                    <li
-                      key={city._id}
-                      className="list-group-item"
-                      onClick={() => handleSelectDropLocationSuggestion(city)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      {city.cityName}
-                    </li>
-                  ))}
-                </ul>
-              )}
             </Form.Group>
           </Row>
           <Row className="mb-6">
@@ -990,7 +986,7 @@ console.log(itineraryDays)
             </Form.Group>
             <div className="mb-6 mt-3 w-100">
               <div className="flex gap-5 rounded">
-                <InputGroup style={{ width: "50%", borderRadius:'8px' }}>
+                <InputGroup style={{ width: "50%", borderRadius: "8px" }}>
                   <Form.Label style={{ fontSize: "smaller" }}>
                     Amenities:
                   </Form.Label>
@@ -998,7 +994,7 @@ console.log(itineraryDays)
                     value={selectedAminityTag}
                     onChange={handleAmenitiesTagSelection}
                     aria-label="Select tag"
-                    style={{ borderRadius:'8px' }}
+                    style={{ borderRadius: "8px" }}
                   >
                     <option value="">Select tag</option>
                     <option value="Meals">Meals</option>
@@ -1006,13 +1002,13 @@ console.log(itineraryDays)
                     <option value="Cab">Cab</option>
                     <option value="Hotel">Hotel</option>
                   </Form.Select>
-                  
-                  <Button 
-                  text="Add"
-                  id="add-tag"
-                  variant="shade"
-                  onClick={handleAddAmenitiesTag}
-                  cssClassesProps="ml-2"
+
+                  <Button
+                    text="Add"
+                    id="add-tag"
+                    variant="shade"
+                    onClick={handleAddAmenitiesTag}
+                    cssClassesProps="ml-2"
                   />
                   <div className="mb-6 mt-2 w-100">
                     {selectedAmenitiesTags.map((tag, index) => (
@@ -1048,11 +1044,11 @@ console.log(itineraryDays)
                       id="image"
                       multiple
                     />
-                   
+
                     <Button
-                    text="upload"
-                    onClick={handleImageUpload}
-                    variant="shade"
+                      text="upload"
+                      onClick={handleImageUpload}
+                      variant="shade"
                     />
                   </div>
                 </Form.Group>
@@ -1077,13 +1073,13 @@ console.log(itineraryDays)
                     <option value="Friends">Friends</option>
                     <option value="Old Aged">Old Aged</option>
                   </Form.Select>
-                
+
                   <Button
-                  text="Add"
-                  id="add-tag"
+                    text="Add"
+                    id="add-tag"
                     onClick={handleAddTag}
                     variant="shade"
-                    />
+                  />
                 </InputGroup>
                 <div className="mb-6 mt-1 w-100">
                   {selectedTags.map((tag, index) => (
@@ -1151,13 +1147,12 @@ console.log(itineraryDays)
                   </Form.Control>
                 </Col>
                 <Col xs={1}>
-                  
-                  <Button 
-                  text="Add"
-                  id="add-tag"
+                  <Button
+                    text="Add"
+                    id="add-tag"
                     onClick={handleAddTheme}
                     variant="shade"
-                    />
+                  />
                 </Col>
               </Row>
               <Row>
@@ -1219,19 +1214,13 @@ console.log(itineraryDays)
             <div className="mt-6 mb-6 text-lg">Package Places</div>
             <Row className="mb-6">
               <Col>
-                <Form.Label>
-                  Places Cover
-                </Form.Label>
+                <Form.Label>Places Cover</Form.Label>
               </Col>
               <Col>
-                <Form.Label>
-                  No. of Nights
-                </Form.Label>
+                <Form.Label>No. of Nights</Form.Label>
               </Col>
               <Col>
-                <Form.Label>
-                  Place Transfer
-                </Form.Label>
+                <Form.Label>Place Transfer</Form.Label>
               </Col>
             </Row>
             {packagePlaces.map((place, index) => (

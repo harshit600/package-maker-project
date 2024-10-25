@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 function SideBar() {
     const { currentUser } = useSelector((state) => state.user);
   return (
-    <aside id="logo-sidebar" className="sticky asidepluto top-[20px] ml-2 rounded shadow-sm left-0 z-12 w-64 pt-2 bg-gray-50 transition-transform -translate-x-full  border-r border-gray-200 sm:translate-x-0 dark:bg-gray-800 dark:border-gray-700" aria-label="Sidebar" style={{height: 'calc(100vh - 80px'}}>
+    <aside id="logo-sidebar" className="sticky asidepluto top-[0px] ml-2 rounded shadow-sm left-0 z-12 w-64 pt-2 bg-gray-50 transition-transform -translate-x-full  border-r border-gray-200 sm:translate-x-0 dark:bg-gray-800 dark:border-gray-700" aria-label="Sidebar" style={{height: 'calc(100vh - 80px'}}>
     <div className="h-full px-3 pb-4 overflow-y-auto text-white  dark:bg-gray-800">
        <ul className="space-y-2 font-medium">
           <li>

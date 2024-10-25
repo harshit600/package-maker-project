@@ -398,6 +398,7 @@ const ItineraryMaster = () => {
   };
 
   const handleEdit = async (id) => {
+    console.log(id)
     setShowForm(true);
     setIsEditMode(id);
     try {
@@ -475,6 +476,8 @@ const ItineraryMaster = () => {
   
     // Slice the data array to get items for the current page
     const currentPageData = filteredItineraryData.slice(startIndex, endIndex);
+
+    console.log(currentPageData)
   
 
   return (

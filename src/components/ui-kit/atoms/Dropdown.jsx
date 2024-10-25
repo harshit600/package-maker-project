@@ -49,13 +49,13 @@ const Dropdown = ({ options, label, onSelect, onChange, searchInput, setSearchIn
   };
 
   return (
-    <div className="relative inline-block w-64" ref={dropdownRef}>
+    <div className="relative inline-block w-full" ref={dropdownRef}>
       <input
         type="text"
         value={searchInput}
         onChange={handleInputChange}
         placeholder={label}
-        className="w-full px-4 py-2 text-left bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        className="w-full text-sm px-4 py-2 text-left bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
       />
 
       {isOpen && filteredOptions.length > 0 && (
@@ -64,7 +64,7 @@ const Dropdown = ({ options, label, onSelect, onChange, searchInput, setSearchIn
             <li
               key={option.value}
               onClick={() => handleSelect(option)}
-              className="px-4 py-2 cursor-pointer hover:bg-gray-100"
+              className="px-4 py-2 text-xs cursor-pointer hover:bg-gray-100"
             >
               {option.label}
             </li>

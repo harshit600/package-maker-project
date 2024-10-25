@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Container, Form, Row, Col, InputGroup, Badge } from "react-bootstrap";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
@@ -13,22 +13,30 @@ import config from "../../config";
 import Button from "./ui-kit/atoms/Button";
 import Dropdown from "./ui-kit/atoms/Dropdown";
 import SimpleDropdown from "./ui-kit/atoms/SimpleDropdown";
+import MultiSelectDropdown from "./ui-kit/atoms/MultiSelectDropdown";
+import {
+  durationOptions,
+  packageTypeOptions,
+  packageCategoryOptions,
+  statusOptions,
+  hotelCategoryOptions,
+  tourByOptions,
+  agentPackageOptions,
+  amenitiesOptions,
+  TagOptions,
+  themeOptions,
+  hotelPackageOptions,
+  vehicleOptions,
+  priceTagOptions,
+} from "./ui-kit/onBoardingConstants/onBoardingData";
 
 const PackageCreation = () => {
   const [showIteniraryBoxes, setShowIteniraryBoxes] = useState(false);
-  const [selectedTags, setSelectedTags] = useState([]);
-  const [selectedTag, setSelectedTag] = useState("");
-  const [selectedAmenitiesTags, setSelectedAmenitiesTags] = useState([]);
-  const [selectedAminityTag, setSelectedAminityTag] = useState("");
   const [files, setFiles] = useState([]); // Added files state
+  const [imgUrls, setImgUrls] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [imageUploadError, setImageUploadError] = useState(null);
-  const [selectedThemes, setSelectedThemes] = useState([]);
-  const [selectedTheme, setSelectedTheme] = useState("");
-  const [selectedDefaultVehicle, setSelectedDefaultVehicle] = useState("");
-  const [initialAmount, setInitialAmount] = useState("");
-  const [pickupSearchInput, setPickupSearchInput] = useState(""); 
-  const [dropSearchInput, setDropSearchInput] = useState(""); 
+  const [pickupSearchInput, setPickupSearchInput] = useState("");
   const [tripData, setTripData] = useState([
     { fromCity: "", toCity: "", day: 0 },
   ]);
@@ -54,6 +62,7 @@ const PackageCreation = () => {
     packageCategory: "",
     packageName: "",
     packageImages: [],
+    priceTag: "",
     duration: "",
     status: "",
     displayOrder: "",
@@ -72,6 +81,9 @@ const PackageCreation = () => {
     tags: [],
     customizablePackage: false,
     amenities: [],
+    packageDescription:"",
+    packageInclusions:"",
+    packageExclusions:""
   });
 
   const [activeSuggestion, setActiveSuggestion] = useState(
@@ -128,7 +140,9 @@ const PackageCreation = () => {
     // Update the selected itinerary for the corresponding day
     setItineraryDays((prevDays) => {
       const updatedDays = [...prevDays];
+      if(updatedDays[index]){
       updatedDays[index].selectedItinerary = selectedItinerary;
+    }
       return updatedDays;
     });
 
@@ -166,7 +180,6 @@ const PackageCreation = () => {
       if (entry.day) {
         const itineraryTitle = `${entry.fromCity} to ${entry.toCity}`;
         const itineraryData = await fetchItinerary(itineraryTitle);
-        console.log("Itinerary for", itineraryTitle, ":", itineraryData);
 
         // Update selected itinerary title in state
         setSelectedItineraryTitles((prevTitles) => {
@@ -191,7 +204,6 @@ const PackageCreation = () => {
       const itineraryTitle = `${formData.pickupLocation} to ${tripData[0].fromCity}`;
       try {
         const itineraryData = await fetchItinerary(itineraryTitle);
-        console.log("Itinerary for", itineraryTitle, ":", itineraryData);
 
         setItineraryDays((prevDays) => {
           const updatedDays = [...prevDays];
@@ -199,6 +211,11 @@ const PackageCreation = () => {
             updatedDays[0].selectedItinerary = itineraryData[0]; // Adjust index to match day
           }
           return updatedDays;
+        });
+        setSelectedItineraryTitles((prevTitles) => {
+          const updatedTitles = [...prevTitles];
+          updatedTitles[0] = itineraryTitle; // Adjust index to match day
+          return updatedTitles;
         });
       } catch (error) {
         console.error("Error fetching itinerary data:", error);
@@ -211,8 +228,6 @@ const PackageCreation = () => {
   useEffect(() => {
     fetchItinerariesForTripData(tripData);
   }, [tripData]);
-
-  console.log(itineraryDays);
 
   const renderItineraryBoxes = () => {
     return itineraryDays.map((day, index) => (
@@ -270,38 +285,33 @@ const PackageCreation = () => {
           </Col>
         </Row>
         {day.selectedItinerary && (
-          <div
-            className="p-3"
-            style={{
-              backgroundColor: "white",
-              border: "1px solid #ccc",
-              borderRadius: "5px",
-            }}
-          >
-            <h4 className="mb-6">Selected Itinerary Details:</h4>
-            <p className="mb-1">
-              <strong>Title:</strong> {day.selectedItinerary.itineraryTitle}
-            </p>
-            <p className="mb-1">
-              <strong>Description:</strong>{" "}
-              {day.selectedItinerary.itineraryDescription}
-            </p>
-            <p className="mb-1">
-              <strong>City:</strong> {day.selectedItinerary.cityName}
-            </p>
-            <p className="mb-1">
-              <strong>Country:</strong> {day.selectedItinerary.country}
-            </p>
-            <p className="mb-0">
-              <strong>Duration:</strong> {day.selectedItinerary.totalHours}{" "}
-              hours
-            </p>
-            <p className="mb-0">
-              <strong>Distance:</strong> {day.selectedItinerary.distance} km
-            </p>
-            {/* Add more details as needed */}
-          </div>
-        )}
+  <div className="p-6 bg-white shadow-md border border-gray-200 rounded-xl w-full">
+    <h4 className="text-xl font-semibold text-gray-800 mb-4">
+      Selected Itinerary Details
+    </h4>
+    <div className="space-y-3">
+      <p className="text-gray-600">
+        <span className="font-medium text-gray-800">📌 Title:</span> {day.selectedItinerary.itineraryTitle}
+      </p>
+      <p className="text-gray-600">
+        <span className="font-medium text-gray-800">📝 Description:</span> {day.selectedItinerary.itineraryDescription}
+      </p>
+      <p className="text-gray-600">
+        <span className="font-medium text-gray-800">🌆 City:</span> {day.selectedItinerary.cityName}
+      </p>
+      <p className="text-gray-600">
+        <span className="font-medium text-gray-800">🌍 Country:</span> {day.selectedItinerary.country}
+      </p>
+      <p className="text-gray-600">
+        <span className="font-medium text-gray-800">⏳ Duration:</span> {day.selectedItinerary.totalHours} hours
+      </p>
+      <p className="text-gray-600">
+        <span className="font-medium text-gray-800">📏 Distance:</span> {day.selectedItinerary.distance} km
+      </p>
+    </div>
+  </div>
+)}
+
       </div>
     ));
   };
@@ -315,7 +325,6 @@ const PackageCreation = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     // Perform form submission or API call here
-    console.log(formData);
   };
 
   const handleAddItineraryDay = () => {
@@ -335,48 +344,6 @@ const PackageCreation = () => {
     const updatedItinerary = [...itineraryDays];
     updatedItinerary.pop();
     setItineraryDays(updatedItinerary);
-  };
-
-  const handleTagSelection = (e) => {
-    setSelectedTag(e.target.value);
-  };
-
-  const handleAddTag = () => {
-    if (selectedTag && !selectedTags.includes(selectedTag)) {
-      const updatedTags = [...selectedTags, selectedTag];
-      setSelectedTags(updatedTags);
-      setFormData({
-        ...formData,
-        tags: updatedTags,
-      });
-      setSelectedTag("");
-    }
-  };
-
-  const handleRemoveTag = (tag) => {
-    setSelectedTags(selectedTags.filter((t) => t !== tag));
-  };
-
-  const handleAmenitiesTagSelection = (e) => {
-    setSelectedAminityTag(e.target.value);
-  };
-
-  const handleAddAmenitiesTag = () => {
-    if (
-      selectedAminityTag &&
-      !selectedAmenitiesTags.includes(selectedAminityTag)
-    ) {
-      setSelectedAmenitiesTags([...selectedAmenitiesTags, selectedAminityTag]);
-      setFormData({
-        ...formData,
-        amenities: [...formData.amenities, selectedAminityTag],
-      });
-      setSelectedAminityTag("");
-    }
-  };
-
-  const handleRemoveAmenitiesTag = (tag) => {
-    setSelectedAmenitiesTags(selectedAmenitiesTags.filter((t) => t !== tag));
   };
 
   const [maxNightsReached, setMaxNightsReached] = useState(0);
@@ -450,6 +417,7 @@ const PackageCreation = () => {
   };
 
   const handlePlaceInputChange = (index, event) => {
+    setIsDropdownOpen(true); // Close the dropdown
     const { name, value } = event.target;
     const updatedPlaces = [...packagePlaces];
     setActiveIndex(index);
@@ -578,6 +546,10 @@ const PackageCreation = () => {
         },
         () => {
           getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+            setImgUrls((prevState) => ({
+              ...prevState,
+              imgUrls: [...(prevState.imgUrls || []), downloadURL],
+            }));
             resolve(downloadURL);
           });
         }
@@ -592,52 +564,6 @@ const PackageCreation = () => {
     setPackagePlaces(updatedPlaces);
   };
 
-  const handleThemeSelection = (e) => {
-    setSelectedTheme(e.target.value);
-  };
-
-  const handleAddTheme = () => {
-    if (selectedTheme && !selectedThemes.includes(selectedTheme)) {
-      const updatedThemes = [...selectedThemes, selectedTheme];
-      setSelectedThemes(updatedThemes);
-      setFormData({
-        ...formData,
-        themes: updatedThemes,
-      });
-      setSelectedTheme("");
-    }
-  };
-
-  const handleRemoveTheme = (theme) => {
-    setSelectedThemes(selectedThemes.filter((t) => t !== theme));
-  };
-
-  const handleDefaultVehicleSelection = (e) => {
-    setSelectedDefaultVehicle(e.target.value);
-    setFormData({
-      ...formData,
-      defaultVehicle: e.target.value,
-    });
-  };
-
-  const handleInitialAmountChange = (e) => {
-    setInitialAmount(e.target.value);
-    setFormData({
-      ...formData,
-      initialAmount: e.target.value,
-    });
-  };
-
-  console.log(pickupLocationSearchResults);
-
-  const handleDefaultHotelPackageSelection = (e) => {
-    setSelectedDefaultHotelPackage(e.target.value);
-    setFormData({
-      ...formData,
-      defaultHotelPackage: e.target.value,
-    });
-  };
-
   const handleCustomizableChange = (e) => {
     const isChecked = e.target.checked;
     setFormData({
@@ -647,7 +573,6 @@ const PackageCreation = () => {
   };
 
   const handlePickupLocationChange = (inputValue) => {
-    console.log(inputValue);
     setFormData((prevFormData) => ({
       ...prevFormData,
       pickupLocation: inputValue,
@@ -670,17 +595,6 @@ const PackageCreation = () => {
       pickupLocation: selectedOption.label, // Update form data with the selected city
     }));
   };
-
-
-  // const handleSelectSuggestion = (selectedCity) => {
-  //   setFormData((prevFormData) => ({
-  //     ...prevFormData,
-  //     pickupLocation: selectedCity.cityName,
-  //   }));
-
-  //   // addTripEntry(selectedCity.cityName)
-  //   setPickupLocationSearchResults([]); // Clear search results after selection
-  // };
 
   const handleDropLocationChange = (inputValue) => {
     setFormData((prevFormData) => ({
@@ -706,43 +620,76 @@ const PackageCreation = () => {
     }));
   };
 
-
-  //  // Handle the selection of a city from the dropdown
-  //  const handleSelectSuggestion = (selectedCity) => {
-  //   setFormData((prevFormData) => ({
-  //     ...prevFormData,
-  //     pickupLocation: selectedCity.cityName, // Set input to the selected city name
-  //   }));
-  // };
-
-
-
-  const durationOptions = [
-    { label: "Select Duration", value: "" },
-    { label: "2D/1N", value: "2D/1N" },
-    { label: "3D/2N", value: "3D/2N" },
-    { label: "4D/3N", value: "4D/3N" },
-    { label: "5D/4N", value: "5D/4N" },
-    { label: "6D/5N", value: "6D/5N" },
-    { label: "7D/6N", value: "7D/6N" },
-    { label: "8D/7N", value: "8D/7N" },
-    { label: "9D/8N", value: "9D/8N" },
-    { label: "10D/9N", value: "10D/9N" },
-    { label: "11D/10N", value: "11D/10N" },
-    // Add more options as needed
-  ];
-
-  const handleDurationChange = (selectedOption) => {
+  const handleDropDownChange = (name, value) => {
     setFormData((prevFormData) => ({
       ...prevFormData,
-      duration: selectedOption.value, // Update form data with selected duration
+      [name]: value, // Dynamically update the form field based on name
     }));
   };
+
+  useEffect(() => {
+    if (maxNightsReached + 1 === maxNights) {
+      handleItenaryBoxes();
+    }
+  }, [maxNightsReached]);
+
+  const checkAndRemoveLastEntry = () => {
+    // Check if packagePlaces is not empty
+    if (packagePlaces.length > 0) {
+      const lastIndex = packagePlaces.length - 1;
+      const lastNightsValue = packagePlaces[lastIndex].nights;
+
+      // If the last entry's nights is greater than 1, remove it
+      if (maxNightsReached + 1 === maxNights && lastNightsValue === "") {
+        setPackagePlaces((prevPackagePlaces) => {
+          // Create a new array without the last element
+          return prevPackagePlaces.slice(0, -1);
+        });
+      }
+    }
+  };
+
+  useEffect(() => {
+    checkAndRemoveLastEntry();
+  }, [maxNightsReached, packagePlaces]); // Runs whenever lastNightsValue changes
+
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Function to handle click outside
+  const handleClickOutside = (event) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      setIsDropdownOpen(false); // Close the dropdown
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+
+  const handleMultiSelectChange = (field, selectedOptions) => {
+    setFormData((prevFormData) => ({
+      ...prevFormData,
+      [field]: selectedOptions,
+    }));
+  };
+
+  const handleRichTextChange = (field, value) => {
+    setFormData((prevData) => ({
+      ...prevData,
+      [field]: value,
+    }));
+  };
+
 
   return (
     <div style={{ width: "100%" }}>
       {/* Top bar */}
-      <div className="bg-gray-100 rounded p-2 text-xl font-semibold mb-2">
+      <div className="bg-gray-100 rounded p-2 text-xl font-semibold mb-2 border-l-4 text-center border-r-4 border-black">
         Edit Package
       </div>
 
@@ -754,48 +701,37 @@ const PackageCreation = () => {
           style={{
             paddingTop: "10px",
             // border: "1px solid #ccc",
+            borderRadius: "8px",
             boxShadow:
               "rgba(50, 50, 93, 0.25) 0px 2px 5px -1px, rgba(0, 0, 0, 0.3) 0px 1px 3px -1px",
           }}
         >
-          <Row className="mb-6">
+          <Row className="mb-[40px]">
             <Form.Group as={Col} id="packageType">
               <Form.Label style={{ fontSize: "smaller" }}>
                 Package Type
               </Form.Label>
-              <Form.Select
-                name="packageType"
-                onChange={handleInputChange}
+              <SimpleDropdown
+                options={packageTypeOptions}
+                label="Select Package Type"
+                onSelect={(selectedOption) =>
+                  handleDropDownChange("packageType", selectedOption.value)
+                }
                 value={formData.packageType}
-                size="sm"
-              >
-                <option value="">Select Type</option>
-                <option value="Family">Family</option>
-                <option value="Friends">Friends</option>
-                <option value="Honeymoon">Honeymoon</option>
-                <option value="Group">Group</option>
-                <option value="Couple">Couple (Casual Trip)</option>
-                {/* Add more options here */}
-              </Form.Select>
+              />
             </Form.Group>
             <Form.Group as={Col} id="packageCategory">
               <Form.Label style={{ fontSize: "smaller" }}>
                 Package Category
               </Form.Label>
-              <Form.Select
-                name="packageCategory"
-                onChange={handleInputChange}
+              <SimpleDropdown
+                options={packageCategoryOptions}
+                label="Select Package Type"
+                onSelect={(selectedOption) =>
+                  handleDropDownChange("packageCategory", selectedOption.value)
+                }
                 value={formData.packageCategory}
-                size="sm"
-              >
-                <option value="">Select Category</option>
-                <option value="Family">Family</option>
-                <option value="Friends">Friends</option>
-                <option value="Honeymoon">Honeymoon</option>
-                <option value="Group">Group</option>
-                <option value="Couple">Couple (Casual Trip)</option>
-                {/* Add more options here */}
-              </Form.Select>
+              />
             </Form.Group>
             <Form.Group as={Col} id="packageName">
               <Form.Label style={{ fontSize: "smaller" }}>
@@ -807,33 +743,35 @@ const PackageCreation = () => {
                 name="packageName"
                 onChange={handleInputChange}
                 value={formData.packageName}
-                size="sm"
+                size="md"
+                className="text-sm placeholder-gray-400 placeholder-opacity-100"
               />
             </Form.Group>
           </Row>
-          <Row className="mb-6">
+          <Row className="mb-[40px]">
             <Form.Group as={Col} id="duration">
               <Form.Label style={{ fontSize: "smaller" }}>
                 Duration (Days)
               </Form.Label>
-               <SimpleDropdown
-      options={durationOptions}
-      label="Select Duration"
-      onSelect={handleDurationChange} // Handle selection
-    />
+              <SimpleDropdown
+                options={durationOptions}
+                label="Select Duration"
+                onSelect={(selectedOption) =>
+                  handleDropDownChange("duration", selectedOption.value)
+                }
+                value={formData.duration}
+              />
             </Form.Group>
             <Form.Group as={Col} id="status">
               <Form.Label style={{ fontSize: "smaller" }}>Status</Form.Label>
-              <Form.Select
-                name="status"
-                onChange={handleInputChange}
+              <SimpleDropdown
+                options={statusOptions}
+                label="Select Duration"
+                onSelect={(selectedOption) =>
+                  handleDropDownChange("status", selectedOption.value)
+                }
                 value={formData.status}
-                size="sm"
-              >
-                <option value="">Select Status</option>
-                <option value="enabled">Enabled</option>
-                <option value="disabled">Disabled</option>
-              </Form.Select>
+              />
             </Form.Group>
             <Form.Group as={Col} id="displayOrder">
               <Form.Label style={{ fontSize: "smaller" }}>
@@ -842,9 +780,11 @@ const PackageCreation = () => {
               <Form.Control
                 type="number"
                 name="displayOrder"
+                placeholder="Display order"
                 onChange={handleInputChange}
                 value={formData.displayOrder}
-                size="sm"
+                size="md"
+                className="text-sm placeholder-gray-400 placeholder-opacity-100"
               />
               <Form.Text className="text-muted text-xs">
                 1 is Highest and 100 is Lowest
@@ -854,23 +794,17 @@ const PackageCreation = () => {
               <Form.Label style={{ fontSize: "smaller" }}>
                 Hotel Category
               </Form.Label>
-              <Form.Select
-                name="hotelCategory"
-                onChange={handleInputChange}
+              <SimpleDropdown
+                options={hotelCategoryOptions}
+                label="Select Hotel Category"
+                onSelect={(selectedOption) =>
+                  handleDropDownChange("hotelCategory", selectedOption.value)
+                }
                 value={formData.hotelCategory}
-                size="sm"
-              >
-                <option value="">Select Hotel Category</option>
-                <option value="Standard">Standard</option>
-                <option value="Delux">Deluxe</option>
-                <option value="3 star">3 star</option>
-                <option value="4 star">4 star</option>
-                <option value="5 star">5 star</option>
-                {/* Add more options here */}
-              </Form.Select>
+              />
             </Form.Group>
           </Row>
-          <Row className="mb-6">
+          <Row className="mb-[40px]">
             <Form.Group as={Col} id="pickupLocation">
               <Form.Label style={{ fontSize: "smaller" }}>
                 Pickup Location
@@ -878,7 +812,7 @@ const PackageCreation = () => {
               {/* Use input for search */}
               <Dropdown
                 options={pickupLocationSearchResults.map((city) => ({
-                  label: `${city.cityName}, ${city.state}, ${city.country}`,
+                  label: `${city.cityName}`,
                   value: city._id, // Each option has an ID or unique value
                 }))}
                 setSearchInput={setSearchInput}
@@ -889,10 +823,16 @@ const PackageCreation = () => {
               />
             </Form.Group>
             <Form.Group as={Col} id="pickupTransfer">
-              <Form.Label style={{ fontSize: "smaller" }}>
+              <Form.Label
+                style={{
+                  fontSize: "smaller",
+                  textAlign: "center",
+                  marginBottom: "15px",
+                }}
+              >
                 Pickup Transfer
               </Form.Label>
-              <div className="flex align-center gap-2">
+              <div className="flex align-center justify-center gap-2">
                 <Form.Text className="text-muted">Day</Form.Text>
                 <Form.Check
                   type="switch"
@@ -928,7 +868,7 @@ const PackageCreation = () => {
               />
             </Form.Group>
           </Row>
-          <Row className="mb-6">
+          <Row className="mb-[40px]">
             <Form.Group as={Col} id="validTill">
               <Form.Label style={{ fontSize: "smaller" }}>
                 Valid Till
@@ -943,31 +883,27 @@ const PackageCreation = () => {
             </Form.Group>
             <Form.Group as={Col} id="tourBy">
               <Form.Label style={{ fontSize: "smaller" }}>Tour By</Form.Label>
-              <Form.Select
-                name="tourBy"
-                onChange={handleInputChange}
+              <SimpleDropdown
+                options={tourByOptions}
+                label="Tour By"
+                onSelect={(selectedOption) =>
+                  handleDropDownChange("tourBy", selectedOption.value)
+                }
                 value={formData.tourBy}
-                size="sm"
-              >
-                <option value="">Select Tour By</option>
-                <option value="volvo">Volvo</option>
-                <option value="taxi/cab">Taxi/Cab</option>
-              </Form.Select>
+              />
             </Form.Group>
             <Form.Group as={Col} id="agentPackage">
               <Form.Label style={{ fontSize: "smaller" }}>
                 Agent Package
               </Form.Label>
-              <Form.Select
-                name="agentPackage"
-                onChange={handleInputChange}
+              <SimpleDropdown
+                options={agentPackageOptions}
+                label="Select Agent Package"
+                onSelect={(selectedOption) =>
+                  handleDropDownChange("agentPackage", selectedOption.value)
+                }
                 value={formData.agentPackage}
-                size="sm"
-              >
-                <option value="">Select Agent Package</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </Form.Select>
+              />
             </Form.Group>
             <Form.Group as={Col} id="customizable">
               {/* Checkbox for Customizable Package */}
@@ -986,47 +922,11 @@ const PackageCreation = () => {
             </Form.Group>
             <div className="mb-6 mt-3 w-100">
               <div className="flex gap-5 rounded">
-                <InputGroup style={{ width: "50%", borderRadius: "8px" }}>
-                  <Form.Label style={{ fontSize: "smaller" }}>
-                    Amenities:
-                  </Form.Label>
-                  <Form.Select
-                    value={selectedAminityTag}
-                    onChange={handleAmenitiesTagSelection}
-                    aria-label="Select tag"
-                    style={{ borderRadius: "8px" }}
-                  >
-                    <option value="">Select tag</option>
-                    <option value="Meals">Meals</option>
-                    <option value="Sightseeing">Sightseeing</option>
-                    <option value="Cab">Cab</option>
-                    <option value="Hotel">Hotel</option>
-                  </Form.Select>
-
-                  <Button
-                    text="Add"
-                    id="add-tag"
-                    variant="shade"
-                    onClick={handleAddAmenitiesTag}
-                    cssClassesProps="ml-2"
-                  />
-                  <div className="mb-6 mt-2 w-100">
-                    {selectedAmenitiesTags.map((tag, index) => (
-                      <Badge
-                        variant="secondary"
-                        key={index}
-                        // bg="secondary"
-                        className="me-2 mb-2 tag-badge"
-                        onClick={() => handleRemoveAmenitiesTag(tag)}
-                      >
-                        {tag}
-                        <span aria-hidden="true" style={{ marginLeft: "5px" }}>
-                          &times;
-                        </span>
-                      </Badge>
-                    ))}
-                  </div>
-                </InputGroup>
+                <MultiSelectDropdown
+                  options={amenitiesOptions}
+                  label="Amenities"
+                  handleChange={(selectedOptions) => handleMultiSelectChange('amenities', selectedOptions)}
+                />
                 <Form.Group
                   style={{ width: "50%" }}
                   as={Col}
@@ -1057,119 +957,41 @@ const PackageCreation = () => {
 
             <Container className="d-flex flex-row mt-4 align-items-center gap-20">
               <div className="mb-6 w-100">
-                <Form.Label style={{ fontSize: "smaller" }}>
-                  Add Tags:
-                </Form.Label>
-                <InputGroup>
-                  <Form.Select
-                    value={selectedTag}
-                    onChange={handleTagSelection}
-                    aria-label="Select tag"
-                  >
-                    <option value="">Select tag</option>
-                    <option value="Women Special">Women Special</option>
-                    <option value="Couple Friendly">Couple Friendly</option>
-                    <option value="Family">Family</option>
-                    <option value="Friends">Friends</option>
-                    <option value="Old Aged">Old Aged</option>
-                  </Form.Select>
-
-                  <Button
-                    text="Add"
-                    id="add-tag"
-                    onClick={handleAddTag}
-                    variant="shade"
-                  />
-                </InputGroup>
-                <div className="mb-6 mt-1 w-100">
-                  {selectedTags.map((tag, index) => (
-                    <Badge
-                      variant="secondary"
-                      key={index}
-                      // bg="secondary"
-                      className="me-2 mb-2 tag-badge"
-                      onClick={() => handleRemoveTag(tag)}
-                    >
-                      {tag}
-                      <span aria-hidden="true">&times;</span>
-                    </Badge>
-                  ))}
-                </div>
+                <MultiSelectDropdown options={TagOptions} label="Add tags" handleChange={(selectedOptions) => handleMultiSelectChange('tags', selectedOptions)}/>
               </div>
               {/* Default Hotel Package Section */}
-              <Form.Group className="w-100">
+              <Form.Group className="mb-6 w-100">
                 <Form.Label>Default Hotel Package:</Form.Label>
-                <Form.Control
-                  as="select"
-                  value={selectedDefaultHotelPackage}
-                  onChange={handleDefaultHotelPackageSelection}
-                >
-                  <option value="">Select hotel package</option>
-                  <option value="standard">Standard</option>
-                  <option value="deluxe">Deluxe</option>
-                  <option value="3star">3 Star</option>
-                  <option value="4star">4 Star</option>
-                  <option value="5star">5 Star</option>
-                </Form.Control>
+                <SimpleDropdown
+                  options={hotelPackageOptions}
+                  label="Select Hotel Package"
+                  onSelect={(selectedOption) =>
+                    handleDropDownChange(
+                      "hotelPackageOptions",
+                      selectedOption.value
+                    )
+                  }
+                  value={formData.hotelPackageOptions}
+                />
               </Form.Group>
 
               <div className="mb-6 w-100">
-                <Form.Label style={{ fontSize: "smaller" }}>
-                  Price tag:
-                </Form.Label>
-                <InputGroup>
-                  <Form.Select aria-label="Select price tag">
-                    <option value="">Select price tag</option>
-                    <option value="Per Person">Per Person</option>
-                    <option value="Family (4)">Family (4)</option>
-                    <option value="Couple">Couple</option>
-                  </Form.Select>
-                </InputGroup>
+                <Form.Label>Price tag:</Form.Label>
+                <SimpleDropdown
+                  options={priceTagOptions}
+                  label="Select Price tag"
+                  onSelect={(selectedOption) =>
+                    handleDropDownChange("priceTag", selectedOption.value)
+                  }
+                  value={formData.priceTag}
+                />
               </div>
             </Container>
           </Row>
           {/* Theme Section */}
-          <div className="flex gap-10">
+          <div className="flex gap-10 pb-6 mb-3">
             <Form.Group className=" w-100">
-              <Form.Label>Themes:</Form.Label>
-              <Row>
-                <Col xs={8}>
-                  <Form.Control
-                    as="select"
-                    value={selectedTheme}
-                    onChange={handleThemeSelection}
-                  >
-                    <option value="">Select theme</option>
-                    <option value="holiday">Holiday</option>
-                    <option value="weekend">Weekend</option>
-                    <option value="heritage">Heritage</option>
-                    {/* Add more options here */}
-                  </Form.Control>
-                </Col>
-                <Col xs={1}>
-                  <Button
-                    text="Add"
-                    id="add-tag"
-                    onClick={handleAddTheme}
-                    variant="shade"
-                  />
-                </Col>
-              </Row>
-              <Row>
-                <div className="mb-6  w-100">
-                  {selectedThemes.map((theme, index) => (
-                    <Badge
-                      variant="secondary"
-                      key={index}
-                      className="me-2 mb-2 tag-badge"
-                      onClick={() => handleRemoveTheme(theme)}
-                    >
-                      {theme}
-                      <span aria-hidden="true">&times;</span>
-                    </Badge>
-                  ))}
-                </div>
-              </Row>
+              <MultiSelectDropdown options={themeOptions} label="Add themes"  handleChange={(selectedOptions) => handleMultiSelectChange('themes', selectedOptions)}/>
             </Form.Group>
             {/* Initial Amount */}
             <Form.Group className=" w-100">
@@ -1177,40 +999,35 @@ const PackageCreation = () => {
               <Form.Control
                 type="number"
                 placeholder="Enter initial amount"
-                value={initialAmount}
-                onChange={handleInitialAmountChange}
+                name="initialAmount"
+                onChange={handleInputChange}
+                value={formData.initialAmount}
+                // onChange={handleInitialAmountChange}
               />
             </Form.Group>
             {/* Default Vehicle Section */}
             <Form.Group className=" w-100">
               <Form.Label>Default Vehicle:</Form.Label>
-              <Form.Control
-                as="select"
-                value={selectedDefaultVehicle}
-                onChange={handleDefaultVehicleSelection}
-              >
-                <option value="">Select vehicle</option>
-                <option value="hatchback">Hatchback</option>
-                <option value="sedan">Sedan</option>
-                <option value="sedan_premium">Sedan Premium</option>
-                <option value="suv">SUV</option>
-                <option value="suv_premium">SUV Premium</option>
-                <option value="traveller">Traveller</option>
-              </Form.Control>
+              <SimpleDropdown
+                options={vehicleOptions}
+                label="Select default vehicle"
+                onSelect={(selectedOption) =>
+                  handleDropDownChange("defaultVehicle", selectedOption.value)
+                }
+                value={formData.defaultVehicle}
+              />
             </Form.Group>
           </div>
         </Container>
 
         <div
-          className="flex mb-10"
+          className="flex gap-3 mb-10"
           style={{
-            border: "1px solid #ccc",
+            // border: "1px solid #ccc",
             borderTop: "0",
-            boxShadow:
-              "rgba(50, 50, 93, 0.25) 0px 2px 5px -1px, rgba(0, 0, 0, 0.3) 0px 1px 3px -1px",
           }}
         >
-          <Container style={{ borderRight: "1px solid #ccc" }}>
+          <Container className="shadow-md rounded-lg border-gray-300 border-2">
             <div className="mt-6 mb-6 text-lg">Package Places</div>
             <Row className="mb-6">
               <Col>
@@ -1234,38 +1051,38 @@ const PackageCreation = () => {
                     onChange={(e) => handlePlaceInputChange(index, e)}
                   />
                   {/* Display search results */}
-                  {searchResults.length > 0 && index === activeIndex && (
-                    <ul className="list-group mt-1">
-                      {searchResults.map((result, resultIndex) => (
-                        <li
-                          key={result._id}
-                          className="list-group-item"
-                          onClick={() => handlePlaceSelection(index, result)}
-                          style={{
-                            cursor: "pointer",
-                            backgroundColor:
-                              activeSuggestion[index] === resultIndex
-                                ? "#f0f0f0"
-                                : "transparent",
-                          }}
-                          onMouseEnter={() =>
-                            setActiveSuggestion({
-                              ...activeSuggestion,
-                              [index]: resultIndex,
-                            })
-                          }
-                          onMouseLeave={() =>
-                            setActiveSuggestion({
-                              ...activeSuggestion,
-                              [index]: null,
-                            })
-                          }
-                        >
-                          {result.placeName}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  {isDropdownOpen && searchResults.length > 0 && index === activeIndex && (
+        <ul ref={dropdownRef} className="list-group mt-1 absolute shadow-lg z-[50] left-[10px] bg-white">
+          {searchResults.slice(0, 5).map((result, resultIndex) => (
+            <li
+              key={result._id}
+              className="list-group-item text-sm !border-0"
+              onClick={() => handlePlaceSelection(index, result)}
+              style={{
+                cursor: "pointer",
+                backgroundColor:
+                  activeSuggestion[index] === resultIndex
+                    ? "#f0f0f0"
+                    : "transparent",
+              }}
+              onMouseEnter={() =>
+                setActiveSuggestion({
+                  ...activeSuggestion,
+                  [index]: resultIndex,
+                })
+              }
+              onMouseLeave={() =>
+                setActiveSuggestion({
+                  ...activeSuggestion,
+                  [index]: null,
+                })
+              }
+            >
+              {result.placeName}
+            </li>
+          ))}
+        </ul>
+      )}
                 </Col>
                 <Col>
                   <Form.Control
@@ -1311,24 +1128,21 @@ const PackageCreation = () => {
               </Row>
             ))}
             <div className="d-flex justify-content-between mb-6">
-              {maxNightsReached + 1 === maxNights ? (
-                <button
-                  className="btn btn-primary text-white rounded text-xs"
-                  onClick={handleItenaryBoxes}
-                >
-                  Done
-                </button>
-              ) : (
-                <button
-                  className="btn btn-primary text-white rounded text-xs"
-                  onClick={handleAddPackagePlace}
-                >
-                  Add Place
-                </button>
-              )}
+              <Button
+                text={`${
+                  maxNightsReached + 1 === maxNights ? "Done" : "Add Place"
+                }`}
+                onClick={
+                  maxNightsReached + 1 === maxNights
+                    ? handleItenaryBoxes
+                    : handleAddPackagePlace
+                }
+                variant="primary"
+                disabled={showIteniraryBoxes}
+              />
             </div>
           </Container>
-          <Container>
+          <Container className="shadow-md rounded-lg border-gray-300 border-2">
             <div className="mt-6 mb-6 text-lg">Package Room Details</div>
             <Form.Group as={Row} className="mb-6">
               <Form.Label column sm={4} style={{ fontSize: "14px" }}>
@@ -1377,15 +1191,14 @@ const PackageCreation = () => {
         </div>
         {showIteniraryBoxes && (
           <Container
+          className="shadow-md rounded-lg "
             style={{
-              border: "1px solid #ccc",
-              boxShadow:
-                "rgba(50, 50, 93, 0.25) 0px 2px 5px -1px, rgba(0, 0, 0, 0.3) 0px 1px 3px -1px",
+              border: "2px solid #ccc",
             }}
           >
             <h2 className="mb-4 mt-6">Package Itinerary and Locations:</h2>
             {renderItineraryBoxes()}
-            <Row className="mt-4 mb-6">
+            {/* <Row className="mt-4 mb-6">
               <Col>
                 <button
                   className="btn btn-primary text-white rounded text-xs"
@@ -1396,7 +1209,7 @@ const PackageCreation = () => {
                     width="16"
                     height="16"
                     fill="currentColor"
-                    class="bi bi-plus-lg"
+                    className="bi bi-plus-lg"
                     viewBox="0 0 16 16"
                   >
                     <path
@@ -1414,7 +1227,7 @@ const PackageCreation = () => {
                     width="16"
                     height="16"
                     fill="currentColor"
-                    class="bi bi-trash"
+                    className="bi bi-trash"
                     viewBox="0 0 16 16"
                   >
                     <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z" />
@@ -1422,38 +1235,51 @@ const PackageCreation = () => {
                   </svg>
                 </button>
               </Col>
-            </Row>
+            </Row> */}
           </Container>
         )}
         <div>
-          <div className="mt-6 mb-6 text-lg">Package Other Information</div>
-          <div className="mb-6">
-            <h5 className="mt-6 mb-6">Package Description</h5>
-            <RichTextInput />
-          </div>
-          <div className="mb-6">
-            <h5 className="mt-6 mb-6">Package Inclusions</h5>
-            <RichTextInput />
-          </div>
-          <div className="mb-6">
-            <h5 className="mt-6 mb-6">Package Exclusions</h5>
-            <RichTextInput />
-          </div>
-        </div>
+        <div className="mt-6 mb-6 text-lg">Package Other Information</div>
+      
+      <div className="mb-6">
+        <h5 className="mt-6 mb-6">Package Description</h5>
+        <RichTextInput 
+          value={formData.packageDescription}
+          onChange={(value) => handleRichTextChange('packageDescription', value)}
+        />
+      </div>
 
-        <button
-          className="btn btn-primary rounded mt-10 mb-10 text-white"
-          onClick={handleSubmit}
-        >
-          Save
-        </button>
+      <div className="mb-6">
+        <h5 className="mt-6 mb-6">Package Inclusions</h5>
+        <RichTextInput 
+          value={formData.packageInclusions}
+          onChange={(value) => handleRichTextChange('packageInclusions', value)}
+        />
+      </div>
+
+      <div className="mb-6">
+        <h5 className="mt-6 mb-6">Package Exclusions</h5>
+        <RichTextInput 
+          value={formData.packageExclusions}
+          onChange={(value) => handleRichTextChange('packageExclusions', value)}
+        />
+      </div>
+      </div>
+
+        <div className="w-full flex justify-center">
+          <Button
+            text="Save"
+            onClick={handleSubmit}
+            variant="primary"
+            cssClassesProps="w-[200px] mb-[30px] h-[50px]"
+          />
+        </div>
       </Form>
     </div>
   );
 };
 
-const RichTextInput = () => {
-  // Quill modules and formats configuration
+const RichTextInput = ({ value, onChange }) => {
   const modules = {
     toolbar: [
       [{ header: "1" }, { header: "2" }, { font: [] }],
@@ -1470,20 +1296,20 @@ const RichTextInput = () => {
     ],
   };
 
-  // Custom styles for the editor
   const editorStyle = {
-    height: "200px", // Set your desired height here
+    height: "200px",
     paddingBottom: "50px",
   };
 
   return (
     <ReactQuill
-      theme="snow" // 'snow' for light theme
+      theme="snow"
       modules={modules}
       placeholder="Write something..."
       style={editorStyle}
+      value={value}
+      onChange={onChange}
     />
   );
 };
-
 export default PackageCreation;

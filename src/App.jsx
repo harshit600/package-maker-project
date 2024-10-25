@@ -30,7 +30,7 @@ export default function App() {
       <ToastContainer />
       <div className="flex" style={{ height: 'calc(100vh - 70px)', overflow: 'scroll' }}>
         <SideBar /> 
-        <div className="flex-1 pt-4 rounded  border-red-100 bottom-2">
+        <div className="flex-1 rounded  border-red-100 bottom-2">
           {" "}
           {/* Main content area */}
           <Routes>

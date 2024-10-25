@@ -5,7 +5,7 @@ import { useSelector } from 'react-redux';
 export default function Header() {
   const { currentUser } = useSelector(state => state.user);
   return (
-    <header className='h-14  border-b border-gray-200 dark:bg-gray-800 dark:border-gray-700'>
+    <header className='h-14  border-b border-gray-200 dark:bg-gray-800 dark:border-gray-700 mb-4'>
         
          <nav className="fixed top-0 z-50 bg-gray-50 shadow-sm w-full">
   <div className="px-3 py-3 lg:px-5 lg:pl-3">

@@ -76,7 +76,7 @@ const Button = ({
       font-bold 
       rounded-lg
       leading-none
-      cursor-not-allowed
+      !cursor-not-allowed
     `,
     datePicker: '',  // You can add styles for datePicker here if needed.
     delete: `
@@ -136,9 +136,8 @@ const Button = ({
 
   return (
     <button
-      className={`${baseStyles} ${variants[variant]} ${cssClassesProps}`}
+      className={`${baseStyles} ${disabled ? '' : variants[variant]} ${cssClassesProps} ${disabled ? variants.disable : ''}`}
       onClick={onClick}
-      disabled={disabled}
     >
       {icon && iconPosition === 'left' && (
         <span className="mr-2">

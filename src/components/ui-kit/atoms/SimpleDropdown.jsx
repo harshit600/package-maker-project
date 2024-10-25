@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 
-const SimpleDropdown = ({ options, label, onSelect }) => {
+const SimpleDropdown = ({ options, label, onSelect, value }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -27,12 +27,12 @@ const SimpleDropdown = ({ options, label, onSelect }) => {
   };
 
   return (
-    <div className="relative inline-block w-64" ref={dropdownRef}>
+    <div className="relative inline-block w-full" ref={dropdownRef}>
       <button
         onClick={handleToggle}
-        className="w-full px-4 py-2 text-left bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        className={`w-full px-2 text-sm ${value ? 'text-gray-800' : 'text-gray-400'} py-2 h-[37px] text-left bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500`}
       >
-        {label}
+        {value ? value : label}
       </button>
 
       {isOpen && options.length > 0 && (

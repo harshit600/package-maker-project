@@ -7,12 +7,15 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Table } from "react-bootstrap";
 import config from "../../config";
+import ItMultiSelectDropdown from "../components/ui-kit/atoms/ItMultiSelectDropDown";
 
 const ItineraryMaster = () => {
   const [selectedOption, setSelectedOption] = useState("sightseeing");
   const [cityFilter, setCityFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [isEditMode, setIsEditMode] = useState("");
+  console.log(isEditMode);
+  const [placesOptions, setPlacesOptions] = useState([]);
   const [formData, setFormData] = useState({
     cityName: "",
     cityArea: [],
@@ -46,9 +49,10 @@ const ItineraryMaster = () => {
   const [itineraryData, setItineraryData] = useState([]);
   const [page, setPage] = useState(1); // Current page
   const [perPage] = useState(10);
+  console.log(placesOptions);
 
-   // Handle page change
-   const handlePageChange = (pageNumber) => {
+  // Handle page change
+  const handlePageChange = (pageNumber) => {
     setPage(pageNumber);
   };
 
@@ -74,9 +78,29 @@ const ItineraryMaster = () => {
 
   const toggleForm = () => {
     setShowForm(!showForm);
-    setIsEditMode(false); 
-   
+    setIsEditMode(false);
+    if (!isEditMode) {
+    }
   };
+
+  console.log(formData);
+
+  useEffect(() => {
+    // Reset form data to default values when the component mounts
+    setFormData({
+      cityName: "",
+      cityArea: [],
+      country: "",
+      itineraryType: "sightseeing", // Default to sightseeing
+      itineraryTitle: "",
+      itineraryDescription: "",
+      specialNotes: "",
+      totalHours: "",
+      distance: "",
+      connectingCity: "", // New field for connecting city
+      status: "enabled",
+    });
+  }, [isEditMode]);
 
   const dropdownRef = useRef(null);
 
@@ -156,19 +180,20 @@ const ItineraryMaster = () => {
   const fetchPlaces = async (country, city) => {
     setLoading(true);
     try {
-        const response = await fetch(
-            `${config.API_HOST}/api/places/getallplaces/${country}/${city}`
-        );
-        const newData = await response.json();
-        // Merge new data with existing places
-        setPlaces(prevPlaces => [...prevPlaces, ...newData]);
-        setLoading(false);
+      const response = await fetch(
+        `${config.API_HOST}/api/places/getallplaces/${country}/${city}`
+      );
+      const newData = await response.json();
+      // Merge new data with existing places
+      const options = newData.map((place) => place.placeName);
+      setPlacesOptions(options);
+      setPlaces((prevPlaces) => [...prevPlaces, ...newData]);
+      setLoading(false);
     } catch (error) {
-        setLoading(false);
-        console.error("Error fetching places:", error);
+      setLoading(false);
+      console.error("Error fetching places:", error);
     }
-};
-
+  };
 
   const handleTypeFilterChange = (e) => {
     setTypeFilter(e.target.value);
@@ -189,8 +214,8 @@ const ItineraryMaster = () => {
     setLoading(true);
     try {
       let url = "";
-      let method = ""; 
-  
+      let method = "";
+
       if (isEditMode) {
         // Editing existing itinerary
         url = `${config.API_HOST}/api/itinerary/updateitinerary/${isEditMode}`;
@@ -200,7 +225,7 @@ const ItineraryMaster = () => {
         url = `${config.API_HOST}/api/itinerary/additinerary`;
         method = "POST"; // Use POST for adding
       }
-  
+
       const response = await fetch(url, {
         method: method,
         headers: {
@@ -208,7 +233,7 @@ const ItineraryMaster = () => {
         },
         body: JSON.stringify(formData),
       });
-  
+
       if (!response.ok) {
         throw new Error("Failed to submit itinerary");
       }
@@ -231,7 +256,7 @@ const ItineraryMaster = () => {
       setSelectedCity("");
       setConnectingCity("");
       setSelectedPlaces([]);
-  
+
       // Handle successful response
       if (formData._id) {
         // Editing existing itinerary
@@ -246,8 +271,7 @@ const ItineraryMaster = () => {
       setLoading(false);
     }
   };
-  
-  
+
   const handleOptionChange = (e) => {
     setLoading(true); // Show loader when switching
     setSelectedOption(e.target.value);
@@ -284,11 +308,12 @@ const ItineraryMaster = () => {
     });
   };
 
-  const handleCityAreaChange = (e) => {
+  const handleCityAreaChange = (selectedOption) => {
+    console.log(selectedOption);
     setCloseDropdown(true);
-    setSearchInput(e.target.value);
+    setSearchInput(selectedOption);
     const filteredResults = places.filter((place) =>
-      place.placeName.toLowerCase().includes(e.target.value.toLowerCase())
+      place.placeName.toLowerCase().includes(selectedOption[0].toLowerCase())
     );
     setSearchResults(filteredResults);
   };
@@ -307,7 +332,7 @@ const ItineraryMaster = () => {
 
   const handleCityChange = (e) => {
     const city = e.target.value;
-    console.log(city)
+    console.log(city);
     setSelectedCity(city);
     setSelectedPlace(""); // Reset selected place when city changes
     setFormData({
@@ -317,14 +342,12 @@ const ItineraryMaster = () => {
     fetchPlaces(selectedCountry, city);
   };
 
-  const handlePlaceSelect = (place) => {
-    setSelectedPlaces([...selectedPlaces, place.placeName]);
+  useEffect(() => {
     setFormData({
       ...formData,
-      cityArea: [...selectedPlaces, place.placeName], // Save selected places as an array
+      cityArea: placesOptions, // Save selected places as an array
     });
-    setSearchInput("");
-  };
+  }, [placesOptions]);
 
   const handleRemovePlace = (placeIndex) => {
     const updatedPlaces = [...selectedPlaces];
@@ -332,8 +355,8 @@ const ItineraryMaster = () => {
     setSelectedPlaces(updatedPlaces);
     setFormData({
       ...formData,
-      cityArea: [...updatedPlaces]
-    })
+      cityArea: [...updatedPlaces],
+    });
   };
 
   const handleDescriptionChange = (e) => {
@@ -398,9 +421,13 @@ const ItineraryMaster = () => {
   };
 
   const handleEdit = async (id) => {
-    console.log(id)
+    console.log("Editing itinerary ID:", id);
+  
+    // Set the form to show first (optional)
     setShowForm(true);
     setIsEditMode(id);
+
+  
     try {
       const response = await fetch(
         `${config.API_HOST}/api/itinerary/getitinerary/${id}`
@@ -409,9 +436,9 @@ const ItineraryMaster = () => {
         throw new Error("Failed to fetch itinerary data");
       }
       const data = await response.json();
-
-      console.log(data)
-
+  
+      console.log(data);
+  
       fetchCities(data?.country);
       setSelectedCountry(data.country);
       setConnectingCity(data?.connectingCity);
@@ -440,7 +467,14 @@ const ItineraryMaster = () => {
       console.error("Error fetching itinerary data:", error);
       // Handle error
     }
+    requestAnimationFrame(() => {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    });
   };
+  
 
   const handleCityClick = async (cityName) => {
     setLoading(true);
@@ -470,134 +504,118 @@ const ItineraryMaster = () => {
     setFilteredCities(filtered);
   };
 
-    // Calculate start and end index of items to display
-    const startIndex = (page - 1) * perPage;
-    const endIndex = Math.min(startIndex + perPage, filteredItineraryData.length);
-  
-    // Slice the data array to get items for the current page
-    const currentPageData = filteredItineraryData.slice(startIndex, endIndex);
+  // Calculate start and end index of items to display
+  const startIndex = (page - 1) * perPage;
+  const endIndex = Math.min(startIndex + perPage, filteredItineraryData.length);
 
-    console.log(currentPageData)
-  
+  // Slice the data array to get items for the current page
+  const currentPageData = filteredItineraryData.slice(startIndex, endIndex);
+
+  console.log(currentPageData);
 
   return (
     <div className="container flexitdest">
       <div className="itediv">
-        <div className="itenavbar">
+        <div className="flex justify-between p-2 mb-4 rounded-lg shadow-md border-l-4 border-r-4 border-gray-800">
           <div className="itelogo">Itinerary</div>
           <button className="add-button" onClick={toggleForm}>
             {showForm ? "Close Form" : "Add Itinerary"}
           </button>
         </div>
         {showForm ? (
-          <div className="itenbox">
+          <div className="itenbox !rounded-lg">
             <Form onSubmit={handleSubmit}>
-              <Form.Group className="mb-3 mt-3">
-                <Form.Label>Select Itinerary Type:</Form.Label>
-                <Form.Select
-                  name="itineraryType"
-                  value={selectedOption}
-                  onChange={handleOptionChange}
-                >
-                  <option value="sightseeing">Sightseeing</option>
-                  <option value="travel">Travel</option>
-                </Form.Select>
-              </Form.Group>
-              <Form.Group className="mb-3 mt-3">
-                <Form.Label>Select Country:</Form.Label>
-                <Form.Select
-                  className="form-select"
-                  name="selectedCountry"
-                  value={selectedCountry}
-                  onChange={handleCountryChange}
-                >
-                  <option value="">Select Country</option>
-                  {countries.map((country) => (
-                    <option key={country._id} value={country.countryName}>
-                      {country.countryName}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
+              <div>
+                <div className="row mb-3 mt-3">
+                  <div className="col-md-6">
+                    <Form.Group>
+                      <Form.Label>Select Itinerary Type:</Form.Label>
+                      <Form.Select
+                        name="itineraryType"
+                        value={formData.itineraryType}
+                        onChange={handleOptionChange}
+                      >
+                        <option value="sightseeing">Sightseeing</option>
+                        <option value="travel">Travel</option>
+                      </Form.Select>
+                    </Form.Group>
+                  </div>
+                  <div className="col-md-6">
+                    <Form.Group>
+                      <Form.Label>Select Country:</Form.Label>
+                      <Form.Select
+                        className="form-select"
+                        name="selectedCountry"
+                        value={selectedCountry}
+                        onChange={handleCountryChange}
+                      >
+                        <option value="">Select Country</option>
+                        {countries.map((country) => (
+                          <option key={country._id} value={country.countryName}>
+                            {country.countryName}
+                          </option>
+                        ))}
+                      </Form.Select>
+                    </Form.Group>
+                  </div>
+                </div>
 
-              <Form.Group className="mb-3 mt-3">
-                <Form.Label>Select City:</Form.Label>
-                <Form.Select
-                  className="form-select"
-                  name="selectedCity"
-                  value={selectedCity}
-                  onChange={handleCityChange}
-                >
-                  <option value="">Select City</option>
-                  {cities.map((city) => (
-                    <option key={city._id} value={city.cityName}>
-                      {city.cityName}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
-
-              <Form.Group
-                className="mb-3 mt-3"
-                style={{
-                  display: selectedOption === "travel" ? "block" : "none",
-                  transition: "display 1s ease",
-                }}
-              >
-                <Form.Label>Select Connecting City:</Form.Label>
-                <Form.Select
-                  className="form-select"
-                  name="connectingCity"
-                  value={connectingCity}
-                  onChange={handleInputChange}
-                >
-                  <option value="">Select Connecting City</option>
-                  {cities.map((city) => (
-                    <option key={city._id} value={city.cityName}>
-                      {city.cityName}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
+                <div className="row mb-3 mt-3">
+                  <div className="col-md-6">
+                    <Form.Group>
+                      <Form.Label>Select City:</Form.Label>
+                      <Form.Select
+                        className="form-select"
+                        name="selectedCity"
+                        value={selectedCity}
+                        onChange={handleCityChange}
+                      >
+                        <option value="">Select City</option>
+                        {cities.map((city) => (
+                          <option key={city._id} value={city.cityName}>
+                            {city.cityName}
+                          </option>
+                        ))}
+                      </Form.Select>
+                    </Form.Group>
+                  </div>
+                  <div
+                    className="col-md-6"
+                    style={{
+                      display: selectedOption === "travel" ? "block" : "none",
+                    }}
+                  >
+                    <Form.Group>
+                      <Form.Label>Select Connecting City:</Form.Label>
+                      <Form.Select
+                        className="form-select"
+                        name="connectingCity"
+                        value={connectingCity}
+                        onChange={handleInputChange}
+                      >
+                        <option value="">Select Connecting City</option>
+                        {cities.map((city) => (
+                          <option key={city._id} value={city.cityName}>
+                            {city.cityName}
+                          </option>
+                        ))}
+                      </Form.Select>
+                    </Form.Group>
+                  </div>
+                </div>
+              </div>
 
               <Form.Group className="mb-3">
-                <Form.Label>Select City Places:</Form.Label>
-                <div ref={dropdownRef} className="search-input-container">
-                  {/* Selected places */}
-                  <div className="selected-places">
-                    {selectedPlaces.map((place, index) => (
-                      <span key={index} className="selected-place">
-                        {place}
-                        <span
-                          className="remove-place"
-                          onClick={() => handleRemovePlace(index)}
-                        >
-                          &times;
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-
-                  <Form.Control
-                    type="text"
-                    placeholder="Search City Places"
-                    value={searchInput}
-                    onChange={handleCityAreaChange}
-                  />
-                  {/* Suggestions dropdown */}
-                  {closeDropdown && searchResults.length > 0 && (
-                    <ul className="suggestions-list">
-                      {searchResults.map((place) => (
-                        <li
-                          key={place._id}
-                          onClick={() => handlePlaceSelect(place)}
-                        >
-                          {place.placeName}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                <Form.Label>City Places:</Form.Label>
+                <ItMultiSelectDropdown
+                  options={placesOptions}
+                  // label="City Places"
+                  page="itenirary"
+                  handleChange={(selectedOptions) =>
+                    handleCityAreaChange(selectedOptions)
+                  }
+                  value={placesOptions}
+                />
               </Form.Group>
 
               <Row className="mb-3">
@@ -725,19 +743,19 @@ const ItineraryMaster = () => {
               </div>
             </div>
             <div className="filter-container">
-          <Form.Group className="mb-3 mt-3">
-            <Form.Select
-              name="searchByType"
-              value={typeFilter}
-              onChange={handleTypeFilterChange}
-              style={{ maxWidth: "200px" }}
-            >
-              <option value="">All</option>
-              <option value="sightseeing">Sightseeing</option>
-              <option value="travel">Travel</option>
-            </Form.Select>
-          </Form.Group>
-        </div>
+              <Form.Group className="mb-3 mt-3">
+                <Form.Select
+                  name="searchByType"
+                  value={typeFilter}
+                  onChange={handleTypeFilterChange}
+                  style={{ maxWidth: "200px" }}
+                >
+                  <option value="">All</option>
+                  <option value="sightseeing">Sightseeing</option>
+                  <option value="travel">Travel</option>
+                </Form.Select>
+              </Form.Group>
+            </div>
           </div>
 
           <Table className="itentable" striped bordered hover>
@@ -758,18 +776,20 @@ const ItineraryMaster = () => {
               {currentPageData.map((item) => (
                 <tr key={item._id}>
                   <td>{item.cityName}</td>
-                  <td className="woverflow ellipse">{item.cityArea.join(", ")}</td>
+                  <td className="woverflow ellipse">
+                    {item.cityArea.join(", ")}
+                  </td>
                   <td>{item.itineraryTitle}</td>
-                  <td className="ellipse" >{item.itineraryDescription}</td>
+                  <td className="ellipse">{item.itineraryDescription}</td>
                   <td>{item.itineraryType}</td>
                   <td>{item.totalHours}</td>
                   <td>{item.distance}</td>
                   <td>{item.status}</td>
                   <td className="flex text-end">
                     {/* ... (previous buttons) */}
-                    <button
-                      className="btn btn-info me-2 text-white"
+                    <span
                       onClick={() => handleEdit(item._id)}
+                      className="cursor-pointer p-2"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -785,9 +805,9 @@ const ItineraryMaster = () => {
                           d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5z"
                         />
                       </svg>
-                    </button>
-                    <button
-                      className="btn btn-danger me-2 text-white"
+                    </span>
+                    <span
+                      className="cursor-pointer p-2"
                       onClick={() => handleDelete(item._id)}
                     >
                       <svg
@@ -800,7 +820,7 @@ const ItineraryMaster = () => {
                       >
                         <path d="M11 1.5v1h3.5a.5.5 0 0 1 0 1h-.538l-.853 10.66A2 2 0 0 1 11.115 16h-6.23a2 2 0 0 1-1.994-1.84L2.038 3.5H1.5a.5.5 0 0 1 0-1H5v-1A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5m-5 0v1h4v-1a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5M4.5 5.029l.5 8.5a.5.5 0 1 0 .998-.06l-.5-8.5a.5.5 0 1 0-.998.06m6.53-.528a.5.5 0 0 0-.528.47l-.5 8.5a.5.5 0 0 0 .998.058l.5-8.5a.5.5 0 0 0-.47-.528M8 4.5a.5.5 0 0 0-.5.5v8.5a.5.5 0 0 0 1 0V5a.5.5 0 0 0-.5-.5" />
                       </svg>
-                    </button>
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -808,33 +828,42 @@ const ItineraryMaster = () => {
           </Table>
 
           {/* Pagination */}
-        <div className="pagination mb-20 mt-10 text-center flex align-center justify-center">
-        <Pagination>
-                {filteredItineraryData.length > perPage && (
-                  <Pagination.Prev
-                    onClick={() => handlePageChange(page - 1)}
-                    disabled={page === 1}
-                  />
-                )}
-                {Array.from({ length: Math.ceil(filteredItineraryData.length / perPage) }, (_, i) => (
-                  <Pagination.Item key={i + 1} active={i + 1 === page} onClick={() => handlePageChange(i + 1)}>
+          <div className="pagination mb-20 mt-10 text-center flex align-center justify-center">
+            <Pagination>
+              {filteredItineraryData.length > perPage && (
+                <Pagination.Prev
+                  onClick={() => handlePageChange(page - 1)}
+                  disabled={page === 1}
+                />
+              )}
+              {Array.from(
+                { length: Math.ceil(filteredItineraryData.length / perPage) },
+                (_, i) => (
+                  <Pagination.Item
+                    key={i + 1}
+                    active={i + 1 === page}
+                    onClick={() => handlePageChange(i + 1)}
+                  >
                     {i + 1}
                   </Pagination.Item>
-                ))}
-                {filteredItineraryData.length > perPage && (
-                  <Pagination.Next
-                    onClick={() => handlePageChange(page + 1)}
-                    disabled={page === Math.ceil(filteredItineraryData.length / perPage)}
-                  />
-                )}
-              </Pagination>
-        </div>
+                )
+              )}
+              {filteredItineraryData.length > perPage && (
+                <Pagination.Next
+                  onClick={() => handlePageChange(page + 1)}
+                  disabled={
+                    page === Math.ceil(filteredItineraryData.length / perPage)
+                  }
+                />
+              )}
+            </Pagination>
+          </div>
         </div>
         {loading && (
-              <div className="loader">
-                <BeatLoader color="#36d7b7" loading={true} />
-              </div>
-            )}
+          <div className="loader">
+            <BeatLoader color="#36d7b7" loading={true} />
+          </div>
+        )}
       </div>
     </div>
   );

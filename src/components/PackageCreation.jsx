@@ -29,6 +29,7 @@ const PackageCreation = () => {
   const [packagePlaces, setPackagePlaces] = useState([{ placeCover: "", nights: 0, transfer: false }]);
   const [numRooms, setNumRooms] = useState(1);
   const [searchResults, setSearchResults] = useState([]);
+  
   const [formData, setFormData] = useState({
     packageType: "",
     packageCategory: "",
@@ -55,9 +56,10 @@ const PackageCreation = () => {
     amenities: [],
     packageDescription:"",
     packageInclusions:"",
-    packageExclusions:""
+    packageExclusions:"",
+    userRef: "",
   });
-
+  console.log(formData)
   const [activeSuggestion, setActiveSuggestion] = useState(
     Array(packagePlaces.length).fill(null)
   );
@@ -294,9 +296,32 @@ const PackageCreation = () => {
     setNumRooms(value);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     // Perform form submission or API call here
+    const payload = formData;
+    let url = "";
+    let method = "";
+
+      // Adding new itinerary
+      url = `${config.API_HOST}/api/packages/createpackage`;
+      method = "POST"; // Use POST for adding
+  
+    const response = await fetch(url, {
+      method: method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if(response.ok){
+      window.location.reload();
+    }
+
+    if (!response.ok) {
+      throw new Error("Failed to submit itinerary");
+    }
   };
 
   const handleAddItineraryDay = () => {

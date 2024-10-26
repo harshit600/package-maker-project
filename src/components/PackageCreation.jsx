@@ -1,60 +1,32 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Container, Form, Row, Col, InputGroup, Badge } from "react-bootstrap";
+import { Container, Form, Row, Col } from "react-bootstrap";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import {
-  getDownloadURL,
-  getStorage,
-  ref,
-  uploadBytesResumable,
-} from "firebase/storage";
+  getDownloadURL, getStorage, ref, uploadBytesResumable} from "firebase/storage";
 import { app } from "../firebase";
 import config from "../../config";
 import Button from "./ui-kit/atoms/Button";
 import Dropdown from "./ui-kit/atoms/Dropdown";
 import SimpleDropdown from "./ui-kit/atoms/SimpleDropdown";
 import MultiSelectDropdown from "./ui-kit/atoms/MultiSelectDropdown";
-import {
-  durationOptions,
-  packageTypeOptions,
-  packageCategoryOptions,
-  statusOptions,
-  hotelCategoryOptions,
-  tourByOptions,
-  agentPackageOptions,
-  amenitiesOptions,
-  TagOptions,
-  themeOptions,
-  hotelPackageOptions,
-  vehicleOptions,
-  priceTagOptions,
+import { durationOptions, packageTypeOptions, packageCategoryOptions, statusOptions, hotelCategoryOptions, tourByOptions,
+  agentPackageOptions, amenitiesOptions, TagOptions, themeOptions, hotelPackageOptions, vehicleOptions, priceTagOptions
 } from "./ui-kit/onBoardingConstants/onBoardingData";
 
 const PackageCreation = () => {
   const [showIteniraryBoxes, setShowIteniraryBoxes] = useState(false);
   const [files, setFiles] = useState([]); // Added files state
-  const [imgUrls, setImgUrls] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [imageUploadError, setImageUploadError] = useState(null);
   const [pickupSearchInput, setPickupSearchInput] = useState("");
-  const [tripData, setTripData] = useState([
-    { fromCity: "", toCity: "", day: 0 },
-  ]);
+  const [tripData, setTripData] = useState([{ fromCity: "", toCity: "", day: 0 }]);
   const [searchInput, setSearchInput] = useState("");
-  const [dropLocationSearchResults, setDropLocationSearchResults] = useState(
-    []
-  );
+  const [dropLocationSearchResults, setDropLocationSearchResults] = useState([]);
   const [activeIndex, setActiveIndex] = useState(null);
-  const [pickupLocationSearchResults, setPickupLocationSearchResults] =
-    useState([]);
-  const [selectedDefaultHotelPackage, setSelectedDefaultHotelPackage] =
-    useState("");
-  const [itineraryDays, setItineraryDays] = useState([
-    { day: 1, description: "", selectedItinerary: null },
-  ]);
-  const [packagePlaces, setPackagePlaces] = useState([
-    { placeCover: "", nights: 0, transfer: false },
-  ]);
+  const [pickupLocationSearchResults, setPickupLocationSearchResults] = useState([]);
+  const [itineraryDays, setItineraryDays] = useState([{ day: 1, description: "", selectedItinerary: null }]);
+  const [packagePlaces, setPackagePlaces] = useState([{ placeCover: "", nights: 0, transfer: false }]);
   const [numRooms, setNumRooms] = useState(1);
   const [searchResults, setSearchResults] = useState([]);
   const [formData, setFormData] = useState({
@@ -546,10 +518,6 @@ const PackageCreation = () => {
         },
         () => {
           getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-            setImgUrls((prevState) => ({
-              ...prevState,
-              imgUrls: [...(prevState.imgUrls || []), downloadURL],
-            }));
             resolve(downloadURL);
           });
         }
@@ -1137,7 +1105,7 @@ const PackageCreation = () => {
                     ? handleItenaryBoxes
                     : handleAddPackagePlace
                 }
-                variant="primary"
+                variant="shade"
                 disabled={showIteniraryBoxes}
               />
             </div>
@@ -1258,7 +1226,7 @@ const PackageCreation = () => {
       </div>
 
       <div className="mb-6">
-        <h5 className="mt-6 mb-6">Package Exclusions</h5>
+        <h5 className="mt-6 mb-6 rounded-lg">Package Exclusions</h5>
         <RichTextInput 
           value={formData.packageExclusions}
           onChange={(value) => handleRichTextChange('packageExclusions', value)}
@@ -1299,6 +1267,7 @@ const RichTextInput = ({ value, onChange }) => {
   const editorStyle = {
     height: "200px",
     paddingBottom: "50px",
+    borderRadius: "10px"
   };
 
   return (

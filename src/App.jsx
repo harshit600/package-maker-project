@@ -16,11 +16,6 @@ import CitiesPlaces from "./components/CitiesPlaces";
 import CreateItenary from "./pages/CreateItenary";
 import { ToastContainer } from "react-bootstrap";
 import "react-toastify/dist/ReactToastify.css";
-import HotelMaster from "./pages/HotelMaster/HotelMaster";
-import Managerates from "./pages/HotelMaster/Managerates";
-import BasicInfo from "./pages/HotelMaster/BasicInfo";
-import AmenitiesServices from "./pages/HotelMaster/AmenitiesServices";
-import Rooms from "./pages/HotelMaster/Rooms";
 import SideBar from "./components/SideBar";
 
 export default function App() {
@@ -55,17 +50,8 @@ export default function App() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/create-listing" element={<CreateListing />} />
               <Route path="/create-packages" element={<CreatePackage />} />
-              <Route path="/managehotel" element={<HotelMaster />} />
-              <Route
-                path="/managehotel/manage-rates"
-                element={<Managerates />}
-              />
-              <Route path="/managehotel/basic-info" element={<BasicInfo />} />
-              <Route
-                path="/managehotel/amenities-services"
-                element={<AmenitiesServices />}
-              />
-              <Route path="/managehotel/rooms" element={<Rooms />} />
+              
+              
             </Route>
             <Route path="/about" element={<About />} />
           </Routes>

@@ -18,6 +18,7 @@ import { ToastContainer } from "react-bootstrap";
 import "react-toastify/dist/ReactToastify.css";
 import SideBar from "./components/SideBar";
 import Packages from "./pages/Packages";
+import Cabmanager from "./pages/cabmanager";
 
 export default function App() {
   return (
@@ -52,6 +53,7 @@ export default function App() {
               <Route path="/create-listing" element={<CreateListing />} />
               <Route path="/create-packages" element={<CreatePackage />} />
               <Route path="/packages" element={<Packages />} />
+              <Route path="/cabmanager" element={<Cabmanager />} />
               
               
             </Route>

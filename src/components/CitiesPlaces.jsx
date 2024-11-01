@@ -1,3 +1,4 @@
+// components/Places.js
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Modal } from "react-bootstrap";
@@ -9,12 +10,12 @@ import {
 } from "firebase/storage";
 import { app } from "../firebase";
 import config from "../../config";
-import Button from './ui-kit/atoms/Button';
 import { Icons } from '../icons/index';
+import Table from './ui-kit/molecules/Table';
+import Button from "../components/ui-kit/atoms/Button"
 
-const { ArrowLeftIcon } = Icons;
+const { EditIcon, DeleteIcon, ArrowLeftIcon } = Icons;
 
-console.log(ArrowLeftIcon)
 
 const Places = () => {
   const params = useParams();
@@ -41,23 +42,21 @@ const Places = () => {
     city: "",
     stateName: "",
     country: "",
-    paid: false, // New field
-    price: 0, // New field
+    paid: false,
+    price: 0,
   });
 
-  // Function to handle changes in the 'paid' field
   const handlePaidChange = (e) => {
     const value = e.target.checked;
     setNewPlace({ ...newPlace, paid: value });
   };
 
-  // Function to handle changes in the 'price' field
   const handlePriceChange = (e) => {
     const value = e.target.value;
     setNewPlace({ ...newPlace, price: value });
   };
 
-  const [files, setFiles] = useState([]); // Added files state
+  const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [imageUploadError, setImageUploadError] = useState(null);
 
@@ -120,7 +119,6 @@ const Places = () => {
   };
 
   useEffect(() => {
-    // Fetch places when the component mounts
     fetchPlaces();
   }, []);
 
@@ -139,7 +137,7 @@ const Places = () => {
   const handleAddPlace = async () => {
     try {
       const response = await fetch(
-         `${config.API_HOST}/api/places/addplace/${params?.country}/${params?.state}/${params?.city}`,
+        `${config.API_HOST}/api/places/addplace/${params?.country}/${params?.state}/${params?.city}`,
         {
           method: "POST",
           headers: {
@@ -160,9 +158,11 @@ const Places = () => {
           imageUrls: [],
           distance: 0,
           description: "",
+          paid: false,
+          price: 0,
         });
         alert("Place added successfully!");
-        setShowAddPlaceModal(false); // Close the modal after adding a place
+        setShowAddPlaceModal(false);
       } else {
         alert("Failed to add place. Please try again.");
       }
@@ -179,16 +179,11 @@ const Places = () => {
       stateName: params?.state,
       country: params?.country,
     });
-  }, []);
+  }, [params]);
 
-  const handleEditPlace = async (placeId) => {
-    // Fetch the place details for editing
+  const handleEditPlace = (placeId) => {
     const placeToEdit = places.find((place) => place._id === placeId);
-
-    // Open the modal for editing
     setShowEditPlaceModal(true);
-
-    // Set the values in the edit form
     setSelectedPlace({
       ...placeToEdit,
       cost: {
@@ -202,7 +197,6 @@ const Places = () => {
   const handleUpdatePlace = async () => {
     try {
       const response = await fetch(
-        // router.put('/edit/:country/:state/:city/:placeId', editPlace);
         `${config.API_HOST}/api/places/edit/${params?.country}/${params?.state}/${params?.city}/${selectedPlace?._id}`,
         {
           method: "PUT",
@@ -261,190 +255,117 @@ const Places = () => {
     }
   };
 
+  const renderRow = (place) => (
+    <>
+      <td className="px-2 py-4">{place.placeName}</td>
+      <td className="px-2 py-4">{place.city}</td>
+      <td className="px-2 py-4">{place.stateName}</td>
+      <td className="px-2 py-4">{place.cost.Sedan}</td>
+      <td className="px-2 py-4">{place.cost.SUV}</td>
+      <td className="px-2 py-4">{place.cost.Traveller}</td>
+    </>
+  );
+
+  const renderActions = (place) => (
+    <div className="flex gap-4">
+      <span className="cursor-pointer"  onClick={() => handleEditPlace(place._id)}><EditIcon /></span>
+      <span className="cursor-pointer"  onClick={() => handleDeletePlace(place._id)}><DeleteIcon/></span>
+    </div>
+  );
+
   return (
-    <div className="container">
-      <h1 className="destinationheading">
-        {params?.city.replace("-", " ").toUpperCase()} Places
-      </h1>
-      <div className="addstate">
-      <Button text="" variant="outlined" onClick={() => navigate(-1)} icon={<ArrowLeftIcon />} iconPosition="left" cssClassesProps="mr-2"/>
-      <Button text="Add Place" variant="primary" onClick={() => setShowAddPlaceModal(true)}/>
-       
+    <div className="container destcontainer">
+      <div className="text-3xl text-center">
+        Places in {params?.city}
       </div>
-      <Modal
-        show={showAddPlaceModal}
-        onHide={() => setShowAddPlaceModal(false)}
-      >
+      <div className="flex justify-end mb-4">
+      <Button variant="shade" text="+ Place" onClick={() => setShowAddPlaceModal(true)} />
+      </div>
+      <Table
+        headers={[
+          "Place Name",
+          "City",
+          "State",
+          "Cost (Sedan)",
+          "Cost (SUV)",
+          "Cost (Traveller)",
+          "Actions",
+        ]}
+        data={places}
+        renderRow={renderRow}
+        renderActions={renderActions}
+      />
+
+      {/* Add Place Modal */}
+      <Modal show={showAddPlaceModal} onHide={() => setShowAddPlaceModal(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Add New Place</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <div className="row">
-            {/* Place Name */}
-            <div className="col-md-6 mb-3">
-              <label htmlFor="placeName" className="form-label">
-                Place Name
-              </label>
-              <input
-                type="text"
-                className="form-control"
-                id="placeName"
-                value={newPlace.placeName}
-                onChange={(e) =>
-                  setNewPlace({ ...newPlace, placeName: e.target.value })
-                }
-              />
-            </div>
-            {/* Description */}
-            <div className="col-md-6 mb-3">
-              <label htmlFor="description" className="form-label">
-                Description
-              </label>
-              <textarea
-                className="form-control"
-                id="description"
-                value={newPlace.description}
-                onChange={(e) =>
-                  setNewPlace({ ...newPlace, description: e.target.value })
-                }
-              />
-            </div>
-          </div>
-        
-          {/* Paid */}
-          <div className="mb-3 form-check">
+          <div>
+            <label>Place Name:</label>
             <input
-              type="checkbox"
-              className="form-check-input"
-              id="paid"
-              checked={newPlace.paid}
-              onChange={handlePaidChange}
+              type="text"
+              value={newPlace.placeName}
+              onChange={(e) =>
+                setNewPlace({ ...newPlace, placeName: e.target.value })
+              }
+              required
             />
-            <label className="form-check-label" htmlFor="paid">
-              Paid
-            </label>
-          </div>
-
-          {/* Price */}
-          {newPlace.paid && (
-            <div className="row">
-            {/* Cost for Sedan */}
-            <div className="col-md-4 mb-3">
-              <label htmlFor="costSedan" className="form-label">
-                Cost (Sedan)
-              </label>
-              <input
-                type="text"
-                className="form-control"
-                id="costSedan"
-                value={newPlace.cost.Sedan}
-                onChange={(e) =>
-                  setNewPlace({
-                    ...newPlace,
-                    cost: { ...newPlace.cost, Sedan: e.target.value },
-                  })
-                }
-              />
-            </div>
-            {/* Cost for SUV */}
-            <div className="col-md-4 mb-3">
-              <label htmlFor="costSUV" className="form-label">
-                Cost (SUV)
-              </label>
-              <input
-                type="text"
-                className="form-control"
-                id="costSUV"
-                value={newPlace.cost.SUV}
-                onChange={(e) =>
-                  setNewPlace({
-                    ...newPlace,
-                    cost: { ...newPlace.cost, SUV: e.target.value },
-                  })
-                }
-              />
-            </div>
-            {/* Cost for Traveller */}
-            <div className="col-md-4 mb-3">
-              <label htmlFor="costTraveller" className="form-label">
-                Cost (Traveller)
-              </label>
-              <input
-                type="text"
-                className="form-control"
-                id="costTraveller"
-                value={newPlace.cost.Traveller}
-                onChange={(e) =>
-                  setNewPlace({
-                    ...newPlace,
-                    cost: { ...newPlace.cost, Traveller: e.target.value },
-                  })
-                }
-              />
-            </div>
-          </div>
-          )}
-          <div className="row">
-            {/* Image URLs */}
-            <div className="mb-3">
-              <label htmlFor="image" className="form-label">
-                Upload Images
-              </label>
-              <input
-                type="file"
-                className="form-control"
-                id="image"
-                onChange={handleImageChange}
-                multiple
-              />
-            </div>
-            <button className="btn btn-primary text-white w-50 mx-auto mt-2 mb-4" onClick={handleImageUpload}>
-              Upload Images
-            </button>
-          </div>
-          <div className="row">
-            {/* Distance */}
-            <div className="col-md-6 mb-3">
-              <label htmlFor="distance" className="form-label">
-                Distance
-              </label>
-              <input
-                type="number"
-                className="form-control"
-                id="distance"
-                value={newPlace.distance}
-                onChange={(e) =>
-                  setNewPlace({ ...newPlace, distance: e.target.value })
-                }
-              />
-            </div>
-            {/* Enabled */}
-            <div className="col-md-6 mb-3">
-              <label htmlFor="enabled" className="form-label">
-                Enabled
-              </label>
-              <select
-                className="form-select"
-                id="enabled"
-                value={newPlace.enabled}
-                onChange={(e) =>
-                  setNewPlace({
-                    ...newPlace,
-                    enabled: e.target.value === "true",
-                  })
-                }
-              >
-                <option value={true}>Yes</option>
-                <option value={false}>No</option>
-              </select>
-            </div>
+            <label>Description:</label>
+            <textarea
+              value={newPlace.description}
+              onChange={(e) =>
+                setNewPlace({ ...newPlace, description: e.target.value })
+              }
+              required
+            />
+            <label>Cost (Sedan):</label>
+            <input
+              type="text"
+              value={newPlace.cost.Sedan}
+              onChange={(e) =>
+                setNewPlace({
+                  ...newPlace,
+                  cost: { ...newPlace.cost, Sedan: e.target.value },
+                })
+              }
+              required
+            />
+            <label>Cost (SUV):</label>
+            <input
+              type="text"
+              value={newPlace.cost.SUV}
+              onChange={(e) =>
+                setNewPlace({
+                  ...newPlace,
+                  cost: { ...newPlace.cost, SUV: e.target.value },
+                })
+              }
+              required
+            />
+            <label>Cost (Traveller):</label>
+            <input
+              type="text"
+              value={newPlace.cost.Traveller}
+              onChange={(e) =>
+                setNewPlace({
+                  ...newPlace,
+                  cost: { ...newPlace.cost, Traveller: e.target.value },
+                })
+              }
+              required
+            />
+            <label>Upload Images:</label>
+            <input type="file" multiple onChange={handleImageChange} />
+            <Button onClick={handleImageUpload} disabled={uploading}>
+              {uploading ? "Uploading..." : "Upload Images"}
+            </Button>
+            {imageUploadError && <p>{imageUploadError}</p>}
           </div>
         </Modal.Body>
         <Modal.Footer>
-          <Button
-            variant="secondary"
-            onClick={() => setShowAddPlaceModal(false)}
-          >
+          <Button variant="secondary" onClick={() => setShowAddPlaceModal(false)}>
             Close
           </Button>
           <Button variant="primary" onClick={handleAddPlace}>
@@ -452,240 +373,107 @@ const Places = () => {
           </Button>
         </Modal.Footer>
       </Modal>
-     {/* Edit Place Modal */}
-<Modal
-  show={showEditPlaceModal}
-  onHide={() => setShowEditPlaceModal(false)}
->
-  <Modal.Header closeButton>
-    <Modal.Title>Edit Place</Modal.Title>
+
+      {/* Edit Place Modal */}
+      <Modal show={showEditPlaceModal} onHide={() => setShowEditPlaceModal(false)} className="rounded-lg">
+  <Modal.Header closeButton className="bg-gray-200 text-gray-700">
+    <Modal.Title className="text-lg font-semibold">Edit Place</Modal.Title>
   </Modal.Header>
-  <Modal.Body>
-    <div className="row">
-      {/* Place Name */}
-      <div className="col-md-6 mb-3">
-        <label htmlFor="editPlaceName" className="form-label">
-          Place Name
-        </label>
-        <input
-          type="text"
-          className="form-control"
-          id="editPlaceName"
-          value={selectedPlace?.placeName}
-          onChange={(e) =>
-            setSelectedPlace({
-              ...selectedPlace,
-              placeName: e.target.value,
-            })
-          }
-        />
+  <Modal.Body className="p-6">
+    {selectedPlace && (
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Place Name:</label>
+          <input
+            type="text"
+            value={selectedPlace.placeName}
+            onChange={(e) =>
+              setSelectedPlace({ ...selectedPlace, placeName: e.target.value })
+            }
+            required
+            className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring focus:ring-blue-400"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Description:</label>
+          <textarea
+            value={selectedPlace.description}
+            onChange={(e) =>
+              setSelectedPlace({ ...selectedPlace, description: e.target.value })
+            }
+            required
+            className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring focus:ring-blue-400"
+            rows="4"
+          />
+        </div>
+        <div className="flex gap-2">
+          <div><label className="block text-sm font-medium text-gray-700">Cost (Sedan):</label>
+          <input
+            type="text"
+            value={selectedPlace.cost.Sedan}
+            onChange={(e) =>
+              setSelectedPlace({
+                ...selectedPlace,
+                cost: { ...selectedPlace.cost, Sedan: e.target.value },
+              })
+            }
+            required
+            className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring focus:ring-blue-400"
+          /></div>
+           <div>
+          <label className="block text-sm font-medium text-gray-700">Cost (SUV):</label>
+          <input
+            type="text"
+            value={selectedPlace.cost.SUV}
+            onChange={(e) =>
+              setSelectedPlace({
+                ...selectedPlace,
+                cost: { ...selectedPlace.cost, SUV: e.target.value },
+              })
+            }
+            required
+            className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring focus:ring-blue-400"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Cost (Traveller):</label>
+          <input
+            type="text"
+            value={selectedPlace.cost.Traveller}
+            onChange={(e) =>
+              setSelectedPlace({
+                ...selectedPlace,
+                cost: { ...selectedPlace.cost, Traveller: e.target.value },
+              })
+            }
+            required
+            className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring focus:ring-blue-400"
+          />
+        </div>
+        </div>
+       
       </div>
-      {/* Description */}
-      <div className="col-md-6 mb-3">
-        <label htmlFor="editDescription" className="form-label">
-          Description
-        </label>
-        <textarea
-          className="form-control"
-          id="editDescription"
-          value={selectedPlace?.description}
-          onChange={(e) =>
-            setSelectedPlace({
-              ...selectedPlace,
-              description: e.target.value,
-            })
-          }
-        />
-      </div>
-    </div>
-    
-    <div className="row">
-      {/* Image URLs */}
-      <div className="mb-3">
-        <label htmlFor="editImage" className="form-label">
-          Upload Images
-        </label>
-        <input
-          type="file"
-          className="form-control"
-          id="editImage"
-          onChange={handleImageChange}
-          multiple
-        />
-      </div>
-      <Button variant="primary" onClick={handleImageUpload}>
-        Upload Images
-      </Button>
-    </div>
-    <div className="row">
-      {/* Distance */}
-      <div className="col-md-6 mb-3">
-        <label htmlFor="editDistance" className="form-label">
-          Distance
-        </label>
-        <input
-          type="number"
-          className="form-control"
-          id="editDistance"
-          value={selectedPlace?.distance}
-          onChange={(e) =>
-            setSelectedPlace({
-              ...selectedPlace,
-              distance: e.target.value,
-            })
-          }
-        />
-      </div>
-      {/* Enabled */}
-      <div className="col-md-6 mb-3">
-        <label htmlFor="editEnabled" className="form-label">
-          Enabled
-        </label>
-        <select
-          className="form-select"
-          id="editEnabled"
-          value={selectedPlace?.enabled}
-          onChange={(e) =>
-            setSelectedPlace({
-              ...selectedPlace,
-              enabled: e.target.value === "true",
-            })
-          }
-        >
-          <option value={true}>Yes</option>
-          <option value={false}>No</option>
-        </select>
-      </div>
-    </div>
-    {/* Paid */}
-    <div className="mb-3 form-check">
-      <input
-        type="checkbox"
-        className="form-check-input"
-        id="editPaid"
-        checked={selectedPlace?.paid}
-        onChange={(e) =>
-          setSelectedPlace({
-            ...selectedPlace,
-            paid: e.target.checked,
-          })
-        }
-      />
-      <label className="form-check-label" htmlFor="editPaid">
-        Paid
-      </label>
-    </div>
-    {/* Price */}
-    {selectedPlace?.paid && (
-     <div className="row">
-     {/* Cost */}
-     <div className="col-md-4 mb-3">
-       <label htmlFor="editCostSedan" className="form-label">
-         Cost (Sedan)
-       </label>
-       <input
-         type="text"
-         className="form-control"
-         id="editCostSedan"
-         value={selectedPlace?.cost.Sedan}
-         onChange={(e) =>
-           setSelectedPlace({
-             ...selectedPlace,
-             cost: { ...selectedPlace.cost, Sedan: e.target.value },
-           })
-         }
-       />
-     </div>
-     {/* Cost for SUV */}
-     <div className="col-md-4 mb-3">
-       <label htmlFor="editCostSUV" className="form-label">
-         Cost (SUV)
-       </label>
-       <input
-         type="text"
-         className="form-control"
-         id="editCostSUV"
-         value={selectedPlace?.cost.SUV}
-         onChange={(e) =>
-           setSelectedPlace({
-             ...selectedPlace,
-             cost: { ...selectedPlace.cost, SUV: e.target.value },
-           })
-         }
-       />
-     </div>
-     {/* Cost for Traveller */}
-     <div className="col-md-4 mb-3">
-       <label htmlFor="editCostTraveller" className="form-label">
-         Cost (Traveller)
-       </label>
-       <input
-         type="text"
-         className="form-control"
-         id="editCostTraveller"
-         value={selectedPlace?.cost.Traveller}
-         onChange={(e) =>
-           setSelectedPlace({
-             ...selectedPlace,
-             cost: { ...selectedPlace.cost, Traveller: e.target.value },
-           })
-         }
-       />
-     </div>
-     {/* Time */}
-     <div className="col-md-6 mb-3">
-       <label htmlFor="editTime" className="form-label">
-         Time
-       </label>
-       <input
-         type="number"
-         className="form-control"
-         id="editTime"
-         value={selectedPlace?.time}
-         onChange={(e) =>
-           setSelectedPlace({
-             ...selectedPlace,
-             time: e.target.value,
-           })
-         }
-       />
-     </div>
-   </div>
     )}
   </Modal.Body>
-  <Modal.Footer>
-    <Button
-      variant="secondary"
-      onClick={() => setShowEditPlaceModal(false)}
-    >
-      Close
-    </Button>
-    <Button variant="primary" onClick={handleUpdatePlace}>
-      Update Place
-    </Button>
+  <Modal.Footer className="flex justify-end gap-2">
+    <Button variant="shade" text="close" onClick={() => setShowEditPlaceModal(false)} className="bg-gray-300 hover:bg-gray-400" />
+    
+    <Button variant="primary" text="save" onClick={handleUpdatePlace} className="bg-blue-600 hover:bg-blue-700 text-white" />
+    
   </Modal.Footer>
 </Modal>
 
-      <Modal
-        show={showDeleteConfirmationModal}
-        onHide={() => setShowDeleteConfirmationModal(false)}
-      >
+
+      {/* Delete Confirmation Modal */}
+      <Modal show={showDeleteConfirmationModal} onHide={() => setShowDeleteConfirmationModal(false)}>
         <Modal.Header closeButton>
-          <Modal.Title>Delete Place</Modal.Title>
+          <Modal.Title>Confirm Delete</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {placeToDelete && (
-            <p>
-              Are you sure you want to delete the place "
-              {placeToDelete.placeName}"?
-            </p>
-          )}
+          Are you sure you want to delete the place "{placeToDelete?.placeName}"?
         </Modal.Body>
         <Modal.Footer>
-          <Button
-            variant="secondary"
-            onClick={() => setShowDeleteConfirmationModal(false)}
-          >
+          <Button variant="secondary" onClick={() => setShowDeleteConfirmationModal(false)}>
             Cancel
           </Button>
           <Button variant="danger" onClick={handleConfirmDelete}>
@@ -693,90 +481,6 @@ const Places = () => {
           </Button>
         </Modal.Footer>
       </Modal>
-
-      <div className="placeslist">
-        <div className="placesadded">
-          <h2>Places</h2>
-        </div>
-        <table className="table table-bordered table-striped mt-5">
-          <thead>
-            <tr>
-              <th>Place Name</th>
-              {/* <th>Description</th> */}
-              <th>Cost (Sedan)</th>
-              <th>Cost (SUV)</th>
-              <th>Cost (Traveller)</th>
-              <th>Time (in mins)</th>
-              <th>Distance (kms)</th>
-              <th>Enabled</th>
-              <th className="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {places.map((place) => (
-              <tr key={place._id}>
-                <td>{place.placeName}</td>
-                {/* <td>{place.description}</td> */}
-                <td>{place.cost.Sedan}</td>
-                <td>{place.cost.SUV}</td>
-                <td>{place.cost.Traveller}</td>
-                <td>{place.time}</td>
-                <td>{place.distance}</td>
-                <td>
-                  {/* Toggle switch for enabling/disabling */}
-                  <select
-                    className="form-select"
-                    value={place.enabled}
-                    onChange={(e) =>
-                      handleToggleEnable(place._id, e.target.value)
-                    }
-                  >
-                    <option value={true}>Yes</option>
-                    <option value={false}>No</option>
-                  </select>
-                </td>
-                <td className="text-end">
-                  {/* ... (previous buttons) */}
-                  <button
-                    className="btn btn-info me-2 text-white"
-                    onClick={() => handleEditPlace(place._id)}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      fill="currentColor"
-                      className="bi bi-pencil-square"
-                      viewBox="0 0 16 16"
-                    >
-                      <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z" />
-                      <path
-                        fillRule="evenodd"
-                        d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5z"
-                      />
-                    </svg>
-                  </button>
-                  <button
-                    className="btn btn-danger me-2 text-white"
-                    onClick={() => handleDeletePlace(place._id)}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      fill="currentColor"
-                      className="bi bi-trash3-fill"
-                      viewBox="0 0 16 16"
-                    >
-                      <path d="M11 1.5v1h3.5a.5.5 0 0 1 0 1h-.538l-.853 10.66A2 2 0 0 1 11.115 16h-6.23a2 2 0 0 1-1.994-1.84L2.038 3.5H1.5a.5.5 0 0 1 0-1H5v-1A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5m-5 0v1h4v-1a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5M4.5 5.029l.5 8.5a.5.5 0 1 0 .998-.06l-.5-8.5a.5.5 0 1 0-.998.06m6.53-.528a.5.5 0 0 0-.528.47l-.5 8.5a.5.5 0 0 0 .998.058l.5-8.5a.5.5 0 0 0-.47-.528M8 4.5a.5.5 0 0 0-.5.5v8.5a.5.5 0 0 0 1 0V5a.5.5 0 0 0-.5-.5" />
-                    </svg>
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 
-const Dropdown = ({ options, label, onSelect, onChange, searchInput, setSearchInput }) => {
+const Dropdown = ({ options, label, onSelect, onChange, searchInput, setSearchInput, invalid }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [filteredOptions, setFilteredOptions] = useState(options);
   const dropdownRef = useRef(null);
@@ -55,7 +55,9 @@ const Dropdown = ({ options, label, onSelect, onChange, searchInput, setSearchIn
         value={searchInput}
         onChange={handleInputChange}
         placeholder={label}
-        className="w-full text-sm px-4 py-2 text-left bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        className={`w-full text-sm px-4 py-2 text-left bg-white border
+         border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2
+          focus:ring-indigo-500 focus:border-indigo-500 ${invalid ? '!border-red-600' : 'border-gray-300'}`}
       />
 
       {isOpen && filteredOptions.length > 0 && (

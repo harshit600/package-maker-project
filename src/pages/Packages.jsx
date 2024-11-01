@@ -32,7 +32,7 @@ const Packages = () => {
             images={pkg.packageImages}
             packageName={pkg.packageName}
           />
-          <div className="p-4 pt-0"> {/* Adjusted padding for smaller cards */}
+          <div className="p-3 pb-4 pt-0"> {/* Adjusted padding for smaller cards */}
             <h2 className="text-xl font-bold mb-2 text-gray-800 hover:text-blue-600 transition duration-200 whitespace-nowrap overflow-hidden text-ellipsis">
               {pkg.packageName}
             </h2>
@@ -65,6 +65,10 @@ const Packages = () => {
             </div>
            
           </div>
+          <div className="relative overflow-hidden h-[5px] w-full bg-blue-600 flex items-center" style={{ borderTopLeftRadius: '0px !important', borderTopRightRadius: '0px !important' }}>
+  
+</div>
+
         </div>
       ))}
     </div>

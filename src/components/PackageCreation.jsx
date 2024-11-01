@@ -29,6 +29,7 @@ const PackageCreation = () => {
   const [packagePlaces, setPackagePlaces] = useState([{ placeCover: "", nights: 0, transfer: false }]);
   const [numRooms, setNumRooms] = useState(1);
   const [searchResults, setSearchResults] = useState([]);
+  const [validationErrors, setValidationErrors] = useState({});
   
   const [formData, setFormData] = useState({
     packageType: "",
@@ -77,6 +78,10 @@ const PackageCreation = () => {
       ...formData,
       [name]: value,
     });
+    setValidationErrors((prevErrors) => ({
+      ...prevErrors,
+      [name]: value ? "" : "Please enter the information",
+    }));
   };
 
   // Function to initialize itinerary days based on maxNights
@@ -298,15 +303,26 @@ const PackageCreation = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Perform form submission or API call here
-    const payload = formData;
-    let url = "";
-    let method = "";
+    
+    // Validation check
+    const errors = {};
+    Object.keys(formData).forEach((field) => {
+      if (!formData[field]) {
+        errors[field] = "Please enter the information";
+      }
+    });
 
-      // Adding new itinerary
-      url = `${config.API_HOST}/api/packages/createpackage`;
-      method = "POST"; // Use POST for adding
-  
+    setValidationErrors(errors);
+
+    // If there are validation errors, do not proceed with form submission
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
+    const payload = formData;
+    const url = `${config.API_HOST}/api/packages/createpackage`;
+    const method = "POST"; 
+
     const response = await fetch(url, {
       method: method,
       headers: {
@@ -315,33 +331,31 @@ const PackageCreation = () => {
       body: JSON.stringify(payload),
     });
 
-    if(response.ok){
+    if (response.ok) {
       window.location.reload();
-    }
-
-    if (!response.ok) {
+    } else {
       throw new Error("Failed to submit itinerary");
     }
   };
 
-  const handleAddItineraryDay = () => {
-    const nextDay = itineraryDays.length + 1;
-    setItineraryDays([
-      ...itineraryDays,
-      {
-        day: nextDay,
-        selectedItinerary: null,
-        details: { title: "", description: "" },
-      },
-    ]);
-  };
+  // const handleAddItineraryDay = () => {
+  //   const nextDay = itineraryDays.length + 1;
+  //   setItineraryDays([
+  //     ...itineraryDays,
+  //     {
+  //       day: nextDay,
+  //       selectedItinerary: null,
+  //       details: { title: "", description: "" },
+  //     },
+  //   ]);
+  // };
 
-  const handleRemoveItineraryDay = () => {
-    if (itineraryDays.length === 1) return;
-    const updatedItinerary = [...itineraryDays];
-    updatedItinerary.pop();
-    setItineraryDays(updatedItinerary);
-  };
+  // const handleRemoveItineraryDay = () => {
+  //   if (itineraryDays.length === 1) return;
+  //   const updatedItinerary = [...itineraryDays];
+  //   updatedItinerary.pop();
+  //   setItineraryDays(updatedItinerary);
+  // };
 
   const [maxNightsReached, setMaxNightsReached] = useState(0);
 
@@ -434,6 +448,11 @@ const PackageCreation = () => {
     // Update the state with the input value
     setPackagePlaces(updatedPlaces);
     setFormData(updatedFormData); // Update form data with nights
+
+    setValidationErrors((prevErrors) => ({
+      ...prevErrors,
+      [name]: value ? "" : "Please enter the information",
+    }));
 
     // Extract search string from input
     const searchString = value.trim();
@@ -587,12 +606,21 @@ const PackageCreation = () => {
       ...prevFormData,
       pickupLocation: selectedOption.label, // Update form data with the selected city
     }));
+    setValidationErrors((prevErrors) => ({
+      ...prevErrors,
+      pickupLocation: selectedOption.label ? "" : "Please enter the information",
+    }));
   };
 
   const handleDropLocationChange = (inputValue) => {
     setFormData((prevFormData) => ({
       ...prevFormData,
       dropLocation: inputValue,
+    }));
+
+    setValidationErrors((prevErrors) => ({
+      ...prevErrors,
+      [name]: value ? "" : "Please enter the information",
     }));
 
     // Fetch data for drop location
@@ -611,12 +639,20 @@ const PackageCreation = () => {
       ...prevFormData,
       dropLocation: selectedOption.label, // Update drop location
     }));
+    setValidationErrors((prevErrors) => ({
+      ...prevErrors,
+      dropLocation: selectedOption.label ? "" : "Please enter the information",
+    }));
   };
 
   const handleDropDownChange = (name, value) => {
     setFormData((prevFormData) => ({
       ...prevFormData,
       [name]: value, // Dynamically update the form field based on name
+    }));
+    setValidationErrors((prevErrors) => ({
+      ...prevErrors,
+      [name]: value ? "" : "Please enter the information",
     }));
   };
 
@@ -678,18 +714,20 @@ const PackageCreation = () => {
     }));
   };
 
+  console.log(validationErrors.packageType)
+
 
   return (
     <div style={{ width: "100%" }}>
       {/* Top bar */}
       <div className="bg-gray-100 rounded p-2 text-xl font-semibold mb-2 border-l-4 text-center border-r-4 border-black">
-        Edit Package
+        Create Package
       </div>
 
       {/* Basic Information section */}
 
       {/* <div className="mt-6 mb-6 text-lg font-semibold ">Basic Information</div> */}
-      <Form onSubmit={handleSubmit}>
+      <div>
         <Container
           style={{
             paddingTop: "10px",
@@ -701,9 +739,6 @@ const PackageCreation = () => {
         >
           <Row className="mb-[40px]">
             <Form.Group as={Col} id="packageType">
-              <Form.Label style={{ fontSize: "smaller" }}>
-                Package Type
-              </Form.Label>
               <SimpleDropdown
                 options={packageTypeOptions}
                 label="Select Package Type"
@@ -711,20 +746,27 @@ const PackageCreation = () => {
                   handleDropDownChange("packageType", selectedOption.value)
                 }
                 value={formData.packageType}
+                invalid={validationErrors.packageType}
               />
+              {validationErrors.packageType && (
+          <small className="text-red-500">{validationErrors.packageType}</small>
+        )}
+              
             </Form.Group>
             <Form.Group as={Col} id="packageCategory">
-              <Form.Label style={{ fontSize: "smaller" }}>
-                Package Category
-              </Form.Label>
+              
               <SimpleDropdown
                 options={packageCategoryOptions}
-                label="Select Package Type"
+                label="Select Package Category"
                 onSelect={(selectedOption) =>
                   handleDropDownChange("packageCategory", selectedOption.value)
                 }
                 value={formData.packageCategory}
+                invalid={validationErrors.packageCategory}
               />
+              {validationErrors.packageCategory && (
+          <small className="text-red-500">{validationErrors.packageCategory}</small>
+        )}
             </Form.Group>
             <Form.Group as={Col} id="packageName">
               <Form.Label style={{ fontSize: "smaller" }}>
@@ -737,15 +779,16 @@ const PackageCreation = () => {
                 onChange={handleInputChange}
                 value={formData.packageName}
                 size="md"
-                className="text-sm placeholder-gray-400 placeholder-opacity-100"
+                className={`text-sm placeholder-gray-400 placeholder-opacity-100 ${validationErrors.packageName ? 'border-red-500' : ''}`}
               />
+               {validationErrors.packageName && (
+          <small className="text-red-500">{validationErrors.packageName}</small>
+        )}
             </Form.Group>
           </Row>
           <Row className="mb-[40px]">
             <Form.Group as={Col} id="duration">
-              <Form.Label style={{ fontSize: "smaller" }}>
-                Duration (Days)
-              </Form.Label>
+              
               <SimpleDropdown
                 options={durationOptions}
                 label="Select Duration"
@@ -753,18 +796,25 @@ const PackageCreation = () => {
                   handleDropDownChange("duration", selectedOption.value)
                 }
                 value={formData.duration}
+                invalid={validationErrors.duration}
               />
+              {validationErrors.duration && (
+          <small className="text-red-500">{validationErrors.duration}</small>
+        )}
             </Form.Group>
             <Form.Group as={Col} id="status">
-              <Form.Label style={{ fontSize: "smaller" }}>Status</Form.Label>
               <SimpleDropdown
                 options={statusOptions}
-                label="Select Duration"
+                label="Select Status"
                 onSelect={(selectedOption) =>
                   handleDropDownChange("status", selectedOption.value)
                 }
                 value={formData.status}
+                invalid={validationErrors.status}
               />
+              {validationErrors.status && (
+          <small className="text-red-500">{validationErrors.status}</small>
+        )}
             </Form.Group>
             <Form.Group as={Col} id="displayOrder">
               <Form.Label style={{ fontSize: "smaller" }}>
@@ -777,16 +827,15 @@ const PackageCreation = () => {
                 onChange={handleInputChange}
                 value={formData.displayOrder}
                 size="md"
-                className="text-sm placeholder-gray-400 placeholder-opacity-100"
+                invalid={validationErrors.displayOrder}
+                className={`text-sm placeholder-gray-400 placeholder-opacity-100 ${validationErrors.packageName ? 'border-red-500' : ''}`}
               />
-              <Form.Text className="text-muted text-xs">
-                1 is Highest and 100 is Lowest
-              </Form.Text>
+              {validationErrors.displayOrder && (
+          <small className="text-red-500">{validationErrors.displayOrder}</small>
+        )}
             </Form.Group>
             <Form.Group as={Col} id="hotelCategory">
-              <Form.Label style={{ fontSize: "smaller" }}>
-                Hotel Category
-              </Form.Label>
+              
               <SimpleDropdown
                 options={hotelCategoryOptions}
                 label="Select Hotel Category"
@@ -794,7 +843,11 @@ const PackageCreation = () => {
                   handleDropDownChange("hotelCategory", selectedOption.value)
                 }
                 value={formData.hotelCategory}
+                invalid={validationErrors.hotelCategory}
               />
+              {validationErrors.hotelCategory && (
+          <small className="text-red-500">{validationErrors.hotelCategory}</small>
+        )}
             </Form.Group>
           </Row>
           <Row className="mb-[40px]">
@@ -813,7 +866,11 @@ const PackageCreation = () => {
                 searchInput={searchInput}
                 label="Search Pickup Location"
                 onSelect={handleSelectSuggestion} // Handle selection
+                invalid={validationErrors.pickupLocation}
               />
+              {validationErrors.pickupLocation && (
+          <small className="text-red-500">{validationErrors.pickupLocation}</small>
+        )}
             </Form.Group>
             <Form.Group as={Col} id="pickupTransfer">
               <Form.Label
@@ -825,6 +882,7 @@ const PackageCreation = () => {
               >
                 Pickup Transfer
               </Form.Label>
+              
               <div className="flex align-center justify-center gap-2">
                 <Form.Text className="text-muted">Day</Form.Text>
                 <Form.Check
@@ -842,7 +900,11 @@ const PackageCreation = () => {
                 />
                 <Form.Text className="text-muted">Night</Form.Text>
               </div>
+              <div className="flex justify-center">
+             
+        </div>
             </Form.Group>
+
             <Form.Group as={Col} id="dropLocation">
               <Form.Label style={{ fontSize: "smaller" }}>
                 Drop Location
@@ -857,8 +919,12 @@ const PackageCreation = () => {
                 onChange={handleDropLocationChange}
                 searchInput={pickupSearchInput}
                 label="Search Drop Location"
+                invalid={validationErrors.dropLocation}
                 onSelect={handleDropSelectSuggestion} // Handle selection
               />
+              {validationErrors.dropLocation && (
+          <small className="text-red-500">{validationErrors.dropLocation}</small>
+        )}
             </Form.Group>
           </Row>
           <Row className="mb-[40px]">
@@ -871,11 +937,14 @@ const PackageCreation = () => {
                 name="validTill"
                 onChange={handleInputChange}
                 value={formData.validTill}
+                className={`text-sm placeholder-gray-400 placeholder-opacity-100 ${validationErrors.validTill ? 'border-red-500' : ''}`}
                 size="sm"
               />
+              {validationErrors.validTill && (
+          <small className="text-red-500">{validationErrors.validTill}</small>
+        )}
             </Form.Group>
             <Form.Group as={Col} id="tourBy">
-              <Form.Label style={{ fontSize: "smaller" }}>Tour By</Form.Label>
               <SimpleDropdown
                 options={tourByOptions}
                 label="Tour By"
@@ -883,12 +952,14 @@ const PackageCreation = () => {
                   handleDropDownChange("tourBy", selectedOption.value)
                 }
                 value={formData.tourBy}
+                invalid={validationErrors.tourBy}
               />
+              {validationErrors.tourBy && (
+          <small className="text-red-500">{validationErrors.tourBy}</small>
+        )}
             </Form.Group>
             <Form.Group as={Col} id="agentPackage">
-              <Form.Label style={{ fontSize: "smaller" }}>
-                Agent Package
-              </Form.Label>
+              
               <SimpleDropdown
                 options={agentPackageOptions}
                 label="Select Agent Package"
@@ -896,7 +967,11 @@ const PackageCreation = () => {
                   handleDropDownChange("agentPackage", selectedOption.value)
                 }
                 value={formData.agentPackage}
+                invalid={validationErrors.agentPackage}
               />
+               {validationErrors.agentPackage && (
+          <small className="text-red-500">{validationErrors.agentPackage}</small>
+        )}
             </Form.Group>
             <Form.Group as={Col} id="customizable">
               {/* Checkbox for Customizable Package */}
@@ -954,7 +1029,6 @@ const PackageCreation = () => {
               </div>
               {/* Default Hotel Package Section */}
               <Form.Group className="mb-6 w-100">
-                <Form.Label>Default Hotel Package:</Form.Label>
                 <SimpleDropdown
                   options={hotelPackageOptions}
                   label="Select Hotel Package"
@@ -969,7 +1043,6 @@ const PackageCreation = () => {
               </Form.Group>
 
               <div className="mb-6 w-100">
-                <Form.Label>Price tag:</Form.Label>
                 <SimpleDropdown
                   options={priceTagOptions}
                   label="Select Price tag"
@@ -1000,7 +1073,6 @@ const PackageCreation = () => {
             </Form.Group>
             {/* Default Vehicle Section */}
             <Form.Group className=" w-100">
-              <Form.Label>Default Vehicle:</Form.Label>
               <SimpleDropdown
                 options={vehicleOptions}
                 label="Select default vehicle"
@@ -1267,7 +1339,7 @@ const PackageCreation = () => {
             cssClassesProps="w-[200px] mb-[30px] h-[50px]"
           />
         </div>
-      </Form>
+      </div>
     </div>
   );
 };

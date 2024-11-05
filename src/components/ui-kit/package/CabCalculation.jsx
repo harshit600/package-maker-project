@@ -15,7 +15,7 @@ function CabCalculation({ cabsData, cabs, pricing, setPricing, travelData, handl
             </div>
             <UpperCabInfo cabsData={cabsData} pricing={pricing}/>
             <DayWiseCabPricing travelData={travelData} setPricing={setPricing} cabs={cabs} cabPayLoad={cabPayLoad} setCabPayload={setCabPayload}/>
-            <div className='flex justify-center items-center'>
+            <div className='flex justify-end items-center'>
             <Button 
             text="Save and next" 
             cssClassesProps="w-[200px] mb-[30px] mt-[20px] h-[50px]"

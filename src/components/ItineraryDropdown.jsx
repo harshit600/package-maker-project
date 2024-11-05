@@ -24,7 +24,6 @@ const ItineraryDropdown = ({ onSelectItinerary, selectedItinerary, setSelectedIt
   const handleChange = (selectedOption) => {
     onSelectItinerary(selectedOption ? selectedOption.details : null);
     setSelectedItinerary(selectedOption);
-    console.log(selectedOption)
   };
 
   return (

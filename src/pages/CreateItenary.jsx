@@ -14,7 +14,6 @@ const ItineraryMaster = () => {
   const [cityFilter, setCityFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [isEditMode, setIsEditMode] = useState("");
-  console.log(isEditMode);
   const [placesOptions, setPlacesOptions] = useState([]);
   const [formData, setFormData] = useState({
     cityName: "",
@@ -49,7 +48,6 @@ const ItineraryMaster = () => {
   const [itineraryData, setItineraryData] = useState([]);
   const [page, setPage] = useState(1); // Current page
   const [perPage] = useState(10);
-  console.log(placesOptions);
 
   // Handle page change
   const handlePageChange = (pageNumber) => {
@@ -83,7 +81,6 @@ const ItineraryMaster = () => {
     }
   };
 
-  console.log(formData);
 
   useEffect(() => {
     // Reset form data to default values when the component mounts
@@ -309,7 +306,6 @@ const ItineraryMaster = () => {
   };
 
   const handleCityAreaChange = (selectedOption) => {
-    console.log(selectedOption);
     setCloseDropdown(true);
     setSearchInput(selectedOption);
     const filteredResults = places.filter((place) =>
@@ -332,7 +328,6 @@ const ItineraryMaster = () => {
 
   const handleCityChange = (e) => {
     const city = e.target.value;
-    console.log(city);
     setSelectedCity(city);
     setSelectedPlace(""); // Reset selected place when city changes
     setFormData({
@@ -421,7 +416,6 @@ const ItineraryMaster = () => {
   };
 
   const handleEdit = async (id) => {
-    console.log("Editing itinerary ID:", id);
   
     // Set the form to show first (optional)
     setShowForm(true);
@@ -437,7 +431,6 @@ const ItineraryMaster = () => {
       }
       const data = await response.json();
   
-      console.log(data);
   
       fetchCities(data?.country);
       setSelectedCountry(data.country);
@@ -511,7 +504,6 @@ const ItineraryMaster = () => {
   // Slice the data array to get items for the current page
   const currentPageData = filteredItineraryData.slice(startIndex, endIndex);
 
-  console.log(currentPageData);
 
   return (
     <div className="container flexitdest">

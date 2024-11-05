@@ -20,7 +20,6 @@ function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, s
     const lowestOffSeasonPrices = [];
 
     // Log the tempPrice to check its structure
-    console.log("Temp Prices to be processed:", tempPrice);
 
     // Process each travel entry for pricing
     Object.keys(travelData).forEach((key) => {
@@ -35,7 +34,6 @@ function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, s
         // Collect prices for global pricing
         Object.keys(tempPrice).forEach(cabName => {
             const prices = tempPrice[cabName];
-            console.log(`Prices for ${cabName}:`, prices); // Log prices for debugging
 
             if (prices) {
                 const onSeasonPrice = parseFloat(prices.onSeasonPrice) || 0;
@@ -52,7 +50,6 @@ function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, s
     const lowestOffSeasonPrice = lowestOffSeasonPrices.length ? Math.min(...lowestOffSeasonPrices) : 0;
 
     // Log the calculated lowest prices
-    console.log("Calculated Lowest Prices - On-Season:", lowestOnSeasonPrice, "Off-Season:", lowestOffSeasonPrice);
 
     // Set global pricing
     setPricing({

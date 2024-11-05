@@ -61,7 +61,6 @@ const ProductForm = () => {
     },
   ]);
 
-  console.log(packageOptions);
 
   const handlePackageInputChange = (index, e) => {
     const { name, value } = e.target;
@@ -101,7 +100,6 @@ const ProductForm = () => {
   };
 
   const handleImageSubmit = (e) => {
-    console.log(files);
     if (files.length > 0 && files.length + formData.imageUrls.length < 7) {
       setUploading(true);
       setImageUploadError(false);
@@ -216,7 +214,6 @@ const ProductForm = () => {
         }),
       });
       const data = await res.json();
-      console.log(data);
       setLoading(false);
       if (data.success === false) {
         setError(data.message);
@@ -242,7 +239,6 @@ const ProductForm = () => {
   };
 
   const handleDayPriceChange = (day, value) => {
-    console.log("Before update:", formData.dailyPrices);
 
     setFormData((prevFormData) => ({
       ...prevFormData,
@@ -252,10 +248,8 @@ const ProductForm = () => {
       },
     }));
 
-    console.log("After update:", formData.dailyPrices);
   };
 
-  // console.log(fomData);
 
   const addHighlight = () => {
     setFormData({

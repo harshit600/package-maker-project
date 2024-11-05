@@ -24,7 +24,6 @@ function CabManager() {
     cabLuggage: "",
   });
 
-  console.log(formData)
 
   const [cabNameOptions, setCabNameOptions] = useState([]);
 
@@ -102,11 +101,9 @@ function CabManager() {
     setFiles(Array.from(e.target.files));
   };
 
-  console.log(files.length, files.length + formData.cabImages.length < 7)
 
   const handleImageUpload = () => {
     if (files.length > 0 && files.length + formData.cabImages.length < 7) {
-        console.log('hi')
       setUploading(true);
       setImageUploadError(null);
       const promises = [];
@@ -185,7 +182,6 @@ function CabManager() {
       const data = await response.json();
   
       // Handle success response
-      console.log('Cab created successfully:', data);
       // You can add logic here to close the modal or reset form fields
     } catch (error) {
       console.error('Error creating cab:', error);

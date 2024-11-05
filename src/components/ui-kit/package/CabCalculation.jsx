@@ -5,7 +5,6 @@ import Button from '../atoms/Button';
 
 function CabCalculation({ cabsData, cabs, pricing, setPricing, travelData, handleCabsSubmit, setCabPayload, cabPayLoad  }) {
    
-    console.log(cabs)
     
     return (
         <div className="p-4 bg-white shadow-lg rounded-lg">

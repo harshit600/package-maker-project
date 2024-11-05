@@ -1,7 +1,6 @@
 import React from 'react';
 
 function UpperCabInfo({ cabsData, pricing }) {
-    console.log(pricing); // Check the structure of the pricing object
 
 
     return (

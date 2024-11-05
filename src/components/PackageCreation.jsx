@@ -341,9 +341,7 @@ const PackageCreation = () => {
     });
 
     const data = await response.json();
-        console.log(data); 
 
-    console.log(data);
     setCabsData(data);
     setActiveTab('Cabs')
 

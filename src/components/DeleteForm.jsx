@@ -1,7 +1,6 @@
 import React from "react";
 
 function DeleteForm({ setShowDeleteForm, showDeleteForm }) {
-  console.log(showDeleteForm);
 
   const deleteCountry = async (showDeleteForm) => {
     try {
@@ -16,7 +15,6 @@ function DeleteForm({ setShowDeleteForm, showDeleteForm }) {
       );
 
       if (response.ok) {
-        console.log(`Country with ID ${showDeleteForm} deleted successfully.`);
         window.location.reload();
         // Handle any additional actions you want to perform after deletion
       } else {

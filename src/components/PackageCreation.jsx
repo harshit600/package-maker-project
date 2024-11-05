@@ -32,6 +32,7 @@ const PackageCreation = () => {
   const [cabsData, setCabsData] = useState({});
   const [cabs, setCabs] = useState();
   const [cabPayLoad, setCabPayload] = useState();
+  console.log(cabPayLoad)
   
   const [formData, setFormData] = useState({
     packageType: "",
@@ -61,6 +62,7 @@ const PackageCreation = () => {
     packageInclusions:"",
     packageExclusions:"",
     userRef: "",
+    travelPrices: {}
   });
 
   console.log(formData)
@@ -869,6 +871,7 @@ const PackageCreation = () => {
       pricing={pricing}
       handleCabsSubmit={handleCabsSubmit}
       setCabPayload={setCabPayload}
+      setFormData={setFormData}
       cabPayLoad={cabPayLoad}
       />
     </div>}

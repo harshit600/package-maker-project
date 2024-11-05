@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import AddPricesPerDayModal from "./AddPricesPerDayModal";
 import Button from "../atoms/Button";
 
-function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, setPricing }) {
+function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, setFormData, setPricing }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [tempPrice, setTempPrice] = useState({});
     const [isEditing, setIsEditing] = useState(false);
@@ -15,41 +15,24 @@ function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, s
         return;
     }
 
-    const newCabPayload = {};
     const lowestOnSeasonPrices = [];
     const lowestOffSeasonPrices = [];
 
-    // Log the tempPrice to check its structure
+    // Collect prices for global pricing
+    Object.keys(tempPrice).forEach((cabName) => {
+        const prices = tempPrice[cabName];
+        if (prices) {
+            const onSeasonPrice = parseFloat(prices.onSeasonPrice) || 0;
+            const offSeasonPrice = parseFloat(prices.offSeasonPrice) || 0;
 
-    // Process each travel entry for pricing
-    Object.keys(travelData).forEach((key) => {
-        const travelInfo = travelData[key];
-        newCabPayload[key] = {
-            travelKey: key,
-            prices: tempPrice,
-            travelInfo,
-            cabs,
-        };
-
-        // Collect prices for global pricing
-        Object.keys(tempPrice).forEach(cabName => {
-            const prices = tempPrice[cabName];
-
-            if (prices) {
-                const onSeasonPrice = parseFloat(prices.onSeasonPrice) || 0;
-                const offSeasonPrice = parseFloat(prices.offSeasonPrice) || 0;
-
-                lowestOnSeasonPrices.push(onSeasonPrice);
-                lowestOffSeasonPrices.push(offSeasonPrice);
-            }
-        });
+            lowestOnSeasonPrices.push(onSeasonPrice);
+            lowestOffSeasonPrices.push(offSeasonPrice);
+        }
     });
 
     // Calculate the lowest prices
     const lowestOnSeasonPrice = lowestOnSeasonPrices.length ? Math.min(...lowestOnSeasonPrices) : 0;
     const lowestOffSeasonPrice = lowestOffSeasonPrices.length ? Math.min(...lowestOffSeasonPrices) : 0;
-
-    // Log the calculated lowest prices
 
     // Set global pricing
     setPricing({
@@ -57,18 +40,30 @@ function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, s
         lowestOffSeasonPrice,
     });
 
-    // Update cab payload for all travels
-    setCabPayload(prevPayload => ({
+    // Consolidate newCabPayload to a single entry for the entire trip
+    const newCabPayload = {
+        prices: tempPrice, // Contains all cab prices
+        travelInfo: Object.values(travelData), // Optional: if you need the travel info as a whole
+        cabs, // Passing the cabs object as is
+    };
+
+    // Update the cab payload for the entire trip, not individual travels
+    setCabPayload((prevPayload) => ({
         ...prevPayload,
-        ...newCabPayload,
+        tripData: newCabPayload, // Single entry for the whole trip
     }));
+
+    setFormData((prevFormData) => ({
+        ...prevFormData,
+        travelPrices: newCabPayload
+    }))
 
     closeModal();
 };
 
+   useEffect(() => {
 
-
-
+   })
 
     const openModal = () => {
         setIsModalOpen(true);
@@ -93,9 +88,9 @@ function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, s
                 return (
                     <div
                         key={key}
-                        className="flex items-center justify-between p-4 rounded-lg shadow-md mb-4 transition-shadow duration-300 hover:shadow-lg"
+                        className="flex items-center justify-between p-4 rounded-lg shadow-md w-[700px] mb-4 transition-shadow duration-300 hover:shadow-lg"
                     >
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-center w-full gap-4">
                             <div className="w-[150px]">
                                 <span className="text-gray-500 font-medium">From</span>
                                 <div className="text-xl font-semibold text-gray-800">{fromPlace}</div>

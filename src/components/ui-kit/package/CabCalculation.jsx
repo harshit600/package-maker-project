@@ -3,7 +3,7 @@ import UpperCabInfo from './UpperCabInfo';
 import DayWiseCabPricing from './DayWiseCabPricing';
 import Button from '../atoms/Button';
 
-function CabCalculation({ cabsData, cabs, pricing, setPricing, travelData, handleCabsSubmit, setCabPayload, cabPayLoad  }) {
+function CabCalculation({ cabsData, cabs, pricing, setPricing, travelData, handleCabsSubmit, setCabPayload, setFormData, cabPayLoad  }) {
    
     
     return (
@@ -13,7 +13,7 @@ function CabCalculation({ cabsData, cabs, pricing, setPricing, travelData, handl
                 Cab Price Calculation
             </div>
             <UpperCabInfo cabsData={cabsData} pricing={pricing}/>
-            <DayWiseCabPricing travelData={travelData} setPricing={setPricing} cabs={cabs} cabPayLoad={cabPayLoad} setCabPayload={setCabPayload}/>
+            <DayWiseCabPricing travelData={travelData} setPricing={setPricing} cabs={cabs} cabPayLoad={cabPayLoad} setCabPayload={setCabPayload} setFormData={setFormData}/>
             <div className='flex justify-end items-center'>
             <Button 
             text="Save and next" 

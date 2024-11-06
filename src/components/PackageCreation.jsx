@@ -32,7 +32,8 @@ const PackageCreation = () => {
   const [cabsData, setCabsData] = useState({});
   const [cabs, setCabs] = useState();
   const [cabPayLoad, setCabPayload] = useState();
-  console.log(cabPayLoad)
+  const [thirdStep, setThirdStep] = useState();
+  console.log(cabsData, thirdStep)
   
   const [formData, setFormData] = useState({
     packageType: "",
@@ -791,8 +792,24 @@ const PackageCreation = () => {
 };
 
 
-  const handleCabsSubmit = () => {
-      console.log('hi clicked!')
+  const handleCabsSubmit = async (packageId) => {
+      try{
+        const url = `${config.API_HOST}/api/packages/${cabsData.packageId}/travel-prices`;
+        const method = "PATCH"; 
+
+    const response = await fetch(url, {
+      method: method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(cabPayLoad),
+    });
+
+    const data = await response.json();
+        setThirdStep(data);       
+      } catch (error) {
+        console.error('Error updating prices:', error);
+    }
   }
   
   return (

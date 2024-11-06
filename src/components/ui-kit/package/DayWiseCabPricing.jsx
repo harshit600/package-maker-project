@@ -10,6 +10,7 @@ function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, s
     // Function to handle adding or updating prices
    // Function to handle adding or updating prices
    const handlePriceAdd = () => {
+    // Validate tempPrice
     if (!tempPrice || Object.keys(tempPrice).length === 0) {
         console.error("tempPrice is empty or undefined");
         return;
@@ -18,9 +19,8 @@ function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, s
     const lowestOnSeasonPrices = [];
     const lowestOffSeasonPrices = [];
 
-    // Collect prices for global pricing
-    Object.keys(tempPrice).forEach((cabName) => {
-        const prices = tempPrice[cabName];
+    // Gather prices for each cab in tempPrice
+    Object.entries(tempPrice).forEach(([cabName, prices]) => {
         if (prices) {
             const onSeasonPrice = parseFloat(prices.onSeasonPrice) || 0;
             const offSeasonPrice = parseFloat(prices.offSeasonPrice) || 0;
@@ -30,34 +30,35 @@ function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, s
         }
     });
 
-    // Calculate the lowest prices
+    // Determine lowest prices for each season
     const lowestOnSeasonPrice = lowestOnSeasonPrices.length ? Math.min(...lowestOnSeasonPrices) : 0;
     const lowestOffSeasonPrice = lowestOffSeasonPrices.length ? Math.min(...lowestOffSeasonPrices) : 0;
 
-    // Set global pricing
+    // Update global pricing state
     setPricing({
         lowestOnSeasonPrice,
         lowestOffSeasonPrice,
     });
 
-    // Consolidate newCabPayload to a single entry for the entire trip
+    // Consolidate cab data into a single payload for the entire trip
     const newCabPayload = {
-        prices: tempPrice, // Contains all cab prices
-        travelInfo: Object.values(travelData), // Optional: if you need the travel info as a whole
-        cabs, // Passing the cabs object as is
+        prices: tempPrice,
+        travelInfo: Object.values(travelData), // Optional: for entire trip details
+        cabs, // Include all cab data as a single entry
     };
 
-    // Update the cab payload for the entire trip, not individual travels
+    // Update both cab payload and form data with consolidated pricing
     setCabPayload((prevPayload) => ({
         ...prevPayload,
-        tripData: newCabPayload, // Single entry for the whole trip
+        travelPrices: newCabPayload,
     }));
 
     setFormData((prevFormData) => ({
         ...prevFormData,
-        travelPrices: newCabPayload
-    }))
+        travelPrices: newCabPayload,
+    }));
 
+    // Close the modal
     closeModal();
 };
 

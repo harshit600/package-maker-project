@@ -19,7 +19,7 @@ function PackageForm({
   return (
     <div style={{ width: "100%" }}>
       {/* Top bar */}
-      <div className="bg-gray-100 rounded p-2 text-xl font-semibold mb-2 border-l-4 text-center border-r-4 border-black">
+      <div className="bg-gray-200 rounded p-4 text-xl font-semibold mb-4 text-center border-b-2 border-gray-300">
         Create Package
       </div>
 

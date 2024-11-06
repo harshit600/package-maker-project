@@ -7,11 +7,13 @@ function CabCalculation({ cabsData, cabs, pricing, setPricing, travelData, handl
    
     
     return (
-        <div className="p-4 bg-white shadow-lg rounded-lg">
-            {/* Top bar */}
+        <div>
             <div className="bg-gray-200 rounded p-4 text-xl font-semibold mb-4 text-center border-b-2 border-gray-300">
                 Cab Price Calculation
             </div>
+            <div className="p-4 pt-0 bg-white shadow-md rounded-lg">
+            {/* Top bar */}
+            
             <UpperCabInfo cabsData={cabsData} pricing={pricing}/>
             <DayWiseCabPricing travelData={travelData} setPricing={setPricing} cabs={cabs} cabPayLoad={cabPayLoad} setCabPayload={setCabPayload} setFormData={setFormData}/>
             <div className='flex justify-end items-center'>
@@ -22,6 +24,8 @@ function CabCalculation({ cabsData, cabs, pricing, setPricing, travelData, handl
             />
             </div>
         </div>
+        </div>
+       
     );
 }
 

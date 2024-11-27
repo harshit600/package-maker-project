@@ -112,6 +112,7 @@ const PackageCreation = () => {
       );
       const data = await response.json();
       const searchResults = data;
+      console.log("seas",searchResults)
       setItineraryDays((prevDays) => {
         const updatedDays = [...prevDays];
         updatedDays[index].searchResults = searchResults;
@@ -214,6 +215,8 @@ const PackageCreation = () => {
   useEffect(() => {
     fetchItinerariesForTripData(tripData);
   }, [tripData]);
+
+  console.log(itineraryDays)
 
   const renderItineraryBoxes = () => {
     return itineraryDays.map((day, index) => (

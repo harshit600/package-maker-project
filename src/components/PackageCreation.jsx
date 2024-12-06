@@ -8,6 +8,7 @@ import { app } from "../firebase";
 import config from "../../config";
 import PackageForm from "./ui-kit/package/PackageForm";
 import CabCalculation from "./ui-kit/package/CabCalculation";
+import HotelCalculation from "./ui-kit/package/HotelCalculation";
 
 const PackageCreation = () => {
   const [showIteniraryBoxes, setShowIteniraryBoxes] = useState(false);
@@ -895,6 +896,11 @@ const PackageCreation = () => {
       cabPayLoad={cabPayLoad}
       />
     </div>}
+    {activeTab === 'Hotels' && <div className="step-3">
+      <HotelCalculation
+        itineraryDays={itineraryDays}
+        />
+    </div>} 
     </div>
   );
 };

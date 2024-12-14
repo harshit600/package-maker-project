@@ -898,8 +898,9 @@ const PackageCreation = () => {
     </div>}
     {activeTab === 'Hotels' && <div className="step-3">
       <HotelCalculation
-        itineraryDays={itineraryDays}
-        />
+        travelData={travelData}
+        cabsData={cabsData}
+      />
     </div>} 
     </div>
   );

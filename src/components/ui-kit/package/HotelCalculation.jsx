@@ -1,17 +1,40 @@
 import React, { useState, useEffect } from 'react';
 
-function HotelCalculation({ itineraryDays }) {
+function HotelCalculation({ travelData, cabsData }) {
   const [selectedDay, setSelectedDay] = useState(1);
   const [hotels, setHotels] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [cityNights, setCityNights] = useState({});
 
-  const getCityFromItinerary = (day) => {
-    const dayData = itineraryDays.find(d => d.day === day);
-    if (dayData?.selectedItinerary) {
-      return dayData.selectedItinerary.connectingCity || dayData.selectedItinerary.cityName;
+  // Process package places to get nights per city
+  useEffect(() => {
+    if (cabsData?.packagePlaces) {
+      const nightsMap = {};
+      let currentDay = 1;
+      
+      cabsData.packagePlaces.forEach(place => {
+        const nights = parseInt(place.nights);
+        if (place.placeCover && nights) {
+          nightsMap[place.placeCover] = {
+            totalNights: nights,
+            startDay: currentDay,
+            endDay: currentDay + nights - 1
+          };
+          currentDay += nights;
+        }
+      });
+      
+      setCityNights(nightsMap);
     }
-    const previousDay = itineraryDays.find(d => d.day === day - 1);
-    return previousDay?.selectedItinerary?.connectingCity || '';
+  }, [cabsData]);
+
+  const getCityFromDay = (day) => {
+    for (const [city, info] of Object.entries(cityNights)) {
+      if (day >= info.startDay && day <= info.endDay) {
+        return city;
+      }
+    }
+    return '';
   };
 
   const fetchHotels = async (city) => {
@@ -33,9 +56,16 @@ function HotelCalculation({ itineraryDays }) {
   };
 
   useEffect(() => {
-    const city = getCityFromItinerary(selectedDay);
+    const city = getCityFromDay(selectedDay);
     fetchHotels(city);
   }, [selectedDay]);
+
+  // Calculate total number of nights
+  const totalNights = Object.values(cityNights).reduce((sum, info) => sum + info.totalNights, 0);
+
+  if (totalNights === 0) {
+    return <p className="p-4">No hotel selection needed for this itinerary.</p>;
+  }
 
   return (
     <div className="hotel-selector p-4">
@@ -48,11 +78,15 @@ function HotelCalculation({ itineraryDays }) {
           onChange={(e) => setSelectedDay(Number(e.target.value))}
           className="border rounded p-2 w-[400px]"
         >
-          {itineraryDays.map(day => (
-            <option key={day.day} value={day.day}>
-              Day {day.day} - {getCityFromItinerary(day.day)}
-            </option>
-          ))}
+          {[...Array(totalNights)].map((_, index) => {
+            const day = index + 1;
+            const city = getCityFromDay(day);
+            return (
+              <option key={day} value={day}>
+                Day {day} - {city}
+              </option>
+            );
+          })}
         </select>
       </div>
 
@@ -94,6 +128,3 @@ function HotelCalculation({ itineraryDays }) {
 }
 
 export default HotelCalculation;
-
-
-

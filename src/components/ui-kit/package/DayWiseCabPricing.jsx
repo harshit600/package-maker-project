@@ -1,137 +1,145 @@
 import React, { useEffect, useState } from "react";
-import AddPricesPerDayModal from "./AddPricesPerDayModal";
 import Button from "../atoms/Button";
 
-function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, setFormData, setPricing }) {
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [tempPrice, setTempPrice] = useState({});
-    const [isEditing, setIsEditing] = useState(false);
+function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, setFormData, pricing,  setPricing, isEditing }) {
+    const [prices, setPrices] = useState({});
 
-    // Function to handle adding or updating prices
-   // Function to handle adding or updating prices
-   const handlePriceAdd = () => {
-    // Validate tempPrice
-    if (!tempPrice || Object.keys(tempPrice).length === 0) {
-        console.error("tempPrice is empty or undefined");
-        return;
-    }
-
-    const lowestOnSeasonPrices = [];
-    const lowestOffSeasonPrices = [];
-
-    // Gather prices for each cab in tempPrice
-    Object.entries(tempPrice).forEach(([cabName, prices]) => {
-        if (prices) {
-            const onSeasonPrice = parseFloat(prices.onSeasonPrice) || 0;
-            const offSeasonPrice = parseFloat(prices.offSeasonPrice) || 0;
-
-            lowestOnSeasonPrices.push(onSeasonPrice);
-            lowestOffSeasonPrices.push(offSeasonPrice);
+    useEffect(() => {
+        // Initialize data when editing
+        if (isEditing && cabPayLoad?.prices) {
+            setPrices(cabPayLoad.prices);
         }
-    });
+    }, [isEditing, cabPayLoad]);
 
-    // Determine lowest prices for each season
-    const lowestOnSeasonPrice = lowestOnSeasonPrices.length ? Math.min(...lowestOnSeasonPrices) : 0;
-    const lowestOffSeasonPrice = lowestOffSeasonPrices.length ? Math.min(...lowestOffSeasonPrices) : 0;
+    // Initialize prices for all cabs
+    useEffect(() => {
+        if (cabs) {
+            const initialPrices = {};
+            Object.entries(cabs).forEach(([cabType, cabsOfType]) => {
+                cabsOfType.forEach(cab => {
+                    // If editing and price exists, use it; otherwise set empty
+                    if (isEditing && cabPayLoad?.prices?.[cab.cabName]) {
+                        initialPrices[cab.cabName] = cabPayLoad.prices[cab.cabName];
+                    } else {
+                        initialPrices[cab.cabName] = {
+                            onSeasonPrice: "",
+                            offSeasonPrice: "",
+                            _id: cab._id
+                        };
+                    }
+                });
+            });
+            setPrices(initialPrices);
+        }
+    }, [cabs, isEditing, cabPayLoad]);
 
-    // Update global pricing state
-    setPricing({
-        lowestOnSeasonPrice,
-        lowestOffSeasonPrice,
-    });
+    const handlePriceChange = (cabName, field, value) => {
+        const updatedPrices = {
+            ...prices,
+            [cabName]: {
+                ...prices[cabName],
+                [field]: value,
+                _id: prices[cabName]?._id
+            }
+        };
 
-    // Consolidate cab data into a single payload for the entire trip
-    const newCabPayload = {
-        prices: tempPrice,
-        travelInfo: Object.values(travelData), // Optional: for entire trip details
-        cabs, // Include all cab data as a single entry
-    };
+        setPrices(updatedPrices);
 
-    // Update both cab payload and form data with consolidated pricing
-    setCabPayload((prevPayload) => ({
-        ...prevPayload,
-        travelPrices: newCabPayload,
-    }));
+        // Calculate totals
+        let totalOnSeason = 0;
+        let totalOffSeason = 0;
+        Object.values(updatedPrices).forEach(price => {
+            if (price.onSeasonPrice) totalOnSeason += parseFloat(price.onSeasonPrice);
+            if (price.offSeasonPrice) totalOffSeason += parseFloat(price.offSeasonPrice);
+        });
 
-    setFormData((prevFormData) => ({
-        ...prevFormData,
-        travelPrices: newCabPayload,
-    }));
+        setPricing({
+            lowestOnSeasonPrice: totalOnSeason,
+            lowestOffSeasonPrice: totalOffSeason
+        });
 
-    // Close the modal
-    closeModal();
-};
-
-   useEffect(() => {
-
-   })
-
-    const openModal = () => {
-        setIsModalOpen(true);
-        const existingPrices = cabPayLoad[Object.keys(cabPayLoad)[0]]?.prices || {};
-        setTempPrice(existingPrices);
-        setIsEditing(Object.keys(existingPrices).length > 0); // Check if we're editing
-    };
-
-    const closeModal = () => {
-        setIsModalOpen(false);
-        setTempPrice({});
+        setCabPayload(prev => ({
+            ...prev,
+            prices: updatedPrices,
+            travelInfo: travelData
+        }));
     };
 
     return (
-        <div className="pt-4">
-            <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Travel Entries</h2>
-            <div className="min-w-[400px] w-fit mx-auto flex justify-center flex-col p-4 rounded border-1 border-gray-100 items-center shadow-md">
-            {Object.entries(travelData).map(([key, places]) => {
-                const fromPlace = places?.[0]?.toUpperCase() || "Unknown";
-                const toPlace = places?.[1]?.toUpperCase() || "Unknown";
-
-                return (
-                    <div
-                        key={key}
-                        className="flex items-center justify-between p-4 rounded-lg shadow-md w-[700px] mb-4 transition-shadow duration-300 hover:shadow-lg"
-                    >
-                        <div className="flex items-center justify-center w-full gap-4">
-                            <div className="w-[150px]">
-                                <span className="text-gray-500 font-medium">From</span>
-                                <div className="text-xl font-semibold text-gray-800">{fromPlace}</div>
-                            </div>
-
-                            <div className="flex items-center mx-4">
-                                <span className="text-gray-300 w-16 h-0.5 bg-gray-300" />
-                                <span className="text-blue-600 mx-2 text-2xl">🚗</span>
-                                <span className="text-gray-300 w-16 h-0.5 bg-gray-300" />
-                            </div>
-
-                            <div className="text-center">
-                                <span className="text-gray-500 font-medium">To</span>
-                                <div className="text-xl font-semibold text-gray-800">{toPlace}</div>
-                            </div>
+        <div className="p-6">
+            {/* Travel Route Summary */}
+            <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <h4 className="font-semibold mb-3 text-gray-700">Travel Route</h4>
+                <div className="space-y-2">
+                    {Array.isArray(travelData) && travelData.map((route, index) => (
+                        <div key={index} className="flex items-center text-gray-600">
+                            <span className="font-medium">{route[0]}</span>
+                            <svg className="w-4 h-4 mx-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                            </svg>
+                            <span className="font-medium">{route[1]}</span>
                         </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Cab Types Section */}
+            {cabs && Object.entries(cabs).map(([cabType, cabsOfType]) => (
+                <div key={cabType} className="mb-8">
+                    <h3 className="text-lg font-semibold mb-4 text-gray-800">{cabType}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {cabsOfType.map((cab) => (
+                            <div key={cab._id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                                <div className="flex items-center mb-4">
+                                    <span className="text-xl">🚗</span>
+                                    <h4 className="font-medium ml-2 text-gray-800">{cab.cabName}</h4>
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                            On Season Price (₹)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={prices[cab.cabName]?.onSeasonPrice || ""}
+                                            onChange={(e) => handlePriceChange(cab.cabName, 'onSeasonPrice', e.target.value)}
+                                            className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="Enter price"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                            Off Season Price (₹)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={prices[cab.cabName]?.offSeasonPrice || ""}
+                                            onChange={(e) => handlePriceChange(cab.cabName, 'offSeasonPrice', e.target.value)}
+                                            className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="Enter price"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                );
-            })}
+                </div>
+            ))}
 
-            {/* Single Add Prices Button at the Bottom */}
-            <div className="flex justify-center mt-6">
-                <Button
-                text={`${isEditing ? "Edit Prices" : "Add Prices"}`}
-                    // css="bg-blue-600 text-white px-6 py-2 rounded-lg shadow-md hover:bg-blue-700 transition duration-300"
-                    onClick={openModal}
-                    variant="primary"
-                />
+            {/* Price Summary */}
+            <div className="mt-8 bg-blue-50 p-6 rounded-lg border border-blue-100">
+                <h4 className="font-semibold mb-4 text-gray-800">Total Price Summary</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white p-4 rounded-lg shadow-sm">
+                        <span className="text-sm text-gray-600">Total On Season Price</span>
+                        <div className="text-2xl font-bold text-blue-600">₹{pricing?.lowestOnSeasonPrice || 0}</div>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-sm">
+                        <span className="text-sm text-gray-600">Total Off Season Price</span>
+                        <div className="text-2xl font-bold text-blue-600">₹{pricing?.lowestOffSeasonPrice || 0}</div>
+                    </div>
+                </div>
             </div>
-            </div>
-
-            {/* Prices Modal */}
-            <AddPricesPerDayModal 
-                isModalOpen={isModalOpen}
-                cabs={cabs}
-                tempPrice={tempPrice}
-                setTempPrice={setTempPrice}
-                closeModal={closeModal}
-                handlePriceAdd={handlePriceAdd}
-            />
         </div>
     );
 }

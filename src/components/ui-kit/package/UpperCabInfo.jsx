@@ -1,47 +1,34 @@
 import React from 'react';
 
-function UpperCabInfo({ cabsData, pricing }) {
-
-
-    return (
-        <div className="grid grid-cols-4 gap-4">
-            {/* Pickup Location Card */}
-            <div className="flex flex-col justify-center items-center p-4 bg-gray-100 border rounded-lg shadow-md transition-shadow duration-300 hover:shadow-lg">
-                <span className="text-gray-600">Pickup </span>
-                <div className="text-2xl font-bold text-blue-600">
-                    {cabsData?.pickupLocation?.toUpperCase() || 'Not Specified'}
-                </div>
-            </div>
-            
-            {/* Drop Location Card */}
-            <div className="flex flex-col justify-center items-center p-4 bg-gray-100 border rounded-lg shadow-md transition-shadow duration-300 hover:shadow-lg">
-                <span className="text-gray-600">Drop </span>
-                <div className="text-2xl font-bold text-blue-600">
-                    {cabsData?.dropLocation?.toUpperCase() || 'Not Specified'}
-                </div>
-            </div>
-
-            {/* Duration of Package Card */}
-            <div className="flex flex-col justify-center items-center p-4 bg-gray-100 border rounded-lg shadow-md transition-shadow duration-300 hover:shadow-lg">
-                <span className="text-gray-600">Duration</span>
-                <div className="text-2xl font-bold text-blue-600">
-                    {cabsData?.duration || 'Not Specified'}
-                </div>
-            </div>
-
-            {/* Total Prices Card */}
-            <div className="p-4 bg-gray-100 border rounded-lg shadow-md">
-                <h3 className="text-lg text-center text-gray-600">Prices</h3>
-               
-                            <div className="flex justify-between gap-2">
-                                <div>On-Season: <div className='text-2xl font-bold text-blue-600'>₹{pricing?.lowestOnSeasonPrice}</div></div>
-                                <div>Off-Season: <div className='text-2xl font-bold text-blue-600'>₹{pricing?.lowestOffSeasonPrice}</div></div>
-                            </div>
-                        </div>
-      
-     
+function UpperCabInfo({ cabsData, pricing, isEditing }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div className="bg-white p-4 rounded-lg shadow-sm border">
+        <h3 className="font-semibold mb-2">Route Information</h3>
+        <div className="text-sm space-y-1">
+          <p><span className="font-medium">Pickup:</span> {cabsData?.pickupLocation}</p>
+          <p><span className="font-medium">Drop:</span> {cabsData?.dropLocation}</p>
+          {cabsData?.packagePlaces?.map((place, index) => (
+            <p key={index}><span className="font-medium">Stop {index + 1}:</span> {place.placeCover}</p>
+          ))}
         </div>
-    );
+      </div>
+      
+      <div className="bg-white p-4 rounded-lg shadow-sm border">
+        <h3 className="font-semibold mb-2">Price Summary</h3>
+        <div className="text-sm space-y-1">
+          <p>
+            <span className="font-medium">On Season Price:</span> 
+            ₹{isEditing && cabsData?.travelPrices?.prices?.lowestOnSeasonPrice || pricing?.lowestOnSeasonPrice || 0}
+          </p>
+          <p>
+            <span className="font-medium">Off Season Price:</span> 
+            ₹{isEditing && cabsData?.travelPrices?.prices?.lowestOffSeasonPrice || pricing?.lowestOffSeasonPrice || 0}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default UpperCabInfo;

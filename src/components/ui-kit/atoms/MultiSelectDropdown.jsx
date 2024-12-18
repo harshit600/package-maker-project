@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 
-const MultiSelectDropdown = ({ options, label, handleChange }) => {
-  const [selectedOptions, setSelectedOptions] = useState([]);
+const MultiSelectDropdown = ({ options, label, handleChange, initialValue = [] }) => {
+  const [selectedOptions, setSelectedOptions] = useState(initialValue);
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (initialValue && initialValue.length > 0) {
+      setSelectedOptions(initialValue);
+    }
+  }, [initialValue]);
 
   const handleOptionToggle = (option) => {
     setSelectedOptions((prevSelected) => {

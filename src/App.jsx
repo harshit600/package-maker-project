@@ -51,7 +51,7 @@ export default function App() {
               <Route path="/create-itenary" element={<CreateItenary />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/create-listing" element={<CreateListing />} />
-              <Route path="/create-packages" element={<CreatePackage />} />
+              <Route path="/create-package" element={<CreatePackage />} />
               <Route path="/packages" element={<Packages />} />
               <Route path="/cabmanager" element={<Cabmanager />} />
               

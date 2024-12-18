@@ -1,9 +1,16 @@
 import React, { useState, useRef, useEffect } from "react";
 
-const Dropdown = ({ options, label, onSelect, onChange, searchInput, setSearchInput, invalid }) => {
+const Dropdown = ({ options, label, onSelect, onChange, searchInput, setSearchInput, invalid, initialValue = "" }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [filteredOptions, setFilteredOptions] = useState(options);
   const dropdownRef = useRef(null);
+
+  // Add useEffect to handle initial value
+  useEffect(() => {
+    if (initialValue) {
+      setSearchInput(initialValue);
+    }
+  }, [initialValue, setSearchInput]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

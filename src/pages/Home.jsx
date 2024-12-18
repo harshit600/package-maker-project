@@ -22,7 +22,7 @@ export default function Home() {
             Destinations
           </div>
         </a>
-        <a href="/create-packages">
+        <a href="/create-package">
           <div className="box1 shadow-md flex flex-col items-center gap-4">
             <Packages />
             Packages

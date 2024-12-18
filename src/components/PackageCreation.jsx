@@ -10,7 +10,7 @@ import PackageForm from "./ui-kit/package/PackageForm";
 import CabCalculation from "./ui-kit/package/CabCalculation";
 import HotelCalculation from "./ui-kit/package/HotelCalculation";
 
-const PackageCreation = () => {
+const PackageCreation = ({ initialData, isEditing, editId }) => {
   const [showIteniraryBoxes, setShowIteniraryBoxes] = useState(false);
   const [files, setFiles] = useState([]); // Added files state
   const [uploading, setUploading] = useState(false);
@@ -27,7 +27,7 @@ const PackageCreation = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [validationErrors, setValidationErrors] = useState({});
   const [activeTab, setActiveTab] = useState('Package');
-  const tabs = ['Package', 'Cabs', 'Hotels', 'Final Pricing', 'Share'];
+  const tabs = ['Package', 'Cabs', 'Hotels'];
   const [travelData, setTravelData] = useState({});
   const [pricing, setPricing] = useState(0);
   const [cabsData, setCabsData] = useState({});
@@ -36,7 +36,7 @@ const PackageCreation = () => {
   const [thirdStep, setThirdStep] = useState();
   console.log(cabsData, thirdStep)
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(initialData || {
     packageType: "",
     packageCategory: "",
     packageName: "",
@@ -315,47 +315,97 @@ const PackageCreation = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation check
-    // const errors = {};
-    // Object.keys(formData).forEach((field) => {
-    //   if (!formData[field]) {
-    //     errors[field] = "Please enter the information";
-    //   }
-    // });
+    const url = isEditing 
+      ? `${config.API_HOST}/api/packages/${editId}/package`
+      : `${config.API_HOST}/api/packages/createpackage`;
+      console.log(url)
+    
+    const method = isEditing ? "PATCH" : "POST";
 
-    // setValidationErrors(errors);
+    // Prepare only the package data for the first step
+    const packageData = {
+      packageType: formData.packageType,
+      packageCategory: formData.packageCategory,
+      packageName: formData.packageName,
+      packageImages: formData.packageImages,
+      priceTag: formData.priceTag,
+      duration: formData.duration,
+      status: formData.status,
+      displayOrder: formData.displayOrder,
+      hotelCategory: formData.hotelCategory,
+      pickupLocation: formData.pickupLocation,
+      pickupTransfer: formData.pickupTransfer,
+      dropLocation: formData.dropLocation,
+      validTill: formData.validTill,
+      tourBy: formData.tourBy,
+      agentPackage: formData.agentPackage,
+      customizablePackage: formData.customizablePackage || false,
+      packagePlaces: packagePlaces
+        .filter(place => place.placeCover && place.nights)
+        .map(place => ({
+          placeCover: place.placeCover,
+          nights: parseInt(place.nights),
+          transfer: place.transfer || false
+        })),
+      themes: formData.themes || [],
+      tags: formData.tags || [],
+      amenities: formData.amenities || [],
+      initialAmount: formData.initialAmount,
+      defaultHotelPackage: formData.defaultHotelPackage,
+      defaultVehicle: formData.defaultVehicle,
+      packageDescription: formData.packageDescription || "",
+      packageInclusions: formData.packageInclusions || "",
+      packageExclusions: formData.packageExclusions || "",
+      itineraryDays: itineraryDays.map(day => ({
+        day: day.day,
+        selectedItinerary: day.selectedItinerary ? {
+          itineraryTitle: day.selectedItinerary.itineraryTitle,
+          itineraryDescription: day.selectedItinerary.itineraryDescription,
+          cityName: day.selectedItinerary.cityName,
+          country: day.selectedItinerary.country,
+          totalHours: day.selectedItinerary.totalHours,
+          distance: day.selectedItinerary.distance
+        } : null
+      }))
+    };
 
-    // // If there are validation errors, do not proceed with form submission
-    // if (Object.keys(errors).length > 0) {
-    //   return;
-    // }
+    try {
+      console.log('Submitting package data:', packageData);
 
-    formData.packagePlaces = formData.packagePlaces.slice(0, -1);
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(packageData),
+      });
 
-    const payload = {
-      ...formData,
-      // other payload properties...
-  };
-    const url = `${config.API_HOST}/api/packages/createpackage`;
-    const method = "POST"; 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-    const response = await fetch(url, {
-      method: method,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await response.json();
-
-    setCabsData(data);
-    setActiveTab('Cabs')
-
-    if (response.ok) {
-      // window.location.reload();
-    } else {
-      throw new Error("Failed to submit itinerary");
+      const data = await response.json();
+      
+      if (data.success) {
+        // Store the package ID in cabsData for next steps
+        setCabsData({
+          ...data.package,
+          packageId: data.package._id || editId,
+          pickupLocation: packageData.pickupLocation,
+          dropLocation: packageData.dropLocation,
+          packagePlaces: packageData.packagePlaces,
+          duration: packageData.duration
+        });
+        
+        // Move to the next tab
+        setActiveTab('Cabs');
+      } else {
+        console.error("Error saving package:", data.message);
+        alert("Failed to save package. Please check the form and try again.");
+      }
+    } catch (error) {
+      console.error("Error submitting package:", error);
+      alert("An error occurred while saving the package. Please try again.");
     }
   };
 
@@ -796,26 +846,136 @@ const PackageCreation = () => {
 };
 
 
-  const handleCabsSubmit = async (packageId) => {
-      try{
-        const url = `${config.API_HOST}/api/packages/${cabsData.packageId}/travel-prices`;
-        const method = "PATCH"; 
+  const handleCabsSubmit = async () => {
+    try {
+      if (!editId) {
+        console.error('Package ID is undefined');
+        return;
+      }
 
-    const response = await fetch(url, {
-      method: method,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(cabPayLoad),
-    });
+      const url = `${config.API_HOST}/api/packages/${editId}/travel-prices`;
+      const method = "PATCH";
 
-    const data = await response.json();
-        setThirdStep(data);       
-      } catch (error) {
-        console.error('Error updating prices:', error);
+      // Convert travelData object to array format
+      const travelInfoArray = Object.values(travelData).map(route => route);
+
+      // Prepare the correct data structure for the API
+      const payload = {
+        travelPrices: {
+          prices: cabPayLoad.prices,
+          travelInfo: travelInfoArray,
+          cabs: cabs
+        }
+      };
+
+      console.log('Submitting payload:', payload); // Debug log
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      setThirdStep(data);
+      setActiveTab('Hotels'); // Move to next step after successful submission
+    } catch (error) {
+      console.error('Error updating prices:', error);
     }
-  }
-  
+  };
+
+  // Add this effect to initialize cab data when editing
+  useEffect(() => {
+    if (isEditing && initialData) {
+      // Set initial cab data
+      if (initialData.travelPrices) {
+        setCabsData({
+          ...initialData,
+          packageId: initialData._id
+        });
+        setCabPayload(initialData.travelPrices);
+        setTravelData(initialData.travelPrices.travelInfo);
+      }
+    }
+  }, [isEditing, initialData]);
+
+  useEffect(() => {
+    if (initialData && isEditing) {
+      // Set form data with all fields
+      setFormData({
+        ...initialData,
+        packageType: initialData.packageType || "",
+        packageCategory: initialData.packageCategory || "",
+        amenities: initialData.amenities || [],
+        themes: initialData.themes || [],
+        tags: initialData.tags || [],
+        pickupLocation: initialData.pickupLocation || "",
+        dropLocation: initialData.dropLocation || "",
+      });
+      
+      // Set package places
+      if (initialData.packagePlaces && initialData.packagePlaces.length > 0) {
+        setPackagePlaces(initialData.packagePlaces);
+      }
+
+      // Set files/images
+      if (initialData.packageImages && initialData.packageImages.length > 0) {
+        // Convert image URLs to File objects if needed
+        setFiles(initialData.packageImages);
+      }
+
+      // Initialize trip data from package places
+      if (initialData.packagePlaces) {
+        const newTripData = initialData.packagePlaces.map((place, index, array) => ({
+          fromCity: place.placeCover,
+          toCity: index < array.length - 1 ? array[index + 1].placeCover : initialData.dropLocation,
+          day: index + 1
+        }));
+        setTripData(newTripData);
+      }
+
+      // Show itinerary boxes if package places exist
+      if (initialData.packagePlaces && initialData.packagePlaces.length > 0) {
+        setShowIteniraryBoxes(true);
+      }
+
+      // Initialize itinerary days based on duration
+      if (initialData.duration) {
+        const nights = parseInt(initialData.duration.split('D')[0]);
+        const days = Array.from({ length: nights }, (_, i) => ({
+          day: i + 1,
+          description: "",
+          selectedItinerary: null
+        }));
+        setItineraryDays(days);
+      }
+
+      // Set travel data if it exists
+      if (initialData.travelPrices) {
+        setTravelData(initialData.travelPrices.travelInfo);
+        setCabsData(initialData);
+        setCabPayload(initialData.travelPrices);
+      }
+
+      // Calculate max nights reached
+      if (initialData.packagePlaces) {
+        const totalNights = initialData.packagePlaces.reduce((acc, place) => 
+          acc + parseInt(place.nights || 0), 0
+        );
+        setMaxNightsReached(totalNights);
+      }
+    }
+  }, [initialData, isEditing]);
+
+  // Add this effect to handle itinerary initialization
+  useEffect(() => {
+    if (tripData && tripData.length > 0) {
+      fetchItinerariesForTripData(tripData);
+    }
+  }, [tripData]);
+
   return (
     <div className="stepper-form w-full">
       <div className="activeTab mb-2">
@@ -880,28 +1040,40 @@ const PackageCreation = () => {
     renderItineraryBoxes={renderItineraryBoxes}
     dropdownRef={dropdownRef}
     handleItenaryBoxes={handleItenaryBoxes}
+    isEditing={isEditing}
+    initialData={initialData}
+    setFormData={setFormData}
     />
     </div>}
     {activeTab === 'Cabs' && <div className="step-2">
       <CabCalculation 
-      cabsData={cabsData}
-      cabs={cabs}
-      setTravelData={setTravelData}
-      travelData={travelData}
-      setPricing={setPricing}
-      pricing={pricing}
-      handleCabsSubmit={handleCabsSubmit}
-      setCabPayload={setCabPayload}
-      setFormData={setFormData}
-      cabPayLoad={cabPayLoad}
+        cabsData={cabsData}
+        cabs={cabs}
+        setTravelData={setTravelData}
+        travelData={travelData}
+        setPricing={setPricing}
+        pricing={pricing}
+        handleCabsSubmit={handleCabsSubmit}
+        setCabPayload={setCabPayload}
+        setFormData={setFormData}
+        cabPayLoad={cabPayLoad}
+        isEditing={isEditing}
+        fetchCabs={fetchCabs}
       />
     </div>}
     {activeTab === 'Hotels' && <div className="step-3">
-      <HotelCalculation
-        travelData={travelData}
-        cabsData={cabsData}
-      />
-    </div>} 
+  <HotelCalculation
+    travelData={packagePlaces.map((place, index) => ({
+      day: index + 1,
+      city: place.placeCover,
+      nights: place.nights
+    }))}
+    cabsData={cabsData}
+    isEditing={isEditing}
+    editId={editId}
+    existingHotels={initialData?.hotels} // Add this line to pass existing hotels
+  />
+</div>}
     </div>
   );
 };

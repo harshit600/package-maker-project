@@ -2,7 +2,16 @@ import React, { useState, useRef, useEffect } from "react";
 
 const SimpleDropdown = ({ options, label, onSelect, value, invalid }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedValue, setSelectedValue] = useState(value);
   const dropdownRef = useRef(null);
+
+  // Add this useEffect to handle value changes
+  useEffect(() => {
+    setSelectedValue(value);
+  }, [value]);
+
+  // Find the matching option label for the selected value
+  const selectedLabel = options.find(option => option.value === value)?.label || value;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -31,11 +40,11 @@ const SimpleDropdown = ({ options, label, onSelect, value, invalid }) => {
       <label>{label}</label>
       <button
         onClick={handleToggle}
-        className={`w-full px-2 text-sm ${value ? 'text-gray-800' : 'text-gray-400'} 
+        className={`w-full px-2 text-sm ${selectedValue ? 'text-gray-800' : 'text-gray-400'} 
         py-2 h-[37px] text-left bg-white border border-gray-300 rounded-md focus:outline-none 
         focus:ring-2 focus:ring-indigo-500 ${invalid ? '!border-red-600' : 'border-gray-300 '}`}
       >
-        {value ? value : label}
+        {selectedLabel || label}
       </button>
 
       {isOpen && options.length > 0 && (

@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom"; // Import useNavigate for navigation
+import Button from "../components/ui-kit/atoms/Button";
 
 const themeColor = "bg-blue-200 text-blue-800"; // Uniform color for all theme tags
 
 const Packages = () => {
   const [packages, setPackages] = useState([]);
+  const navigate = useNavigate(); // Initialize useNavigate
 
   useEffect(() => {
     const fetchPackages = async () => {
@@ -21,13 +24,32 @@ const Packages = () => {
     fetchPackages();
   }, []);
 
+  // Function to handle package card click
+  const handlePackageClick = (id) => {
+    navigate(`/edit-package/${id}`); // Navigate to the edit page with the package ID
+  };
+
+  const handleEditClick = (e, id) => {
+    e.stopPropagation(); // Prevent card click event from firing
+    navigate(`/create-package?edit=${id}`);
+  };
+
   return (
     <div className="flex flex-wrap justify-center gap-8 p-8 ">
       {packages.map((pkg) => (
         <div
           key={pkg._id}
-          className="bg-white cursor-pointer shadow-md rounded-lg w-[330px] overflow-hidden transform transition-transform duration-300 hover:scale-105 hover:shadow-xl border border-gray-200"
+          className="bg-white cursor-pointer shadow-md rounded-lg w-[330px] overflow-hidden transform transition-transform duration-300 hover:scale-105 hover:shadow-xl border border-gray-200 relative"
+          onClick={() => handlePackageClick(pkg._id)} // Add click handler
         >
+          <button
+            onClick={(e) => handleEditClick(e, pkg._id)}
+            className="absolute top-2 right-2 z-10 bg-blue-600 text-white p-2 rounded-full shadow-lg hover:bg-blue-700 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+            </svg>
+          </button>
           <ImageSlider
             images={pkg.packageImages}
             packageName={pkg.packageName}
@@ -63,12 +85,9 @@ const Packages = () => {
                 </span>
               ))}
             </div>
-           
           </div>
           <div className="relative overflow-hidden h-[5px] w-full bg-blue-600 flex items-center" style={{ borderTopLeftRadius: '0px !important', borderTopRightRadius: '0px !important' }}>
-  
-</div>
-
+          </div>
         </div>
       ))}
     </div>

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Col, Container, Form, Row } from 'react-bootstrap';
 import SimpleDropdown from '../atoms/SimpleDropdown';
 import { durationOptions, packageTypeOptions, packageCategoryOptions, statusOptions, hotelCategoryOptions, tourByOptions,
@@ -14,8 +14,28 @@ function PackageForm({
  handleSelectSuggestion, dropLocationSearchResults, setPickupSearchInput, handleDropLocationChange, pickupSearchInput, handleDropSelectSuggestion,
  handleCustomizableChange, handleImageChange, handleImageUpload, packagePlaces, isDropdownOpen, maxNightsReached, maxNights, handleAddPackagePlace,
  showIteniraryBoxes, numRooms, handleNumRoomsChange, handleSubmit, handleDropDownChange, handleMultiSelectChange, handleRichTextChange, RichTextInput,handleDropdownChange,
- handlePlaceSelection, handlePlaceInputChange, handleItenaryBoxes, handleRemovePackagePlace, setActiveSuggestion, activeSuggestion, dropdownRef, searchResults, activeIndex, renderItineraryBoxes
+ handlePlaceSelection, handlePlaceInputChange, handleItenaryBoxes, handleRemovePackagePlace, setActiveSuggestion, activeSuggestion, dropdownRef, searchResults, activeIndex, renderItineraryBoxes, isEditing, initialData
 }) {
+  useEffect(() => {
+    if (isEditing && initialData) {
+      if (initialData.packageType) {
+        handleDropDownChange("packageType", initialData.packageType);
+      }
+      if (initialData.packageCategory) {
+        handleDropDownChange("packageCategory", initialData.packageCategory);
+      }
+      if (initialData.amenities) {
+        handleMultiSelectChange('amenities', initialData.amenities);
+      }
+      if (initialData.themes) {
+        handleMultiSelectChange('themes', initialData.themes);
+      }
+      if (initialData.tags) {
+        handleMultiSelectChange('tags', initialData.tags);
+      }
+    }
+  }, [isEditing, initialData]);
+
   return (
     <div style={{ width: "100%" }}>
       {/* Top bar */}
@@ -158,14 +178,15 @@ function PackageForm({
               <Dropdown
                 options={pickupLocationSearchResults.map((city) => ({
                   label: `${city.cityName}`,
-                  value: city._id, // Each option has an ID or unique value
+                  value: city._id,
                 }))}
                 setSearchInput={setSearchInput}
                 onChange={handlePickupLocationChange}
                 searchInput={searchInput}
                 label="Search Pickup Location"
-                onSelect={handleSelectSuggestion} // Handle selection
+                onSelect={handleSelectSuggestion}
                 invalid={validationErrors.pickupLocation}
+                initialValue={formData.pickupLocation}
               />
               {validationErrors.pickupLocation && (
           <small className="text-red-500">{validationErrors.pickupLocation}</small>
@@ -212,14 +233,15 @@ function PackageForm({
               <Dropdown
                 options={dropLocationSearchResults.map((city) => ({
                   label: `${city.cityName}`,
-                  value: city._id, // Each option has an ID or unique value
+                  value: city._id,
                 }))}
                 setSearchInput={setPickupSearchInput}
                 onChange={handleDropLocationChange}
                 searchInput={pickupSearchInput}
                 label="Search Drop Location"
                 invalid={validationErrors.dropLocation}
-                onSelect={handleDropSelectSuggestion} // Handle selection
+                onSelect={handleDropSelectSuggestion}
+                initialValue={formData.dropLocation}
               />
               {validationErrors.dropLocation && (
           <small className="text-red-500">{validationErrors.dropLocation}</small>
@@ -293,6 +315,7 @@ function PackageForm({
                   options={amenitiesOptions}
                   label="Amenities"
                   handleChange={(selectedOptions) => handleMultiSelectChange('amenities', selectedOptions)}
+                  initialValue={formData.amenities}
                 />
                 <Form.Group
                   style={{ width: "50%" }}
@@ -318,13 +341,53 @@ function PackageForm({
                       variant="shade"
                     />
                   </div>
+                  
+                  {formData.packageImages && formData.packageImages.length > 0 && (
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Current Images
+                      </label>
+                      <div className="grid grid-cols-3 gap-4">
+                        {formData.packageImages.map((image, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={image}
+                              alt={`Package ${index + 1}`}
+                              className="w-full h-24 object-cover rounded-lg"
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                const newImages = formData.packageImages.filter((_, i) => i !== index);
+                                setFormData({
+                                  ...formData,
+                                  packageImages: newImages
+                                });
+                              }}
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 
+                                opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </Form.Group>
               </div>
             </div>
 
             <Container className="d-flex flex-row mt-4 align-items-center gap-20">
               <div className="mb-6 w-100">
-                <MultiSelectDropdown options={TagOptions} label="Add tags" handleChange={(selectedOptions) => handleMultiSelectChange('tags', selectedOptions)}/>
+                <MultiSelectDropdown
+                  options={TagOptions}
+                  label="Add tags"
+                  handleChange={(selectedOptions) => handleMultiSelectChange('tags', selectedOptions)}
+                  initialValue={formData.tags}
+                />
               </div>
               {/* Default Hotel Package Section */}
               <Form.Group className="mb-6 w-100">
@@ -356,7 +419,12 @@ function PackageForm({
           {/* Theme Section */}
           <div className="flex gap-10 pb-6 mb-3">
             <Form.Group className=" w-100">
-              <MultiSelectDropdown options={themeOptions} label="Add themes"  handleChange={(selectedOptions) => handleMultiSelectChange('themes', selectedOptions)}/>
+              <MultiSelectDropdown
+                options={themeOptions}
+                label="Add themes"
+                handleChange={(selectedOptions) => handleMultiSelectChange('themes', selectedOptions)}
+                initialValue={formData.themes}
+              />
             </Form.Group>
             {/* Initial Amount */}
             <Form.Group className=" w-100">

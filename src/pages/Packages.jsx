@@ -26,12 +26,14 @@ const Packages = () => {
 
   // Function to handle package card click
   const handlePackageClick = (id) => {
-    navigate(`/edit-package/${id}`); // Navigate to the edit page with the package ID
+    navigate(`/create-package?edit=${id}`);
+    window.location.reload(); // Add page refresh
   };
 
   const handleEditClick = (e, id) => {
     e.stopPropagation(); // Prevent card click event from firing
     navigate(`/create-package?edit=${id}`);
+    window.location.reload(); // Add page refresh
   };
 
   return (

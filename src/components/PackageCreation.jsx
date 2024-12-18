@@ -92,217 +92,315 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
     }));
   };
 
-  // Function to initialize itinerary days based on maxNights
-  const initializeItineraryDays = () => {
-    const days = [];
-    for (let i = 1; i <= maxNights; i++) {
-      days.push({ day: i, description: "", selectedItinerary: null });
+  // Function to generate itinerary sequence based on package places
+  const generateItinerarySequence = () => {
+    if (!formData.pickupLocation || !packagePlaces.length) return [];
+
+    // Parse duration to get total days
+    const totalDays = parseInt(formData.duration.split('D')[0]);
+    if (!totalDays) return [];
+
+    const sequence = [];
+    let currentLocation = formData.pickupLocation;
+    let dayCounter = 1;
+
+    // First add all travel days and local days in sequence
+    for (let i = 0; i < packagePlaces.length; i++) {
+        const place = packagePlaces[i];
+        
+        // Add travel day
+        sequence.push({
+            day: dayCounter++,
+            from: currentLocation,
+            to: place.placeCover,
+            type: 'travel',
+            isNightTravel: place.transfer
+        });
+
+        // Add local days if nights > 1
+        const nights = parseInt(place.nights) || 0;
+        if (nights > 1) {
+            // Add local days for this place
+            for (let j = 0; j < nights - 1; j++) {
+                if (dayCounter <= totalDays) {
+                    sequence.push({
+                        day: dayCounter++,
+                        location: place.placeCover,
+                        type: 'local',
+                        cityIndex: i
+                    });
+                }
+            }
+        }
+
+        currentLocation = place.placeCover;
     }
-    setItineraryDays(days);
+
+    // Add final return journey if we still have a day left
+    if (dayCounter <= totalDays && formData.dropLocation) {
+        sequence.push({
+            day: dayCounter,
+            from: currentLocation,
+            to: formData.dropLocation,
+            type: 'travel',
+            isNightTravel: false
+        });
+    }
+
+    return sequence;
   };
 
-  // Call initializeItineraryDays when component mounts
-  useEffect(() => {
-    initializeItineraryDays();
-  }, [maxNights]);
-
-  const handleItinerarySearch = async (index, query) => {
+  // Update handleItinerarySearch to use the correct search query based on type
+  const handleItinerarySearch = async (index, query, itineraryDay) => {
     try {
+      let searchQuery = query;
+      if (!query) {
+        const sequence = generateItinerarySequence();
+        const dayInfo = sequence[index];
+        
+        if (dayInfo.type === 'travel') {
+          searchQuery = `${dayInfo.from} to ${dayInfo.to}${dayInfo.isNightTravel ? ' night' : ''}`;
+        } else {
+          searchQuery = `${dayInfo.location} Local`; // Add 'Local' for local days
+        }
+
+        // Set the search box value
+        setSelectedItineraryTitles((prevTitles) => {
+          const updatedTitles = [...prevTitles];
+          updatedTitles[index] = searchQuery;
+          return updatedTitles;
+        });
+      }
+
       const response = await fetch(
-        `${config.API_HOST}/api/itinerary/searchitineraries?search=${query}`
+        `${config.API_HOST}/api/itinerary/searchitineraries?search=${searchQuery}`
       );
       const data = await response.json();
-      const searchResults = data;
-      console.log("seas",searchResults)
+      
       setItineraryDays((prevDays) => {
         const updatedDays = [...prevDays];
-        updatedDays[index].searchResults = searchResults;
+        if (!updatedDays[index]) {
+          updatedDays[index] = { day: index + 1 };
+        }
+        updatedDays[index].searchResults = data;
         return updatedDays;
       });
+
+      // Auto-select first result if no query provided and results exist
+      if (!query && data.length > 0) {
+        handleItinerarySelection(index, data[0]);
+        
+        // Also update the search box value with the selected itinerary title
+        setSelectedItineraryTitles((prevTitles) => {
+          const updatedTitles = [...prevTitles];
+          updatedTitles[index] = data[0].itineraryTitle;
+          return updatedTitles;
+        });
+      }
     } catch (error) {
       console.error("Error fetching itineraries:", error);
     }
   };
 
-  const handleItinerarySelection = (index, selectedItinerary) => {
-    // Update the selected itinerary for the corresponding day
-    setItineraryDays((prevDays) => {
-      const updatedDays = [...prevDays];
-      if(updatedDays[index]){
-      updatedDays[index].selectedItinerary = selectedItinerary;
-    }
-      return updatedDays;
-    });
+  // Update initializeItineraryDays to respect existing data
+  const initializeItineraryDays = () => {
+    const sequence = generateItinerarySequence();
+    const days = sequence.map((dayInfo, index) => ({
+      day: dayInfo.day,
+      description: "",
+      selectedItinerary: itineraryDays[index]?.selectedItinerary || null,
+      type: dayInfo.type,
+      ...(dayInfo.type === 'travel' ? { from: dayInfo.from, to: dayInfo.to } : { location: dayInfo.location })
+    }));
+    
+    setItineraryDays(days);
 
-    // Update the selected itinerary title for the corresponding input field
-    setSelectedItineraryTitles((prevTitles) => {
-      const updatedTitles = [...prevTitles];
-      updatedTitles[index] = selectedItinerary.itineraryTitle;
-      return updatedTitles;
-    });
+    // Initialize search box values and fetch itineraries
+    days.forEach((day, index) => {
+      const searchQuery = day.type === 'travel' 
+        ? `${day.from} to ${day.to}` 
+        : `${day.location} Local`;
 
-    // Close the dropdown for the corresponding input field
-    setShowDropdowns((prevDropdowns) => {
-      const updatedDropdowns = [...prevDropdowns];
-      updatedDropdowns[index] = false;
-      return updatedDropdowns;
+      // Set initial search box value
+      setSelectedItineraryTitles((prevTitles) => {
+        const updatedTitles = [...prevTitles];
+        updatedTitles[index] = searchQuery;
+        return updatedTitles;
+      });
+
+      // Only fetch new itineraries if we don't have existing data
+      if (!day.selectedItinerary) {
+        handleItinerarySearch(index, '', day);
+      }
     });
   };
 
-  const fetchItinerary = async (itineraryTitle) => {
-    try {
-      const response = await fetch(
-        `${config.API_HOST}/api/itinerary/searchitineraries?search=${itineraryTitle}`
-      );
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Error fetching itinerary:", error);
-      return null;
-    }
-  };
-
-  // Function to handle fetching itineraries for all days mentioned in tripData
+  // Update fetchItinerariesForTripData to combine both versions' functionality
   const fetchItinerariesForTripData = async (tripData) => {
-    tripData.forEach(async (entry, index) => {
-      if (entry.day) {
-        const itineraryTitle = `${entry.fromCity} to ${entry.toCity}`;
-        const itineraryData = await fetchItinerary(itineraryTitle);
+    const sequence = generateItinerarySequence();
+    
+    if (!sequence.length) return;
 
-        // Update selected itinerary title in state
-        setSelectedItineraryTitles((prevTitles) => {
-          const updatedTitles = [...prevTitles];
-          updatedTitles[entry.day - 1] = itineraryTitle; // Adjust index to match day
-          return updatedTitles;
-        });
-
-        setItineraryDays((prevDays) => {
-          const updatedDays = [...prevDays];
-          updatedDays[entry.day - 1].selectedItinerary = itineraryData[0]; // Adjust index to match day
-          return updatedDays;
-        });
-
-        // Handle itinerary data here
+    const updatedDays = [...itineraryDays];
+    const updatedTitles = [...selectedItineraryTitles];
+    
+    for (let i = 0; i < sequence.length; i++) {
+      const dayInfo = sequence[i];
+      let searchQuery;
+      
+      if (dayInfo.type === 'travel') {
+        searchQuery = `${dayInfo.from} to ${dayInfo.to}${dayInfo.isNightTravel ? ' night' : ''}`;
+      } else {
+        searchQuery = `${dayInfo.location} Local`;
       }
-    });
+
+      try {
+        const response = await fetch(
+          `${config.API_HOST}/api/itinerary/searchitineraries?search=${searchQuery}`
+        );
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+          // Update selected itinerary title
+          updatedTitles[i] = searchQuery;
+
+          // Update itinerary day data
+          if (!updatedDays[i]) {
+            updatedDays[i] = { day: i + 1 };
+          }
+          updatedDays[i].selectedItinerary = data[0];
+          updatedDays[i].searchResults = data;
+        }
+      } catch (error) {
+        console.error(`Error fetching itinerary for day ${i + 1}:`, error);
+      }
+    }
+
+    setItineraryDays(updatedDays);
+    setSelectedItineraryTitles(updatedTitles);
   };
 
+  // Update useEffect for itinerary initialization
   useEffect(() => {
-    const fetchItineraryData = async () => {
-      const itineraryTitle = `${formData.pickupLocation} to ${tripData[0].fromCity}`;
-      try {
-        const itineraryData = await fetchItinerary(itineraryTitle);
-
-        setItineraryDays((prevDays) => {
-          const updatedDays = [...prevDays];
-          if (updatedDays.length > 0) {
-            updatedDays[0].selectedItinerary = itineraryData[0]; // Adjust index to match day
-          }
-          return updatedDays;
-        });
-        setSelectedItineraryTitles((prevTitles) => {
-          const updatedTitles = [...prevTitles];
-          updatedTitles[0] = itineraryTitle; // Adjust index to match day
-          return updatedTitles;
-        });
-      } catch (error) {
-        console.error("Error fetching itinerary data:", error);
+    if (formData.duration && packagePlaces.length > 0 && formData.pickupLocation && formData.dropLocation) {
+      const totalNights = packagePlaces.reduce((sum, place) => sum + parseInt(place.nights || 0), 0);
+      const maxNights = parseInt(formData.duration.split('N')[0]);
+      
+      if (totalNights === maxNights) {
+        // If we're editing and have initial data, use that first
+        if (isEditing && initialData?.itineraryDays) {
+          setItineraryDays(initialData.itineraryDays);
+          const titles = initialData.itineraryDays.map(day => 
+            day.selectedItinerary ? day.selectedItinerary.itineraryTitle : ''
+          );
+          setSelectedItineraryTitles(titles);
+        } else {
+          // Otherwise initialize fresh
+          initializeItineraryDays();
+        }
+        setShowIteniraryBoxes(true);
       }
-    };
+    }
+  }, [formData.duration, packagePlaces, formData.pickupLocation, formData.dropLocation]);
 
-    fetchItineraryData();
-  }, [formData.pickupLocation, tripData[0].fromCity]);
-
+  // Remove the duplicate useEffect for tripData
   useEffect(() => {
-    fetchItinerariesForTripData(tripData);
-  }, [tripData]);
+    if (isEditing && initialData) {
+      if (initialData.itineraryDays?.length > 0) {
+        setItineraryDays(initialData.itineraryDays);
+        const titles = initialData.itineraryDays.map(day => 
+          day.selectedItinerary ? day.selectedItinerary.itineraryTitle : ''
+        );
+        setSelectedItineraryTitles(titles);
+      } else if (initialData.packagePlaces?.length > 0) {
+        fetchItinerariesForTripData(initialData.packagePlaces);
+      }
+    }
+  }, [isEditing, initialData]);
 
-  console.log(itineraryDays)
-
+  // Update renderItineraryBoxes to show the correct information
   const renderItineraryBoxes = () => {
-    return itineraryDays.map((day, index) => (
-      <div key={index} className="mb-4">
-        <Row className="mb-6">
-          <Col>
-            <div
-              className="mb-0 text-m"
-              style={{
-                fontWeight: "bold",
-              }}
-            >
-              Day {day.day}
-            </div>
-          </Col>
-          <Col>
-            {/* Add input field for itinerary search */}
-            <div className="position-relative">
-              <input
-                type="text"
-                placeholder="Search Itinerary"
-                className="p-2"
-                value={selectedItineraryTitles[index]}
-                onChange={(e) => {
-                  const { value } = e.target;
-                  setSelectedItineraryTitles((prevTitles) => {
-                    const updatedTitles = [...prevTitles];
-                    updatedTitles[index] = value;
-                    return updatedTitles;
-                  });
-                  setShowDropdowns((prevDropdowns) => {
-                    const updatedDropdowns = [...prevDropdowns];
-                    updatedDropdowns[index] = true;
-                    return updatedDropdowns;
-                  });
-                  handleItinerarySearch(index, value);
-                }}
-              />
-              {/* Display search results */}
-              {showDropdowns[index] && day.searchResults && (
-                <ul className="list-group dropitdown mt-1">
-                  {day.searchResults.slice(0, 5).map((result) => (
-                    <li
-                      key={result._id}
-                      className="list-group-item"
-                      onClick={() => handleItinerarySelection(index, result)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      {result.itineraryTitle}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </Col>
-        </Row>
-        {day.selectedItinerary && (
-  <div className="p-6 bg-white shadow-md border border-gray-200 rounded-xl w-full">
-    <h4 className="text-xl font-semibold text-gray-800 mb-4">
-      Selected Itinerary Details
-    </h4>
-    <div className="space-y-3">
-      <p className="text-gray-600">
-        <span className="font-medium text-gray-800">📌 Title:</span> {day.selectedItinerary.itineraryTitle}
-      </p>
-      <p className="text-gray-600">
-        <span className="font-medium text-gray-800">📝 Description:</span> {day.selectedItinerary.itineraryDescription}
-      </p>
-      <p className="text-gray-600">
-        <span className="font-medium text-gray-800">🌆 City:</span> {day.selectedItinerary.cityName}
-      </p>
-      <p className="text-gray-600">
-        <span className="font-medium text-gray-800">🌍 Country:</span> {day.selectedItinerary.country}
-      </p>
-      <p className="text-gray-600">
-        <span className="font-medium text-gray-800">⏳ Duration:</span> {day.selectedItinerary.totalHours} hours
-      </p>
-      <p className="text-gray-600">
-        <span className="font-medium text-gray-800">📏 Distance:</span> {day.selectedItinerary.distance} km
-      </p>
-    </div>
-  </div>
-)}
-
-      </div>
+    const sequence = generateItinerarySequence();
+    
+    return sequence.map((dayInfo, index) => (
+        <div key={index} className="mb-4">
+            <Row className="mb-6">
+                <Col>
+                    <div className="mb-0 text-m font-bold">
+                        Day {dayInfo.day} - {dayInfo.type === 'travel' ? 
+                            `Travel from ${dayInfo.from} to ${dayInfo.to}${dayInfo.isNightTravel ? ' (Night Travel)' : ''}` : 
+                            `Local sightseeing in ${dayInfo.location}`}
+                    </div>
+                </Col>
+                <Col>
+                    <div className="position-relative">
+                        <input
+                            type="text"
+                            placeholder={dayInfo.type === 'travel' ? 
+                                `Search travel itinerary from ${dayInfo.from} to ${dayInfo.to}` : 
+                                `Search local activities in ${dayInfo.location}`}
+                            className="p-2 w-full border rounded-md"
+                            value={selectedItineraryTitles[index] || ''}
+                            onChange={(e) => {
+                                const { value } = e.target;
+                                setSelectedItineraryTitles((prevTitles) => {
+                                    const updatedTitles = [...prevTitles];
+                                    updatedTitles[index] = value;
+                                    return updatedTitles;
+                                });
+                                setShowDropdowns((prev) => {
+                                    const updated = [...prev];
+                                    updated[index] = true;
+                                    return updated;
+                                });
+                                handleItinerarySearch(index, value, dayInfo);
+                            }}
+                        />
+                        {showDropdowns[index] && itineraryDays[index]?.searchResults && (
+                            <ul className="list-group dropitdown mt-1">
+                                {itineraryDays[index].searchResults.slice(0, 5).map((result) => (
+                                    <li
+                                        key={result._id}
+                                        className="list-group-item"
+                                        onClick={() => handleItinerarySelection(index, result)}
+                                        style={{ cursor: "pointer" }}
+                                    >
+                                        {result.itineraryTitle}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </Col>
+            </Row>
+            {itineraryDays[index]?.selectedItinerary && (
+                <div className="p-6 bg-white shadow-md border border-gray-200 rounded-xl w-full">
+                    <h4 className="text-xl font-semibold text-gray-800 mb-4">
+                        Selected Itinerary Details
+                    </h4>
+                    <div className="space-y-3">
+                        <p className="text-gray-600">
+                            <span className="font-medium text-gray-800">📌 Title:</span> {itineraryDays[index].selectedItinerary.itineraryTitle}
+                        </p>
+                        <p className="text-gray-600">
+                            <span className="font-medium text-gray-800">📝 Description:</span> {itineraryDays[index].selectedItinerary.itineraryDescription}
+                        </p>
+                        <p className="text-gray-600">
+                            <span className="font-medium text-gray-800">🌆 City:</span> {itineraryDays[index].selectedItinerary.cityName}
+                        </p>
+                        <p className="text-gray-600">
+                            <span className="font-medium text-gray-800">🌍 Country:</span> {itineraryDays[index].selectedItinerary.country}
+                        </p>
+                        <p className="text-gray-600">
+                            <span className="font-medium text-gray-800">⏳ Duration:</span> {itineraryDays[index].selectedItinerary.totalHours} hours
+                        </p>
+                        <p className="text-gray-600">
+                            <span className="font-medium text-gray-800">📏 Distance:</span> {itineraryDays[index].selectedItinerary.distance} km
+                        </p>
+                    </div>
+                </div>
+            )}
+        </div>
     ));
   };
 
@@ -975,6 +1073,51 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
       fetchItinerariesForTripData(tripData);
     }
   }, [tripData]);
+
+  const handleItinerarySelection = (index, selectedItinerary) => {
+    // Update the selected itinerary for the corresponding day
+    setItineraryDays((prevDays) => {
+      const updatedDays = [...prevDays];
+      if (updatedDays[index]) {
+        updatedDays[index].selectedItinerary = selectedItinerary;
+      }
+      return updatedDays;
+    });
+
+    // Update the selected itinerary title for the corresponding input field
+    setSelectedItineraryTitles((prevTitles) => {
+      const updatedTitles = [...prevTitles];
+      updatedTitles[index] = selectedItinerary.itineraryTitle;
+      return updatedTitles;
+    });
+
+    // Close the dropdown for the corresponding input field
+    setShowDropdowns((prevDropdowns) => {
+      const updatedDropdowns = [...prevDropdowns];
+      updatedDropdowns[index] = false;
+      return updatedDropdowns;
+    });
+  };
+
+  const fetchItinerary = async (itineraryTitle) => {
+    try {
+      const response = await fetch(
+        `${config.API_HOST}/api/itinerary/searchitineraries?search=${itineraryTitle}`
+      );
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("Error fetching itinerary:", error);
+      return null;
+    }
+  };
+
+  // Add this useEffect to handle initial itinerary loading for edit mode
+  useEffect(() => {
+    if (isEditing && initialData && initialData.packagePlaces) {
+      fetchItinerariesForTripData(initialData.packagePlaces);
+    }
+  }, [isEditing, initialData]);
 
   return (
     <div className="stepper-form w-full">

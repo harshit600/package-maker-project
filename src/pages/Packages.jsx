@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom"; // Import useNavigate for navigation
 import Button from "../components/ui-kit/atoms/Button";
-
+import config from "../../config";
 const themeColor = "bg-blue-200 text-blue-800"; // Uniform color for all theme tags
 
 const Packages = () => {
@@ -12,7 +12,7 @@ const Packages = () => {
     const fetchPackages = async () => {
       try {
         const response = await fetch(
-          "http://localhost:3000/api/packages/getpackages"
+          `${config.API_HOST}/api/packages/getpackages`
         );
         const data = await response.json();
         setPackages(data);

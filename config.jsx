@@ -1,5 +1,5 @@
 const config = {
-	API_HOST: "http://localhost:3000",
+	API_HOST: "https://pluto-hotel-server-15c83810c41c.herokuapp.com",
 }
 
 export default config;

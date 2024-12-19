@@ -51,8 +51,6 @@ function CabCalculation({
           setFormData={setFormData}
           isEditing={isEditing}
           cabsData={cabsData} 
-          pricing={pricing}
-          isEditing={isEditing}
         />
         <div className='flex justify-end items-center p-4'>
           <Button 

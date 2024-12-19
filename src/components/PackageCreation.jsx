@@ -435,88 +435,63 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
   };
 
   const handleSubmit = async (e) => {
-    if (e) {
-      e.preventDefault();
-    }
+    e.preventDefault();
     
+    const url = isEditing 
+      ? `${config.API_HOST}/api/packages/${editId}/package`
+      : `${config.API_HOST}/api/packages/createpackage`;
+      console.log(url)
+    
+    const method = isEditing ? "PATCH" : "POST";
+
+    // Prepare only the package data for the first step
+    const packageData = {
+      packageType: formData.packageType,
+      packageCategory: formData.packageCategory,
+      packageName: formData.packageName,
+      packageImages: formData.packageImages,
+      priceTag: formData.priceTag,
+      duration: formData.duration,
+      status: formData.status,
+      displayOrder: formData.displayOrder,
+      hotelCategory: formData.hotelCategory,
+      pickupLocation: formData.pickupLocation,
+      pickupTransfer: formData.pickupTransfer,
+      dropLocation: formData.dropLocation,
+      validTill: formData.validTill,
+      tourBy: formData.tourBy,
+      agentPackage: formData.agentPackage,
+      customizablePackage: formData.customizablePackage || false,
+      packagePlaces: packagePlaces
+        .filter(place => place.placeCover && place.nights)
+        .map(place => ({
+          placeCover: place.placeCover,
+          nights: parseInt(place.nights),
+          transfer: place.transfer || false
+        })),
+      themes: formData.themes || [],
+      tags: formData.tags || [],
+      amenities: formData.amenities || [],
+      initialAmount: formData.initialAmount,
+      defaultHotelPackage: formData.defaultHotelPackage,
+      defaultVehicle: formData.defaultVehicle,
+      packageDescription: formData.packageDescription || "",
+      packageInclusions: formData.packageInclusions || "",
+      packageExclusions: formData.packageExclusions || "",
+      itineraryDays: itineraryDays.map(day => ({
+        day: day.day,
+        selectedItinerary: day.selectedItinerary ? {
+          itineraryTitle: day.selectedItinerary.itineraryTitle,
+          itineraryDescription: day.selectedItinerary.itineraryDescription,
+          cityName: day.selectedItinerary.cityName,
+          country: day.selectedItinerary.country,
+          totalHours: day.selectedItinerary.totalHours,
+          distance: day.selectedItinerary.distance
+        } : null
+      }))
+    };
+
     try {
-      // Validate required fields
-      const requiredFields = {
-        packageType: "Package Type",
-        packageCategory: "Package Category",
-        packageName: "Package Name",
-        duration: "Duration",
-        status: "Status",
-        pickupLocation: "Pickup Location",
-        dropLocation: "Drop Location"
-      };
-
-      const errors = {};
-      Object.entries(requiredFields).forEach(([field, label]) => {
-        if (!formData[field]) {
-          errors[field] = `${label} is required`;
-        }
-      });
-
-      if (Object.keys(errors).length > 0) {
-        setValidationErrors(errors);
-        alert("Please fill in all required fields");
-        return;
-      }
-
-      const url = isEditing 
-        ? `${config.API_HOST}/api/packages/${editId}/package`
-        : `${config.API_HOST}/api/packages/createpackage`;
-      
-      const method = isEditing ? "PATCH" : "POST";
-
-      // Prepare the package data
-      const packageData = {
-        packageType: formData.packageType,
-        packageCategory: formData.packageCategory,
-        packageName: formData.packageName,
-        packageImages: formData.packageImages,
-        priceTag: formData.priceTag,
-        duration: formData.duration,
-        status: formData.status,
-        displayOrder: formData.displayOrder,
-        hotelCategory: formData.hotelCategory,
-        pickupLocation: formData.pickupLocation,
-        pickupTransfer: formData.pickupTransfer,
-        dropLocation: formData.dropLocation,
-        validTill: formData.validTill,
-        tourBy: formData.tourBy,
-        agentPackage: formData.agentPackage,
-        customizablePackage: formData.customizablePackage || false,
-        packagePlaces: packagePlaces
-          .filter(place => place.placeCover && place.nights)
-          .map(place => ({
-            placeCover: place.placeCover,
-            nights: parseInt(place.nights),
-            transfer: place.transfer || false
-          })),
-        themes: formData.themes || [],
-        tags: formData.tags || [],
-        amenities: formData.amenities || [],
-        initialAmount: formData.initialAmount,
-        defaultHotelPackage: formData.defaultHotelPackage,
-        defaultVehicle: formData.defaultVehicle,
-        packageDescription: formData.packageDescription || "",
-        packageInclusions: formData.packageInclusions || "",
-        packageExclusions: formData.packageExclusions || "",
-        itineraryDays: itineraryDays.map(day => ({
-          day: day.day,
-          selectedItinerary: day.selectedItinerary ? {
-            itineraryTitle: day.selectedItinerary.itineraryTitle,
-            itineraryDescription: day.selectedItinerary.itineraryDescription,
-            cityName: day.selectedItinerary.cityName,
-            country: day.selectedItinerary.country,
-            totalHours: day.selectedItinerary.totalHours,
-            distance: day.selectedItinerary.distance
-          } : null
-        }))
-      };
-
       console.log('Submitting package data:', packageData);
 
       const response = await fetch(url, {
@@ -527,33 +502,32 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
         body: JSON.stringify(packageData),
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
-      console.log('Response data:', data); // Debug log
-
-      if (response.ok) {
-        // Store the package ID and data for next steps
-        const packageId = isEditing ? editId : data.packageId;
-        
-        if (!packageId) {
-          throw new Error('No package ID received from server');
-        }
-
+      
+      if (data.success) {
+        // Store the package ID in cabsData for next steps
         setCabsData({
-          packageId: packageId,
-          pickupLocation: formData.pickupLocation,
-          dropLocation: formData.dropLocation,
-          packagePlaces: packagePlaces,
-          duration: formData.duration
+          ...data.package,
+          packageId: data.package._id || editId,
+          pickupLocation: packageData.pickupLocation,
+          dropLocation: packageData.dropLocation,
+          packagePlaces: packageData.packagePlaces,
+          duration: packageData.duration
         });
         
         // Move to the next tab
         setActiveTab('Cabs');
       } else {
-        throw new Error(data.message || "Failed to save package");
+        console.error("Error saving package:", data.message);
+        alert("Failed to save package. Please check the form and try again.");
       }
     } catch (error) {
       console.error("Error submitting package:", error);
-      alert(error.message || "An error occurred while saving the package. Please try again.");
+      alert("An error occurred while saving the package. Please try again.");
     }
   };
 
@@ -993,26 +967,24 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
     }
 };
 
-console.log(editId)
 
   const handleCabsSubmit = async () => {
     try {
-      if (!cabsData.packageId) {
+      if (!editId) {
         console.error('Package ID is undefined');
-        alert('Package ID is missing. Please save the package details first.');
         return;
       }
 
-      const url = `${config.API_HOST}/api/packages/${cabsData.packageId}/travel-prices`;
+      const url = `${config.API_HOST}/api/packages/${editId}/travel-prices`;
       const method = "PATCH";
 
-      // Convert travelData object to array format if it isn't already
-      const travelInfoArray = Array.isArray(travelData) ? travelData : Object.values(travelData);
+      // Convert travelData object to array format
+      const travelInfoArray = Object.values(travelData).map(route => route);
 
-      // Prepare the payload with the correct structure
+      // Prepare the correct data structure for the API
       const payload = {
         travelPrices: {
-          prices: cabPayLoad?.prices || {},
+          prices: cabPayLoad.prices,
           travelInfo: travelInfoArray,
           cabs: cabs
         }
@@ -1028,24 +1000,11 @@ console.log(editId)
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to save cab data');
-      }
-
       const data = await response.json();
-      
-      if (data) {
-        setThirdStep(data);
-        // Store the updated data
-        setCabPayload(data.travelPrices);
-        // Move to next step
-        setActiveTab('Hotels');
-      } else {
-        throw new Error('No data received from server');
-      }
+      setThirdStep(data);
+      setActiveTab('Hotels'); // Move to next step after successful submission
     } catch (error) {
       console.error('Error updating prices:', error);
-      alert('Failed to save cab data. Please try again.');
     }
   };
 
@@ -1251,6 +1210,7 @@ console.log(editId)
     isEditing={isEditing}
     initialData={initialData}
     setFormData={setFormData}
+    uploading={uploading}
     />
     </div>}
     {activeTab === 'Cabs' && <div className="step-2">

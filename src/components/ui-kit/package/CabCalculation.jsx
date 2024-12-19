@@ -37,16 +37,10 @@ function CabCalculation({
   }, [isEditing, cabsData, setPricing, setCabPayload]);
 
   return (
-    <div className="container mx-auto px-4">
-      <div className="bg-gray-200 rounded p-4 text-xl font-semibold mb-4 text-center border-b-2 border-gray-300">
-        {isEditing ? 'Edit Cab Prices' : 'Cab Price Calculation'}
-      </div>
-      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-        <UpperCabInfo 
-          cabsData={cabsData} 
-          pricing={pricing}
-          isEditing={isEditing}
-        />
+    <div className="container mx-auto ">
+      
+      <div className="bg-white rounded-lg overflow-hidden">
+        
         <DayWiseCabPricing 
           travelData={travelData} 
           setPricing={setPricing} 
@@ -55,6 +49,9 @@ function CabCalculation({
           pricing={pricing}
           setCabPayload={setCabPayload} 
           setFormData={setFormData}
+          isEditing={isEditing}
+          cabsData={cabsData} 
+          pricing={pricing}
           isEditing={isEditing}
         />
         <div className='flex justify-end items-center p-4'>

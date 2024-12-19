@@ -8,6 +8,7 @@ import Dropdown from '../atoms/Dropdown';
 import MultiSelectDropdown from '../atoms/MultiSelectDropdown';
 import Button from '../atoms/Button';
 import ReactQuill from 'react-quill';
+import Select from 'react-select';
 
 function PackageForm({
   formData, validationErrors, handleInputChange, pickupLocationSearchResults, setSearchInput, handlePickupLocationChange, searchInput, 
@@ -273,38 +274,189 @@ function PackageForm({
           ))}
         </div>
 
-        {/* Features and Amenities */}
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-800 mb-6 pb-2 border-b">Features & Amenities</h2>
-          <Row className="mb-6">
-            <Col>
-              <MultiSelectDropdown
-                options={amenitiesOptions}
-                label="Amenities"
-                handleChange={(selectedOptions) => handleMultiSelectChange('amenities', selectedOptions)}
-                initialValue={formData.amenities}
-                className="w-full"
+        {/* Features & Amenities Section */}
+        <div className="mb-8 bg-white rounded-lg shadow-md p-6">
+          <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+            <span className="mr-2">✨</span>
+            Features & Amenities
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Themes */}
+            <div className="space-y-4">
+              <label className="block text-gray-700 font-medium mb-2">
+                <span className="flex items-center">
+                  <span className="mr-2">🎨</span>
+                  Themes
+                </span>
+              </label>
+              <Select
+                isMulti
+                name="themes"
+                options={[
+                  { value: "adventure", label: "Adventure" },
+                  { value: "romantic", label: "Romantic" },
+                  { value: "family", label: "Family" },
+                  { value: "wildlife", label: "Wildlife" },
+                  { value: "cultural", label: "Cultural" },
+                  { value: "religious", label: "Religious" },
+                  { value: "beach", label: "Beach" },
+                  { value: "hill station", label: "Hill Station" },
+                ]}
+                className="basic-multi-select"
+                classNamePrefix="select"
+                value={formData.themes?.map(theme => ({ value: theme, label: theme }))}
+                onChange={(selectedOptions) =>
+                  handleMultiSelectChange(
+                    "themes",
+                    selectedOptions?.map((option) => option.value) || []
+                  )
+                }
               />
-            </Col>
-            <Col>
-              <MultiSelectDropdown
-                options={themeOptions}
-                label="Themes"
-                handleChange={(selectedOptions) => handleMultiSelectChange('themes', selectedOptions)}
-                initialValue={formData.themes}
-                className="w-full"
+            </div>
+
+            {/* Tags */}
+            <div className="space-y-4">
+              <label className="block text-gray-700 font-medium mb-2">
+                <span className="flex items-center">
+                  <span className="mr-2">🏷️</span>
+                  Tags
+                </span>
+              </label>
+              <Select
+                isMulti
+                name="tags"
+                options={[
+                  { value: "popular", label: "Popular" },
+                  { value: "trending", label: "Trending" },
+                  { value: "best seller", label: "Best Seller" },
+                  { value: "new", label: "New" },
+                  { value: "featured", label: "Featured" },
+                  { value: "recommended", label: "Recommended" },
+                ]}
+                className="basic-multi-select"
+                classNamePrefix="select"
+                value={formData.tags?.map(tag => ({ value: tag, label: tag }))}
+                onChange={(selectedOptions) =>
+                  handleMultiSelectChange(
+                    "tags",
+                    selectedOptions?.map((option) => option.value) || []
+                  )
+                }
               />
-            </Col>
-            <Col>
-              <MultiSelectDropdown
-                options={TagOptions}
-                label="Tags"
-                handleChange={(selectedOptions) => handleMultiSelectChange('tags', selectedOptions)}
-                initialValue={formData.tags}
-                className="w-full"
-              />
-            </Col>
-          </Row>
+            </div>
+
+            {/* Amenities */}
+            <div className="space-y-4 md:col-span-2">
+              <label className="block text-gray-700 font-medium mb-2">
+                <span className="flex items-center">
+                  <span className="mr-2">🛋️</span>
+                  Amenities
+                  <span className="ml-2 text-sm text-gray-500">(Click to add/remove)</span>
+                </span>
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {[
+                  // Essential Services
+                  { value: "Meals", label: "Meals", icon: "🍽️", category: "Essential" },
+                  { value: "Sightseeing", label: "Sightseeing", icon: "🎯", category: "Essential" },
+                  { value: "Cab", label: "Cab", icon: "🚗", category: "Essential" },
+                  { value: "Hotel", label: "Hotel", icon: "🏨", category: "Essential" },
+                  
+                  // Amenities
+                  { value: "Wifi", label: "Wi-Fi", icon: "📶", category: "Amenities" },
+                  { value: "Parking", label: "Parking", icon: "🅿️", category: "Amenities" },
+                  { value: "Breakfast", label: "Breakfast", icon: "🍳", category: "Amenities" },
+                  { value: "Room_service", label: "Room Service", icon: "🛎️", category: "Amenities" },
+                  
+                  // Wellness & Recreation
+                  { value: "Spa", label: "Spa", icon: "💆‍♀️", category: "Wellness" },
+                  { value: "Pool", label: "Pool", icon: "🏊‍♂️", category: "Wellness" },
+                  { value: "Gym", label: "Gym", icon: "💪", category: "Wellness" },
+                  
+                  // Additional Amenities
+                  { value: "ac", label: "Air Conditioning", icon: "❄️", category: "Additional" },
+                  { value: "tv", label: "TV", icon: "📺", category: "Additional" },
+                  { value: "laundry", label: "Laundry", icon: "👕", category: "Additional" },
+                  { value: "restaurant", label: "Restaurant", icon: "🍽️", category: "Additional" },
+                  { value: "bar", label: "Bar", icon: "🍸", category: "Additional" }
+                ]
+                .sort((a, b) => {
+                  // Sort by category first, then by label
+                  if (a.category === b.category) {
+                    return a.label.localeCompare(b.label);
+                  }
+                  return a.category.localeCompare(b.category);
+                })
+                .map((amenity) => {
+                  const isSelected = formData.amenities?.includes(amenity.value);
+                  return (
+                    <div key={amenity.value} className="relative group">
+                      <input
+                        type="checkbox"
+                        id={amenity.value}
+                        checked={isSelected}
+                        onChange={(e) => {
+                          const updatedAmenities = e.target.checked
+                            ? [...(formData.amenities || []), amenity.value]
+                            : (formData.amenities || []).filter((a) => a !== amenity.value);
+                          handleMultiSelectChange("amenities", updatedAmenities);
+                        }}
+                        className="peer absolute opacity-0 w-full h-full cursor-pointer"
+                      />
+                      <label
+                        htmlFor={amenity.value}
+                        className={`flex items-center p-4 bg-white border-2 rounded-lg cursor-pointer transition-all duration-200
+                          ${isSelected 
+                            ? 'border-blue-500 bg-blue-50 shadow-md' 
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'}
+                          group-hover:shadow-md`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center">
+                            <span className="text-xl mr-3">{amenity.icon}</span>
+                            <span className="text-sm font-medium text-gray-700">{amenity.label}</span>
+                          </div>
+                          <div className={`transform transition-transform duration-200 ${isSelected ? 'scale-100' : 'scale-0'}`}>
+                            <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                          </div>
+                        </div>
+                      </label>
+                      <div className={`absolute inset-0 rounded-lg border-2 border-transparent transition-all duration-200 pointer-events-none
+                        ${isSelected ? 'border-blue-500 shadow-sm' : 'group-hover:border-blue-300'}`}>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <p className="text-sm text-gray-500 w-full mb-2">Selected Amenities:</p>
+                {formData.amenities?.length > 0 ? (
+                  formData.amenities.map((amenity) => (
+                    <span
+                      key={amenity}
+                      className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                    >
+                      {amenity}
+                      <button
+                        onClick={() => {
+                          const updatedAmenities = formData.amenities.filter(a => a !== amenity);
+                          handleMultiSelectChange("amenities", updatedAmenities);
+                        }}
+                        className="ml-2 hover:text-blue-600"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-sm text-gray-400">No amenities selected</span>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Package Description */}
@@ -396,10 +548,25 @@ function PackageForm({
         {/* Submit Button */}
         <div className="flex justify-end pt-6">
           <button
-            type="submit"
-            className="px-8 py-3 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+            onClick={handleSubmit}
+            type="button"
+            className="px-8 py-3 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors flex items-center space-x-2"
           >
-            {isEditing ? 'Update Package' : 'Create Package'}
+            <span>Save & Next</span>
+            <svg 
+              className="w-5 h-5" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24" 
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth="2" 
+                d="M13 7l5 5m0 0l-5 5m5-5H6"
+              />
+            </svg>
           </button>
         </div>
       

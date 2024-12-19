@@ -322,86 +322,110 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
   const renderItineraryBoxes = () => {
     const sequence = generateItinerarySequence();
     
-    return sequence.map((dayInfo, index) => (
-        <div key={index} className="mb-4">
-            <Row className="mb-6">
-                <Col>
-                    <div className="mb-0 text-m font-bold">
-                        Day {dayInfo.day} - {dayInfo.type === 'travel' ? 
-                            `Travel from ${dayInfo.from} to ${dayInfo.to}${dayInfo.isNightTravel ? ' (Night Travel)' : ''}` : 
-                            `Local sightseeing in ${dayInfo.location}`}
-                    </div>
-                </Col>
-                <Col>
-                    <div className="position-relative">
-                        <input
-                            type="text"
-                            placeholder={dayInfo.type === 'travel' ? 
-                                `Search travel itinerary from ${dayInfo.from} to ${dayInfo.to}` : 
-                                `Search local activities in ${dayInfo.location}`}
-                            className="p-2 w-full border rounded-md"
-                            value={selectedItineraryTitles[index] || ''}
-                            onChange={(e) => {
-                                const { value } = e.target;
-                                setSelectedItineraryTitles((prevTitles) => {
-                                    const updatedTitles = [...prevTitles];
-                                    updatedTitles[index] = value;
-                                    return updatedTitles;
-                                });
-                                setShowDropdowns((prev) => {
-                                    const updated = [...prev];
-                                    updated[index] = true;
-                                    return updated;
-                                });
-                                handleItinerarySearch(index, value, dayInfo);
-                            }}
-                        />
-                        {showDropdowns[index] && itineraryDays[index]?.searchResults && (
-                            <ul className="list-group dropitdown mt-1">
-                                {itineraryDays[index].searchResults.slice(0, 5).map((result) => (
-                                    <li
-                                        key={result._id}
-                                        className="list-group-item"
-                                        onClick={() => handleItinerarySelection(index, result)}
-                                        style={{ cursor: "pointer" }}
-                                    >
-                                        {result.itineraryTitle}
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                </Col>
-            </Row>
-            {itineraryDays[index]?.selectedItinerary && (
-                <div className="p-6 bg-white shadow-md border border-gray-200 rounded-xl w-full">
-                    <h4 className="text-xl font-semibold text-gray-800 mb-4">
-                        Selected Itinerary Details
-                    </h4>
-                    <div className="space-y-3">
-                        <p className="text-gray-600">
-                            <span className="font-medium text-gray-800">📌 Title:</span> {itineraryDays[index].selectedItinerary.itineraryTitle}
-                        </p>
-                        <p className="text-gray-600">
-                            <span className="font-medium text-gray-800">📝 Description:</span> {itineraryDays[index].selectedItinerary.itineraryDescription}
-                        </p>
-                        <p className="text-gray-600">
-                            <span className="font-medium text-gray-800">🌆 City:</span> {itineraryDays[index].selectedItinerary.cityName}
-                        </p>
-                        <p className="text-gray-600">
-                            <span className="font-medium text-gray-800">🌍 Country:</span> {itineraryDays[index].selectedItinerary.country}
-                        </p>
-                        <p className="text-gray-600">
-                            <span className="font-medium text-gray-800">⏳ Duration:</span> {itineraryDays[index].selectedItinerary.totalHours} hours
-                        </p>
-                        <p className="text-gray-600">
-                            <span className="font-medium text-gray-800">📏 Distance:</span> {itineraryDays[index].selectedItinerary.distance} km
-                        </p>
-                    </div>
-                </div>
-            )}
+    return (
+      <div className="mt-8 transition-all duration-300 ease-in-out">
+        <div className="bg-blue-50 p-4 mb-6 rounded-lg border border-blue-200">
+          <h3 className="text-xl font-semibold text-blue-800 mb-2">
+            🎯 Itinerary Planning
+          </h3>
+          <p className="text-blue-600">
+            Your package places match the duration! Now let's plan the daily activities.
+          </p>
         </div>
-    ));
+
+        <div className="space-y-6">
+          {sequence.map((dayInfo, index) => (
+            <div key={index} className="bg-white rounded-lg shadow-md p-6 transition-all duration-300 hover:shadow-lg">
+              <div className="flex flex-col space-y-4">
+                <div className="flex items-center space-x-2">
+                  <span className="bg-blue-100 text-blue-800 font-semibold px-3 py-1 rounded-full text-sm">
+                    Day {dayInfo.day}
+                  </span>
+                  <h4 className="text-lg font-medium text-gray-800">
+                    {dayInfo.type === 'travel' ? 
+                      `Travel from ${dayInfo.from} to ${dayInfo.to}${dayInfo.isNightTravel ? ' (Night Travel)' : ''}` : 
+                      `Local sightseeing in ${dayInfo.location}`}
+                  </h4>
+                </div>
+
+                <div className="relative">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder={dayInfo.type === 'travel' ? 
+                        `Search travel itinerary from ${dayInfo.from} to ${dayInfo.to}` : 
+                        `Search local activities in ${dayInfo.location}`}
+                      className="w-full p-3 !pl-[50px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pl-10"
+                      value={selectedItineraryTitles[index] || ''}
+                      onChange={(e) => {
+                        const { value } = e.target;
+                        setSelectedItineraryTitles((prevTitles) => {
+                          const updatedTitles = [...prevTitles];
+                          updatedTitles[index] = value;
+                          return updatedTitles;
+                        });
+                        setShowDropdowns((prev) => {
+                          const updated = [...prev];
+                          updated[index] = true;
+                          return updated;
+                        });
+                        handleItinerarySearch(index, value, dayInfo);
+                      }}
+                    />
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                      🔍
+                    </span>
+                  </div>
+
+                  {showDropdowns[index] && itineraryDays[index]?.searchResults && (
+                    <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {itineraryDays[index].searchResults.slice(0, 5).map((result) => (
+                        <li
+                          key={result._id}
+                          className="px-4 py-3 hover:bg-blue-50 cursor-pointer transition-colors duration-150 border-b last:border-b-0"
+                          onClick={() => handleItinerarySelection(index, result)}
+                        >
+                          <div className="font-medium text-gray-800">{result.itineraryTitle}</div>
+                          <div className="text-sm text-gray-500 mt-1 line-clamp-2">
+                            {result.itineraryDescription}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {itineraryDays[index]?.selectedItinerary && (
+                  <div className="mt-4 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <h5 className="font-semibold text-gray-800 mb-3">📌 Selected Itinerary</h5>
+                        <p className="text-gray-700 mb-2">{itineraryDays[index].selectedItinerary.itineraryTitle}</p>
+                        <p className="text-gray-600 text-sm">{itineraryDays[index].selectedItinerary.itineraryDescription}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center">
+                          <span className="text-gray-600 mr-2">🌆</span>
+                          <span className="font-medium">{itineraryDays[index].selectedItinerary.cityName}</span>
+                        </div>
+                        <div className="flex items-center">
+                          <span className="text-gray-600 mr-2">⏳</span>
+                          <span>{itineraryDays[index].selectedItinerary.totalHours} hours</span>
+                        </div>
+                        <div className="flex items-center">
+                          <span className="text-gray-600 mr-2">📏</span>
+                          <span>{itineraryDays[index].selectedItinerary.distance} km</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   // Function to handle change in the number of rooms
@@ -411,63 +435,88 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) {
+      e.preventDefault();
+    }
     
-    const url = isEditing 
-      ? `${config.API_HOST}/api/packages/${editId}/package`
-      : `${config.API_HOST}/api/packages/createpackage`;
-      console.log(url)
-    
-    const method = isEditing ? "PATCH" : "POST";
-
-    // Prepare only the package data for the first step
-    const packageData = {
-      packageType: formData.packageType,
-      packageCategory: formData.packageCategory,
-      packageName: formData.packageName,
-      packageImages: formData.packageImages,
-      priceTag: formData.priceTag,
-      duration: formData.duration,
-      status: formData.status,
-      displayOrder: formData.displayOrder,
-      hotelCategory: formData.hotelCategory,
-      pickupLocation: formData.pickupLocation,
-      pickupTransfer: formData.pickupTransfer,
-      dropLocation: formData.dropLocation,
-      validTill: formData.validTill,
-      tourBy: formData.tourBy,
-      agentPackage: formData.agentPackage,
-      customizablePackage: formData.customizablePackage || false,
-      packagePlaces: packagePlaces
-        .filter(place => place.placeCover && place.nights)
-        .map(place => ({
-          placeCover: place.placeCover,
-          nights: parseInt(place.nights),
-          transfer: place.transfer || false
-        })),
-      themes: formData.themes || [],
-      tags: formData.tags || [],
-      amenities: formData.amenities || [],
-      initialAmount: formData.initialAmount,
-      defaultHotelPackage: formData.defaultHotelPackage,
-      defaultVehicle: formData.defaultVehicle,
-      packageDescription: formData.packageDescription || "",
-      packageInclusions: formData.packageInclusions || "",
-      packageExclusions: formData.packageExclusions || "",
-      itineraryDays: itineraryDays.map(day => ({
-        day: day.day,
-        selectedItinerary: day.selectedItinerary ? {
-          itineraryTitle: day.selectedItinerary.itineraryTitle,
-          itineraryDescription: day.selectedItinerary.itineraryDescription,
-          cityName: day.selectedItinerary.cityName,
-          country: day.selectedItinerary.country,
-          totalHours: day.selectedItinerary.totalHours,
-          distance: day.selectedItinerary.distance
-        } : null
-      }))
-    };
-
     try {
+      // Validate required fields
+      const requiredFields = {
+        packageType: "Package Type",
+        packageCategory: "Package Category",
+        packageName: "Package Name",
+        duration: "Duration",
+        status: "Status",
+        pickupLocation: "Pickup Location",
+        dropLocation: "Drop Location"
+      };
+
+      const errors = {};
+      Object.entries(requiredFields).forEach(([field, label]) => {
+        if (!formData[field]) {
+          errors[field] = `${label} is required`;
+        }
+      });
+
+      if (Object.keys(errors).length > 0) {
+        setValidationErrors(errors);
+        alert("Please fill in all required fields");
+        return;
+      }
+
+      const url = isEditing 
+        ? `${config.API_HOST}/api/packages/${editId}/package`
+        : `${config.API_HOST}/api/packages/createpackage`;
+      
+      const method = isEditing ? "PATCH" : "POST";
+
+      // Prepare the package data
+      const packageData = {
+        packageType: formData.packageType,
+        packageCategory: formData.packageCategory,
+        packageName: formData.packageName,
+        packageImages: formData.packageImages,
+        priceTag: formData.priceTag,
+        duration: formData.duration,
+        status: formData.status,
+        displayOrder: formData.displayOrder,
+        hotelCategory: formData.hotelCategory,
+        pickupLocation: formData.pickupLocation,
+        pickupTransfer: formData.pickupTransfer,
+        dropLocation: formData.dropLocation,
+        validTill: formData.validTill,
+        tourBy: formData.tourBy,
+        agentPackage: formData.agentPackage,
+        customizablePackage: formData.customizablePackage || false,
+        packagePlaces: packagePlaces
+          .filter(place => place.placeCover && place.nights)
+          .map(place => ({
+            placeCover: place.placeCover,
+            nights: parseInt(place.nights),
+            transfer: place.transfer || false
+          })),
+        themes: formData.themes || [],
+        tags: formData.tags || [],
+        amenities: formData.amenities || [],
+        initialAmount: formData.initialAmount,
+        defaultHotelPackage: formData.defaultHotelPackage,
+        defaultVehicle: formData.defaultVehicle,
+        packageDescription: formData.packageDescription || "",
+        packageInclusions: formData.packageInclusions || "",
+        packageExclusions: formData.packageExclusions || "",
+        itineraryDays: itineraryDays.map(day => ({
+          day: day.day,
+          selectedItinerary: day.selectedItinerary ? {
+            itineraryTitle: day.selectedItinerary.itineraryTitle,
+            itineraryDescription: day.selectedItinerary.itineraryDescription,
+            cityName: day.selectedItinerary.cityName,
+            country: day.selectedItinerary.country,
+            totalHours: day.selectedItinerary.totalHours,
+            distance: day.selectedItinerary.distance
+          } : null
+        }))
+      };
+
       console.log('Submitting package data:', packageData);
 
       const response = await fetch(url, {
@@ -478,32 +527,33 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
         body: JSON.stringify(packageData),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
       const data = await response.json();
-      
-      if (data.success) {
-        // Store the package ID in cabsData for next steps
+      console.log('Response data:', data); // Debug log
+
+      if (response.ok) {
+        // Store the package ID and data for next steps
+        const packageId = isEditing ? editId : data.packageId;
+        
+        if (!packageId) {
+          throw new Error('No package ID received from server');
+        }
+
         setCabsData({
-          ...data.package,
-          packageId: data.package._id || editId,
-          pickupLocation: packageData.pickupLocation,
-          dropLocation: packageData.dropLocation,
-          packagePlaces: packageData.packagePlaces,
-          duration: packageData.duration
+          packageId: packageId,
+          pickupLocation: formData.pickupLocation,
+          dropLocation: formData.dropLocation,
+          packagePlaces: packagePlaces,
+          duration: formData.duration
         });
         
         // Move to the next tab
         setActiveTab('Cabs');
       } else {
-        console.error("Error saving package:", data.message);
-        alert("Failed to save package. Please check the form and try again.");
+        throw new Error(data.message || "Failed to save package");
       }
     } catch (error) {
       console.error("Error submitting package:", error);
-      alert("An error occurred while saving the package. Please try again.");
+      alert(error.message || "An error occurred while saving the package. Please try again.");
     }
   };
 
@@ -943,24 +993,26 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
     }
 };
 
+console.log(editId)
 
   const handleCabsSubmit = async () => {
     try {
-      if (!editId) {
+      if (!cabsData.packageId) {
         console.error('Package ID is undefined');
+        alert('Package ID is missing. Please save the package details first.');
         return;
       }
 
-      const url = `${config.API_HOST}/api/packages/${editId}/travel-prices`;
+      const url = `${config.API_HOST}/api/packages/${cabsData.packageId}/travel-prices`;
       const method = "PATCH";
 
-      // Convert travelData object to array format
-      const travelInfoArray = Object.values(travelData).map(route => route);
+      // Convert travelData object to array format if it isn't already
+      const travelInfoArray = Array.isArray(travelData) ? travelData : Object.values(travelData);
 
-      // Prepare the correct data structure for the API
+      // Prepare the payload with the correct structure
       const payload = {
         travelPrices: {
-          prices: cabPayLoad.prices,
+          prices: cabPayLoad?.prices || {},
           travelInfo: travelInfoArray,
           cabs: cabs
         }
@@ -976,11 +1028,24 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
         body: JSON.stringify(payload),
       });
 
+      if (!response.ok) {
+        throw new Error('Failed to save cab data');
+      }
+
       const data = await response.json();
-      setThirdStep(data);
-      setActiveTab('Hotels'); // Move to next step after successful submission
+      
+      if (data) {
+        setThirdStep(data);
+        // Store the updated data
+        setCabPayload(data.travelPrices);
+        // Move to next step
+        setActiveTab('Hotels');
+      } else {
+        throw new Error('No data received from server');
+      }
     } catch (error) {
       console.error('Error updating prices:', error);
+      alert('Failed to save cab data. Please try again.');
     }
   };
 

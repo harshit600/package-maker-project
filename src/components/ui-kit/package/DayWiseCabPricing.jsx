@@ -1,37 +1,36 @@
-import React, { useEffect, useState } from "react";
-import Button from "../atoms/Button";
+import React, { useState, useEffect } from 'react';
 
-function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, setFormData, pricing,  setPricing, isEditing }) {
+function DayWiseCabPricing({ 
+    travelData = {}, 
+    cabs, 
+    cabPayLoad, 
+    setCabPayload, 
+    setFormData, 
+    pricing, 
+    setPricing, 
+    isEditing 
+}) {
     const [prices, setPrices] = useState({});
 
+    // Initialize prices when component mounts or when cabPayLoad changes
     useEffect(() => {
-        // Initialize data when editing
-        if (isEditing && cabPayLoad?.prices) {
+        if (cabPayLoad?.prices) {
             setPrices(cabPayLoad.prices);
-        }
-    }, [isEditing, cabPayLoad]);
-
-    // Initialize prices for all cabs
-    useEffect(() => {
-        if (cabs) {
+        } else if (cabs) {
+            // Initialize empty prices for all cabs if no existing prices
             const initialPrices = {};
             Object.entries(cabs).forEach(([cabType, cabsOfType]) => {
                 cabsOfType.forEach(cab => {
-                    // If editing and price exists, use it; otherwise set empty
-                    if (isEditing && cabPayLoad?.prices?.[cab.cabName]) {
-                        initialPrices[cab.cabName] = cabPayLoad.prices[cab.cabName];
-                    } else {
-                        initialPrices[cab.cabName] = {
-                            onSeasonPrice: "",
-                            offSeasonPrice: "",
-                            _id: cab._id
-                        };
-                    }
+                    initialPrices[cab.cabName] = {
+                        onSeasonPrice: "",
+                        offSeasonPrice: "",
+                        _id: cab._id
+                    };
                 });
             });
             setPrices(initialPrices);
         }
-    }, [cabs, isEditing, cabPayLoad]);
+    }, [cabPayLoad, cabs]);
 
     const handlePriceChange = (cabName, field, value) => {
         const updatedPrices = {
@@ -39,7 +38,7 @@ function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, s
             [cabName]: {
                 ...prices[cabName],
                 [field]: value,
-                _id: prices[cabName]?._id
+                _id: prices[cabName]?._id || cabs?.[Object.keys(cabs)[0]]?.find(cab => cab.cabName === cabName)?._id
             }
         };
 
@@ -49,8 +48,8 @@ function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, s
         let totalOnSeason = 0;
         let totalOffSeason = 0;
         Object.values(updatedPrices).forEach(price => {
-            if (price.onSeasonPrice) totalOnSeason += parseFloat(price.onSeasonPrice);
-            if (price.offSeasonPrice) totalOffSeason += parseFloat(price.offSeasonPrice);
+            if (price.onSeasonPrice) totalOnSeason += parseFloat(price.onSeasonPrice || 0);
+            if (price.offSeasonPrice) totalOffSeason += parseFloat(price.offSeasonPrice || 0);
         });
 
         setPricing({
@@ -58,6 +57,7 @@ function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, s
             lowestOffSeasonPrice: totalOffSeason
         });
 
+        // Update the cab payload with the new prices
         setCabPayload(prev => ({
             ...prev,
             prices: updatedPrices,
@@ -91,7 +91,11 @@ function DayWiseCabPricing({ travelData = {}, cabs, cabPayLoad, setCabPayload, s
                         {cabsOfType.map((cab) => (
                             <div key={cab._id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow">
                                 <div className="flex items-center mb-4">
-                                    <span className="text-xl">🚗</span>
+                                    <img 
+                                        src={cab.cabImages[0]} 
+                                        alt={cab.cabName}
+                                        className="w-12 h-12 object-cover rounded-full"
+                                    />
                                     <h4 className="font-medium ml-2 text-gray-800">{cab.cabName}</h4>
                                 </div>
                                 <div className="space-y-4">

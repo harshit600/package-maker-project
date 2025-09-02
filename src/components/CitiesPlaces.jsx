@@ -45,7 +45,7 @@ const Places = () => {
     paid: false,
     price: 0,
   });
-
+console.log(params);
   const handlePaidChange = (e) => {
     const value = e.target.checked;
     setNewPlace({ ...newPlace, paid: value });
@@ -121,13 +121,14 @@ const Places = () => {
   useEffect(() => {
     fetchPlaces();
   }, []);
-
+console.log(params)
   const fetchPlaces = async () => {
     try {
       const response = await fetch(
         `${config.API_HOST}/api/places/getplaces/${params?.country}/${params?.state}/${params?.city}`
       );
       const data = await response.json();
+      console.log('data',data)
       setPlaces(data);
     } catch (error) {
       console.error("Error fetching places:", error);

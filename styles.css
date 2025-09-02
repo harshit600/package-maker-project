@@ -1,0 +1,12 @@
+/* Remove or comment out any skeleton animation keyframes */
+@keyframes skeleton-loading {
+  /* Remove this if you have it */
+}
+
+/* Remove any skeleton styling classes */
+.skeleton,
+.skeleton-text,
+.skeleton-image,
+.loading-placeholder {
+  display: none;
+}

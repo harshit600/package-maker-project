@@ -1,0 +1,18 @@
+* {
+  font-family: 'Mulish', sans-serif;
+}
+
+/* Or more specifically target elements */
+body {
+  font-family: 'Mulish', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Mulish', sans-serif;
+  font-weight: 700; /* For headings, using bold weight */
+}
+
+p, span, div {
+  font-family: 'Mulish', sans-serif;
+  font-weight: 400; /* For regular text */
+} 

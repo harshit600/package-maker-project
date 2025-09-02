@@ -1,73 +1,93 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Row, Col } from "react-bootstrap";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
+
 import {
-  getDownloadURL, getStorage, ref, uploadBytesResumable} from "firebase/storage";
+  getDownloadURL,
+  getStorage,
+  ref,
+  uploadBytesResumable,
+} from "firebase/storage";
 import { app } from "../firebase";
 import config from "../../config";
 import PackageForm from "./ui-kit/package/PackageForm";
 import CabCalculation from "./ui-kit/package/CabCalculation";
 import HotelCalculation from "./ui-kit/package/HotelCalculation";
+import FinalCosting from "./ui-kit/package/FinalCosting";
 
 const PackageCreation = ({ initialData, isEditing, editId }) => {
+  console.log("initialData",initialData)
   const [showIteniraryBoxes, setShowIteniraryBoxes] = useState(false);
   const [files, setFiles] = useState([]); // Added files state
   const [uploading, setUploading] = useState(false);
   const [imageUploadError, setImageUploadError] = useState(null);
   const [pickupSearchInput, setPickupSearchInput] = useState("");
-  const [tripData, setTripData] = useState([{ fromCity: "", toCity: "", day: 0 }]);
+  const [tripData, setTripData] = useState([
+    { fromCity: "", toCity: "", day: 0 },
+  ]);
   const [searchInput, setSearchInput] = useState("");
-  const [dropLocationSearchResults, setDropLocationSearchResults] = useState([]);
+  const [dropLocationSearchResults, setDropLocationSearchResults] = useState(
+    []
+  );
   const [activeIndex, setActiveIndex] = useState(null);
-  const [pickupLocationSearchResults, setPickupLocationSearchResults] = useState([]);
-  const [itineraryDays, setItineraryDays] = useState([{ day: 1, description: "", selectedItinerary: null }]);
-  const [packagePlaces, setPackagePlaces] = useState([{ placeCover: "", nights: 0, transfer: false }]);
+  const [pickupLocationSearchResults, setPickupLocationSearchResults] =
+    useState([]);
+  const [itineraryDays, setItineraryDays] = useState([
+    { day: 1, description: "", selectedItinerary: null },
+  ]);
+  const [packagePlaces, setPackagePlaces] = useState([
+    { placeCover: "", nights: 0, transfer: false },
+  ]);
   const [numRooms, setNumRooms] = useState(1);
   const [searchResults, setSearchResults] = useState([]);
   const [validationErrors, setValidationErrors] = useState({});
-  const [activeTab, setActiveTab] = useState('Package');
-  const tabs = ['Package', 'Cabs', 'Hotels'];
+  const [activeTab, setActiveTab] = useState("Package");
+  const tabs = ["Package", "Cabs", "Hotels", "Final Costing"];
   const [travelData, setTravelData] = useState({});
   const [pricing, setPricing] = useState(0);
   const [cabsData, setCabsData] = useState({});
   const [cabs, setCabs] = useState();
   const [cabPayLoad, setCabPayload] = useState();
   const [thirdStep, setThirdStep] = useState();
-  console.log(cabsData, thirdStep)
-  
-  const [formData, setFormData] = useState(initialData || {
-    packageType: "",
-    packageCategory: "",
-    packageName: "",
-    packageImages: [],
-    priceTag: "",
-    duration: "",
-    status: "",
-    displayOrder: "",
-    hotelCategory: "",
-    pickupLocation: "",
-    pickupTransfer: false,
-    dropLocation: "",
-    validTill: "",
-    tourBy: "",
-    agentPackage: "",
-    packagePlaces: { placeCover: "", nights: 0, transfer: false },
-    themes: [],
-    initialAmount: "",
-    defaultHotelPackage: "",
-    defaultVehicle: "",
-    tags: [],
-    customizablePackage: false,
-    amenities: [],
-    packageDescription:"",
-    packageInclusions:"",
-    packageExclusions:"",
-    userRef: "",
-    travelPrices: {}
-  });
+  const [selectedHotelData, setSelectedHotelData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  console.log(formData)
+  const [formData, setFormData] = useState(
+    initialData || {
+      packageType: "",
+      packageCategory: "",
+      packageName: "",
+      packageImages: [],
+      priceTag: "",
+      duration: "",
+      status: "",
+      state: "",
+      displayOrder: "",
+      hotelCategory: "",
+      pickupLocation: "",
+      pickupTransfer: false,
+      dropLocation: "",
+      validTill: "",
+      tourBy: "",
+      agentPackage: "",
+      packagePlaces: { placeCover: "", nights: 0, transfer: false },
+      themes: [],
+      initialAmount: "",
+      defaultHotelPackage: "",
+      defaultVehicle: "",
+      tags: [],
+      customizablePackage: false,
+      amenities: [],
+      packageDescription: "",
+      packageInclusions: "",
+      packageExclusions: "",
+      customExclusions: [], // Add this line
+      userRef: "",
+      travelPrices: {},
+      cityArea:[],
+    }
+  );
 
   const [activeSuggestion, setActiveSuggestion] = useState(
     Array(packagePlaces.length).fill(null)
@@ -78,7 +98,46 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
   const [showDropdowns, setShowDropdowns] = useState(
     Array.from({ length: itineraryDays.length }, () => false)
   );
-  const maxNights = parseInt(formData.duration.split("N")[0].split("/"));
+  // Update maxNights calculation with safety checks
+  const maxNights = useMemo(() => {
+    try {
+      if (!formData.duration) return 0;
+      return parseInt(formData.duration.split("N")[0].split("/")[0]) || 0;
+    } catch (error) {
+      console.error("Error calculating maxNights:", error);
+      return 0;
+    }
+  }, [formData.duration]);
+
+  // Add new state to store all tabs data
+  const [allTabsData, setAllTabsData] = useState({
+    package: null,
+    cabs: initialData?.cabsData|| null,
+    hotels: initialData?.hotelsData || null,
+    finalCosting: initialData?.finalCostingData || null,
+  });
+    
+  const [itineraryData, setItineraryData] = useState([]);
+  useEffect(() => {
+  const fetchItineraryData = async () => {
+    try {
+      const response = await fetch(
+        `${config.API_HOST}/api/itinerary/itinerary`
+      );
+      const data = await response.json();
+      setItineraryData(data);
+      console.log(data)
+    
+    } catch (error) {
+      console.error("Error fetching itinerary data:", error);
+    }
+  };
+  fetchItineraryData();
+}, []);
+  // Add useEffect to monitor allTabsData changes
+  useEffect(() => {
+    console.log("Updated all tabs data:", allTabsData);
+  }, [allTabsData]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -92,13 +151,177 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
     }));
   };
 
+  // Add new state variables
+  const [showCityModal, setShowCityModal] = useState(false);
+  const [matchedCities, setMatchedCities] = useState([]);
+  const [selectedCities, setSelectedCities] = useState([]);
+  const [currentDayIndex, setCurrentDayIndex] = useState(null);
+
+  const cityareas = async (cityName, dayIndex) => {
+
+    
+
+    try {
+      const response = await fetch(
+        `${config.API_HOST}/api/places/fetchAllPlaces`
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+    
+    // Get currently selected places for this day
+    const currentDayItinerary = itineraryDays[dayIndex]?.selectedItinerary;
+    const existingPlaces = currentDayItinerary?.cityArea || [];
+    
+    // Filter out places that are already selected
+    const matchedCities = data
+      .filter(item => item.city === cityName)
+      .filter(item => !existingPlaces.includes(item.placeName));
+    
+    console.log("Filtered City Data:", matchedCities);
+  
+    // Set matched cities and show modal only if there are new places to add
+    if (matchedCities.length > 0) {
+      setMatchedCities(matchedCities);
+      setCurrentDayIndex(dayIndex);
+      setShowCityModal(true);
+    } else {
+      // Show a message if no new places are available
+      alert("All available places for this city have already been added.");
+    }
+    
+  } catch (error) {
+    console.error("Error fetching city areas:", error);
+  }
+};
+
+
+  // Function to handle city selection
+  const handleCitySelection = (city) => {
+    setSelectedCities(prev => {
+      if (prev.some(item => item._id === city._id)) {
+        return prev.filter(item => item._id !== city._id);
+      } else {
+        return [...prev, city];
+      }
+    });
+  };
+
+  // Function to add selected cities to itinerary
+  const addSelectedCitiesToItinerary = () => {
+    try {
+      if (currentDayIndex === null || selectedCities.length === 0) {
+        console.log("No day index or cities selected");
+        return;
+      }
+
+      setItineraryDays(prevDays => {
+        const updatedDays = [...prevDays];
+        const currentDay = updatedDays[currentDayIndex];
+        
+        if (!currentDay || !currentDay.selectedItinerary) {
+          console.log("No current day or selected itinerary found");
+          return prevDays;
+        }
+
+        // Get existing places
+        const existingPlaces = Array.isArray(currentDay.selectedItinerary.cityArea) 
+          ? currentDay.selectedItinerary.cityArea 
+          : [];
+
+        // Format new places
+        const newPlaces = selectedCities.map(city => ({
+          placeName: city.placeName,
+          type: 'manual',
+          description: city.description || '',
+          cost: city.cost || { SUV: '', Sedan: '', Traveller: '' },
+          paid: city.paid || false,
+          price: city.price || 0,
+          imageUrls: city.imageUrls || [],
+          city: city.city,
+          distance: city.distance,
+          time: city.time,
+          status: city.enabled ? 'enabled' : 'disabled'
+        }));
+
+        // Update the current day's itinerary
+        updatedDays[currentDayIndex].selectedItinerary = {
+          ...currentDay.selectedItinerary,
+          cityArea: [...existingPlaces, ...newPlaces]
+        };
+
+        console.log("Updated itinerary with new places:", updatedDays[currentDayIndex]);
+        return updatedDays;
+      });
+
+      // Update form data
+      setFormData(prevFormData => {
+        const updatedCityArea = [...(prevFormData.cityArea || [])];
+        
+        // Ensure the current day's data exists
+        if (!updatedCityArea[currentDayIndex]) {
+          updatedCityArea[currentDayIndex] = {
+            day: currentDayIndex + 1,
+            cityArea: []
+          };
+        }
+
+        // Add new places to the current day's cityArea
+        const currentDayData = updatedCityArea[currentDayIndex];
+        const newPlaces = selectedCities.map(city => ({
+          placeName: city.placeName,
+          type: 'manual',
+          cost: city.cost,
+          paid: city.paid,
+          price: city.price,
+          city: city.city,
+          status: city.enabled ? 'enabled' : 'disabled'
+        }));
+
+        currentDayData.cityArea = [
+          ...(currentDayData.cityArea || []),
+          ...newPlaces
+        ];
+
+        return {
+          ...prevFormData,
+          cityArea: updatedCityArea
+        };
+      });
+
+      // Reset selection state
+      setShowCityModal(false);
+      setSelectedCities([]);
+      
+    } catch (error) {
+      console.error("Error in addSelectedCitiesToItinerary:", error);
+    }
+  };
+
   // Function to generate itinerary sequence based on package places
   const generateItinerarySequence = () => {
-    if (!formData.pickupLocation || !packagePlaces.length) return [];
+    console.log("Starting generateItinerarySequence");
+    console.log("Current formData:", formData);
+    console.log("Current packagePlaces:", packagePlaces);
+
+    if (!formData.pickupLocation || !packagePlaces.length) {
+      console.error("Missing required data:", {
+        pickupLocation: formData.pickupLocation,
+        packagePlaces: packagePlaces.length,
+      });
+      return [];
+    }
 
     // Parse duration to get total days
-    const totalDays = parseInt(formData.duration.split('D')[0]);
-    if (!totalDays) return [];
+    const totalDays = parseInt(formData.duration?.split("D")[0]);
+    if (!totalDays) {
+      console.error("Invalid duration:", formData.duration);
+      return [];
+    }
+
+    console.log("Total days:", totalDays);
 
     const sequence = [];
     let currentLocation = formData.pickupLocation;
@@ -106,65 +329,96 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
 
     // First add all travel days and local days in sequence
     for (let i = 0; i < packagePlaces.length; i++) {
-        const place = packagePlaces[i];
-        
-        // Add travel day
-        sequence.push({
-            day: dayCounter++,
-            from: currentLocation,
-            to: place.placeCover,
-            type: 'travel',
-            isNightTravel: place.transfer
-        });
+      const place = packagePlaces[i];
+      console.log(`Processing place ${i + 1}:`, place);
 
-        // Add local days if nights > 1
-        const nights = parseInt(place.nights) || 0;
-        if (nights > 1) {
-            // Add local days for this place
-            for (let j = 0; j < nights - 1; j++) {
-                if (dayCounter <= totalDays) {
-                    sequence.push({
-                        day: dayCounter++,
-                        location: place.placeCover,
-                        type: 'local',
-                        cityIndex: i
-                    });
-                }
-            }
+      // Add travel day
+      sequence.push({
+        day: dayCounter++,
+        from: currentLocation,
+        to: place.placeCover,
+        type: "travel",
+        isNightTravel: place.transfer,
+      });
+
+      // Add local days if nights > 1
+      const nights = parseInt(place.nights) || 0;
+      console.log(`Nights at ${place.placeCover}:`, nights);
+
+      if (nights > 1) {
+        // Add local days for this place
+        for (let j = 0; j < nights - 1; j++) {
+          if (dayCounter <= totalDays) {
+            sequence.push({
+              day: dayCounter++,
+              location: place.placeCover,
+              type: "local",
+              cityIndex: i,
+            });
+          }
         }
+      }
 
-        currentLocation = place.placeCover;
+      currentLocation = place.placeCover;
     }
 
     // Add final return journey if we still have a day left
     if (dayCounter <= totalDays && formData.dropLocation) {
-        sequence.push({
-            day: dayCounter,
-            from: currentLocation,
-            to: formData.dropLocation,
-            type: 'travel',
-            isNightTravel: false
-        });
+      sequence.push({
+        day: dayCounter,
+        from: currentLocation,
+        to: formData.dropLocation,
+        type: "travel",
+        isNightTravel: false,
+      });
     }
 
+    console.log("Generated sequence:", sequence);
     return sequence;
   };
 
-  // Update handleItinerarySearch to use the correct search query based on type
+  // Add a useEffect to monitor the data needed for sequence generation
+  useEffect(() => {
+    if (
+      formData.pickupLocation &&
+      packagePlaces.length > 0 &&
+      formData.duration
+    ) {
+      console.log("Data changed, attempting to generate new sequence");
+      const sequence = generateItinerarySequence();
+      if (sequence.length > 0) {
+        console.log("New sequence generated, initializing itinerary days");
+        initializeItineraryDays();
+      }
+    }
+  }, [formData.pickupLocation, packagePlaces, formData.duration]);
+
+  // 1. The main function that handles itinerary search and auto-selection
   const handleItinerarySearch = async (index, query, itineraryDay) => {
     try {
       let searchQuery = query;
+      const sequence = generateItinerarySequence();
+
       if (!query) {
-        const sequence = generateItinerarySequence();
-        const dayInfo = sequence[index];
-        
-        if (dayInfo.type === 'travel') {
-          searchQuery = `${dayInfo.from} to ${dayInfo.to}${dayInfo.isNightTravel ? ' night' : ''}`;
-        } else {
-          searchQuery = `${dayInfo.location} Local`; // Add 'Local' for local days
+        if (!sequence || !sequence[index]) {
+          console.error("Invalid sequence or index");
+          return;
         }
 
-        // Set the search box value
+        const dayInfo = sequence[index];
+        if (!dayInfo) {
+          console.error("Day info not found for index:", index);
+          return;
+        }
+
+        if (dayInfo.type === "travel") {
+          searchQuery = `${dayInfo.from} to ${dayInfo.to}${
+            dayInfo.isNightTravel ? " night" : ""
+          }`;
+        } else if (dayInfo.type === "local") {
+          searchQuery = `${dayInfo.location} Local`;
+        }
+
         setSelectedItineraryTitles((prevTitles) => {
           const updatedTitles = [...prevTitles];
           updatedTitles[index] = searchQuery;
@@ -172,156 +426,204 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
         });
       }
 
+      if (!sequence || !sequence[index]) {
+        console.error("Sequence not available for API call");
+        return;
+      }
+
       const response = await fetch(
-        `${config.API_HOST}/api/itinerary/searchitineraries?search=${searchQuery}`
+        `${
+          config.API_HOST
+        }/api/itinerary/searchitineraries?search=${encodeURIComponent(
+          searchQuery
+        )}&type=${sequence[index].type}&from=${encodeURIComponent(
+          sequence[index].from || ""
+        )}&to=${encodeURIComponent(
+          sequence[index].to || ""
+        )}&location=${encodeURIComponent(sequence[index].location || "")}`
       );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
-      
+
+      setItineraryDays((prevDays) => {
+        const updatedDays = [...prevDays];
+        if (!updatedDays[index]) {
+          updatedDays[index] = {
+            day: index + 1,
+            type: sequence[index].type,
+            ...(sequence[index].type === "travel"
+              ? {
+                  from: sequence[index].from,
+                  to: sequence[index].to,
+                  isNightTravel: sequence[index].isNightTravel,
+                }
+              : {
+                  location: sequence[index].location,
+                }),
+          };
+        }
+
+        updatedDays[index].searchResults = data;
+
+        if (data.length > 0) {
+          updatedDays[index].selectedItinerary = {
+            ...data[0],
+            itineraryTitle: data[0].itineraryTitle,
+            itineraryDescription: data[0].itineraryDescription,
+            cityName: data[0].cityName,
+            totalHours: data[0].totalHours,
+            distance: data[0].distance,
+            activities: data[0].activities || [],
+            sightseeing: data[0].sightseeing || [],
+            inclusions: data[0].inclusions || [],
+            exclusions: data[0].exclusions || [],
+            cityArea: data[0].cityArea || [],
+          };
+        }
+
+        return updatedDays;
+      });
+
+      // Update formData with day-wise cityArea
+      setFormData(prevFormData => {
+        const updatedCityArea = [...(prevFormData.cityArea || [])];
+        if (data.length > 0 && data[0].cityArea) {
+          updatedCityArea[index] = data[0].cityArea;
+        }
+        return {
+          ...prevFormData,
+          cityArea: updatedCityArea
+        };
+      });
+
+      if (!query && data.length > 0) {
+        handleItinerarySelection(index, data[0]);
+      }
+    } catch (error) {
+      console.error("Error in handleItinerarySearch:", error);
       setItineraryDays((prevDays) => {
         const updatedDays = [...prevDays];
         if (!updatedDays[index]) {
           updatedDays[index] = { day: index + 1 };
         }
-        updatedDays[index].searchResults = data;
+        updatedDays[index].error = error.message;
         return updatedDays;
       });
-
-      // Auto-select first result if no query provided and results exist
-      if (!query && data.length > 0) {
-        handleItinerarySelection(index, data[0]);
-        
-        // Also update the search box value with the selected itinerary title
-        setSelectedItineraryTitles((prevTitles) => {
-          const updatedTitles = [...prevTitles];
-          updatedTitles[index] = data[0].itineraryTitle;
-          return updatedTitles;
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching itineraries:", error);
     }
   };
 
-  // Update initializeItineraryDays to respect existing data
-  const initializeItineraryDays = () => {
+  // 2. Function to initialize itinerary days when package places are updated
+  const initializeItineraryDays = async () => {
+    console.log("Starting initializeItineraryDays");
     const sequence = generateItinerarySequence();
+    console.log("Generated sequence:", sequence);
+
+    if (!sequence.length) {
+      console.error("No sequence generated");
+      return;
+    }
+
+    setShowIteniraryBoxes(true);
+
     const days = sequence.map((dayInfo, index) => ({
       day: dayInfo.day,
       description: "",
-      selectedItinerary: itineraryDays[index]?.selectedItinerary || null,
+      selectedItinerary: null, // Reset selected itinerary to ensure fresh fetch
       type: dayInfo.type,
-      ...(dayInfo.type === 'travel' ? { from: dayInfo.from, to: dayInfo.to } : { location: dayInfo.location })
+      ...(dayInfo.type === "travel"
+        ? {
+            from: dayInfo.from,
+            to: dayInfo.to,
+            isNightTravel: dayInfo.isNightTravel,
+          }
+        : {
+            location: dayInfo.location,
+          }),
     }));
-    
+
     setItineraryDays(days);
+    console.log("Set initial itinerary days:", days);
 
-    // Initialize search box values and fetch itineraries
-    days.forEach((day, index) => {
-      const searchQuery = day.type === 'travel' 
-        ? `${day.from} to ${day.to}` 
-        : `${day.location} Local`;
+    // Fetch itineraries for each day
+    for (let i = 0; i < days.length; i++) {
+      const day = days[i];
+      const searchQuery =
+        day.type === "travel"
+          ? `${day.from} to ${day.to}`
+          : `${day.location} Local`;
 
-      // Set initial search box value
-      setSelectedItineraryTitles((prevTitles) => {
-        const updatedTitles = [...prevTitles];
-        updatedTitles[index] = searchQuery;
-        return updatedTitles;
-      });
-
-      // Only fetch new itineraries if we don't have existing data
-      if (!day.selectedItinerary) {
-        handleItinerarySearch(index, '', day);
-      }
-    });
-  };
-
-  // Update fetchItinerariesForTripData to combine both versions' functionality
-  const fetchItinerariesForTripData = async (tripData) => {
-    const sequence = generateItinerarySequence();
-    
-    if (!sequence.length) return;
-
-    const updatedDays = [...itineraryDays];
-    const updatedTitles = [...selectedItineraryTitles];
-    
-    for (let i = 0; i < sequence.length; i++) {
-      const dayInfo = sequence[i];
-      let searchQuery;
-      
-      if (dayInfo.type === 'travel') {
-        searchQuery = `${dayInfo.from} to ${dayInfo.to}${dayInfo.isNightTravel ? ' night' : ''}`;
-      } else {
-        searchQuery = `${dayInfo.location} Local`;
-      }
+      console.log(
+        `Fetching itinerary for day ${i + 1} with query:`,
+        searchQuery
+      );
 
       try {
         const response = await fetch(
-          `${config.API_HOST}/api/itinerary/searchitineraries?search=${searchQuery}`
+          `${
+            config.API_HOST
+          }/api/itinerary/searchitineraries?search=${encodeURIComponent(
+            searchQuery
+          )}&type=${day.type}&from=${encodeURIComponent(
+            day.from || ""
+          )}&to=${encodeURIComponent(
+            day.to || ""
+          )}&location=${encodeURIComponent(day.location || "")}`
         );
-        const data = await response.json();
-        
-        if (data && data.length > 0) {
-          // Update selected itinerary title
-          updatedTitles[i] = searchQuery;
 
-          // Update itinerary day data
-          if (!updatedDays[i]) {
-            updatedDays[i] = { day: i + 1 };
-          }
-          updatedDays[i].selectedItinerary = data[0];
-          updatedDays[i].searchResults = data;
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log(`Received data for day ${i + 1}:`, data);
+
+        if (data && data.length > 0) {
+          // Auto-select the first itinerary
+          setItineraryDays((prevDays) => {
+            const updatedDays = [...prevDays];
+            if (!updatedDays[i]) {
+              updatedDays[i] = { day: i + 1 };
+            }
+            updatedDays[i].selectedItinerary = {
+              ...data[0],
+              itineraryTitle: data[0].itineraryTitle,
+              itineraryDescription: data[0].itineraryDescription,
+              cityName: data[0].cityName,
+              totalHours: data[0].totalHours,
+              distance: data[0].distance,
+              activities: data[0].activities || [],
+              sightseeing: data[0].sightseeing || [],
+              inclusions: data[0].inclusions || [],
+              exclusions: data[0].exclusions || [],
+              cityArea: data[0].cityArea || [],
+            };
+            updatedDays[i].searchResults = data;
+            return updatedDays;
+          });
+
+          // Update the selected itinerary title
+          setSelectedItineraryTitles((prevTitles) => {
+            const updatedTitles = [...prevTitles];
+            updatedTitles[i] = data[0].itineraryTitle;
+            return updatedTitles;
+          });
+
+          console.log(`Auto-selected itinerary for day ${i + 1}:`, data[0]);
         }
       } catch (error) {
         console.error(`Error fetching itinerary for day ${i + 1}:`, error);
       }
     }
-
-    setItineraryDays(updatedDays);
-    setSelectedItineraryTitles(updatedTitles);
   };
-
-  // Update useEffect for itinerary initialization
-  useEffect(() => {
-    if (formData.duration && packagePlaces.length > 0 && formData.pickupLocation && formData.dropLocation) {
-      const totalNights = packagePlaces.reduce((sum, place) => sum + parseInt(place.nights || 0), 0);
-      const maxNights = parseInt(formData.duration.split('N')[0]);
-      
-      if (totalNights === maxNights) {
-        // If we're editing and have initial data, use that first
-        if (isEditing && initialData?.itineraryDays) {
-          setItineraryDays(initialData.itineraryDays);
-          const titles = initialData.itineraryDays.map(day => 
-            day.selectedItinerary ? day.selectedItinerary.itineraryTitle : ''
-          );
-          setSelectedItineraryTitles(titles);
-        } else {
-          // Otherwise initialize fresh
-          initializeItineraryDays();
-        }
-        setShowIteniraryBoxes(true);
-      }
-    }
-  }, [formData.duration, packagePlaces, formData.pickupLocation, formData.dropLocation]);
-
-  // Remove the duplicate useEffect for tripData
-  useEffect(() => {
-    if (isEditing && initialData) {
-      if (initialData.itineraryDays?.length > 0) {
-        setItineraryDays(initialData.itineraryDays);
-        const titles = initialData.itineraryDays.map(day => 
-          day.selectedItinerary ? day.selectedItinerary.itineraryTitle : ''
-        );
-        setSelectedItineraryTitles(titles);
-      } else if (initialData.packagePlaces?.length > 0) {
-        fetchItinerariesForTripData(initialData.packagePlaces);
-      }
-    }
-  }, [isEditing, initialData]);
 
   // Update renderItineraryBoxes to show the correct information
   const renderItineraryBoxes = () => {
     const sequence = generateItinerarySequence();
-    
+
     return (
       <div className="mt-8 transition-all duration-300 ease-in-out">
         <div className="bg-blue-50 p-4 mb-6 rounded-lg border border-blue-200">
@@ -329,22 +631,36 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
             🎯 Itinerary Planning
           </h3>
           <p className="text-blue-600">
-            Your package places match the duration! Now let's plan the daily activities.
+            Your package places match the duration! Now let's plan the daily
+            activities.
           </p>
         </div>
 
         <div className="space-y-6">
           {sequence.map((dayInfo, index) => (
-            <div key={index} className="bg-white rounded-lg shadow-md p-6 transition-all duration-300 hover:shadow-lg">
+            <div
+              key={index}
+              className="bg-white rounded-lg shadow-md p-6 transition-all duration-300 hover:shadow-lg"
+            >
               <div className="flex flex-col space-y-4">
                 <div className="flex items-center space-x-2">
                   <span className="bg-blue-100 text-blue-800 font-semibold px-3 py-1 rounded-full text-sm">
                     Day {dayInfo.day}
                   </span>
                   <h4 className="text-lg font-medium text-gray-800">
-                    {dayInfo.type === 'travel' ? 
-                      `Travel from ${dayInfo.from} to ${dayInfo.to}${dayInfo.isNightTravel ? ' (Night Travel)' : ''}` : 
-                      `Local sightseeing in ${dayInfo.location}`}
+                    {dayInfo.type === "travel"
+                      ? `Travel from ${dayInfo.from} to ${dayInfo.to}${
+                          dayInfo.isNightTravel ? "" : ""
+                        }`
+                      : `Local sightseeing in ${dayInfo.location}`}
+                  {dayInfo.isNightTravel && (
+                    <span className="inline-flex items-center ml-2 px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
+                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+                      </svg>
+                      Night Travel
+                    </span>
+                  )}
                   </h4>
                 </div>
 
@@ -352,11 +668,13 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder={dayInfo.type === 'travel' ? 
-                        `Search travel itinerary from ${dayInfo.from} to ${dayInfo.to}` : 
-                        `Search local activities in ${dayInfo.location}`}
+                      placeholder={
+                        dayInfo.type === "travel"
+                          ? `Search travel itinerary from ${dayInfo.from} to ${dayInfo.to}`
+                          : `Search local activities in ${dayInfo.location}`
+                      }
                       className="w-full p-3 !pl-[50px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pl-10"
-                      value={selectedItineraryTitles[index] || ''}
+                      value={selectedItineraryTitles[index] || ""}
                       onChange={(e) => {
                         const { value } = e.target;
                         setSelectedItineraryTitles((prevTitles) => {
@@ -377,46 +695,153 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
                     </span>
                   </div>
 
-                  {showDropdowns[index] && itineraryDays[index]?.searchResults && (
-                    <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                      {itineraryDays[index].searchResults.slice(0, 5).map((result) => (
-                        <li
-                          key={result._id}
-                          className="px-4 py-3 hover:bg-blue-50 cursor-pointer transition-colors duration-150 border-b last:border-b-0"
-                          onClick={() => handleItinerarySelection(index, result)}
-                        >
-                          <div className="font-medium text-gray-800">{result.itineraryTitle}</div>
-                          <div className="text-sm text-gray-500 mt-1 line-clamp-2">
-                            {result.itineraryDescription}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  {showDropdowns[index] &&
+                    itineraryDays[index]?.searchResults && (
+                      <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {itineraryDays[index].searchResults
+                          .slice(0, 5)
+                          .map((result) => (
+                            
+                            <li
+                              key={result._id}
+                              className="px-4 py-3 hover:bg-blue-50 cursor-pointer transition-colors duration-150 border-b last:border-b-0"
+                              onClick={() =>
+                                handleItinerarySelection(index, result)
+                              }
+                            >
+                              <div className="font-medium text-gray-800">
+                                {result.itineraryTitle}
+                              </div>
+                              <div className="text-sm text-gray-500 mt-1 line-clamp-2">
+                                {result.itineraryDescription}
+                              </div>
+                            </li>
+                          ))}
+                      </ul>
+                    )}
                 </div>
 
                 {itineraryDays[index]?.selectedItinerary && (
                   <div className="mt-4 bg-gray-50 rounded-lg p-4 border border-gray-200">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <h5 className="font-semibold text-gray-800 mb-3">📌 Selected Itinerary</h5>
-                        <p className="text-gray-700 mb-2">{itineraryDays[index].selectedItinerary.itineraryTitle}</p>
-                        <p className="text-gray-600 text-sm">{itineraryDays[index].selectedItinerary.itineraryDescription}</p>
+                        <h5 className="font-semibold text-gray-800 mb-3">
+                          📌 Selected Itinerary
+                        </h5>
+                        <p className="text-gray-700 mb-2">
+                          {
+                            itineraryDays[index].selectedItinerary
+                              .itineraryTitle
+                          }
+                        </p>
+                        <p className="text-gray-600 text-sm">
+                          {
+                            itineraryDays[index].selectedItinerary
+                              .itineraryDescription
+                          }
+                        </p>
+                           {/* Add City Areas Section */}
+                           {itineraryDays[index]?.selectedItinerary?.cityArea && 
+                          itineraryDays[index].selectedItinerary.cityArea.length > 0 && (
+                          <div className="mt-4">
+                            <h6 className="font-medium text-gray-700 mb-2">
+                              📍 Places to Visit:
+                            </h6>
+                            <div className="flex flex-wrap gap-2">
+                              {itineraryDays[index].selectedItinerary.cityArea.map((area, idx) => (
+                                
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100"
+                                >
+
+                                  {/* Access the placeName property instead of using the area directly */}
+                                  {area?.placeName||area}
+                                  
+                                  
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {itineraryDays[index].selectedItinerary.activities && (
+                          <div className="mt-3">
+                            <h6 className="font-medium text-gray-700 mb-2">
+                              Activities:
+                            </h6>
+                            <ul className="list-disc pl-4 text-sm text-gray-600">
+                              {itineraryDays[
+                                index
+                              ].selectedItinerary.activities.map(
+                                (activity, idx) => (
+                                  <li key={idx}>{activity}</li>
+                                )
+                              )}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center">
                           <span className="text-gray-600 mr-2">🌆</span>
-                          <span className="font-medium">{itineraryDays[index].selectedItinerary.cityName}</span>
+                          <span className="font-medium">
+                            {itineraryDays[index].selectedItinerary.cityName}
+                          </span>
                         </div>
                         <div className="flex items-center">
                           <span className="text-gray-600 mr-2">⏳</span>
-                          <span>{itineraryDays[index].selectedItinerary.totalHours} hours</span>
+                          <span>
+                            {itineraryDays[index].selectedItinerary.totalHours}{" "}
+                            hours
+                          </span>
                         </div>
                         <div className="flex items-center">
                           <span className="text-gray-600 mr-2">📏</span>
-                          <span>{itineraryDays[index].selectedItinerary.distance} km</span>
+                          <span>
+                            {itineraryDays[index].selectedItinerary.distance} km
+                          </span>
                         </div>
+                        {itineraryDays[index].selectedItinerary
+                          .specialNotes && (
+                          <div className="mt-3 p-3 bg-yellow-50 rounded-lg">
+                            <h6 className="font-medium text-yellow-800 mb-1">
+                              Special Notes:
+                            </h6>
+                            <p className="text-sm text-yellow-700">
+                              {
+                                itineraryDays[index].selectedItinerary
+                                  .specialNotes
+                              }
+                            </p>
+                            {console.log("Gghtghfhgfhgfhfgh",)}
+                          </div>
+                        )}
+                         <button
+                          className="mt-4 inline-flex items-center px-4 py-2 border border-blue-300 
+                            rounded-md shadow-sm text-sm font-medium text-blue-700 bg-blue-50 
+                            hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 
+                            focus:ring-blue-500 transition-all duration-200 ease-in-out"
+                          onClick={() => cityareas(itineraryDays[index].selectedItinerary.cityName, index)}
+                        >
+                          <svg 
+                            className="mr-2 -ml-1 h-4 w-4" 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            fill="none" 
+                            viewBox="0 0 24 24" 
+                            stroke="currentColor"
+                          >
+                            <path 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round" 
+                              strokeWidth={2} 
+                              d="M12 6v6m0 0v6m0-6h6m-6 0H6" 
+                            />
+                          </svg>
+                          Add More Places
+                        </button>
                       </div>
+                     
                     </div>
                   </div>
                 )}
@@ -436,119 +861,131 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    const url = isEditing 
-      ? `${config.API_HOST}/api/packages/${editId}/package`
-      : `${config.API_HOST}/api/packages/createpackage`;
-      console.log(url)
-    
-    const method = isEditing ? "PATCH" : "POST";
-
-    // Prepare only the package data for the first step
-    const packageData = {
-      packageType: formData.packageType,
-      packageCategory: formData.packageCategory,
-      packageName: formData.packageName,
-      packageImages: formData.packageImages,
-      priceTag: formData.priceTag,
-      duration: formData.duration,
-      status: formData.status,
-      displayOrder: formData.displayOrder,
-      hotelCategory: formData.hotelCategory,
-      pickupLocation: formData.pickupLocation,
-      pickupTransfer: formData.pickupTransfer,
-      dropLocation: formData.dropLocation,
-      validTill: formData.validTill,
-      tourBy: formData.tourBy,
-      agentPackage: formData.agentPackage,
-      customizablePackage: formData.customizablePackage || false,
-      packagePlaces: packagePlaces
-        .filter(place => place.placeCover && place.nights)
-        .map(place => ({
-          placeCover: place.placeCover,
-          nights: parseInt(place.nights),
-          transfer: place.transfer || false
-        })),
-      themes: formData.themes || [],
-      tags: formData.tags || [],
-      amenities: formData.amenities || [],
-      initialAmount: formData.initialAmount,
-      defaultHotelPackage: formData.defaultHotelPackage,
-      defaultVehicle: formData.defaultVehicle,
-      packageDescription: formData.packageDescription || "",
-      packageInclusions: formData.packageInclusions || "",
-      packageExclusions: formData.packageExclusions || "",
-      itineraryDays: itineraryDays.map(day => ({
-        day: day.day,
-        selectedItinerary: day.selectedItinerary ? {
-          itineraryTitle: day.selectedItinerary.itineraryTitle,
-          itineraryDescription: day.selectedItinerary.itineraryDescription,
-          cityName: day.selectedItinerary.cityName,
-          country: day.selectedItinerary.country,
-          totalHours: day.selectedItinerary.totalHours,
-          distance: day.selectedItinerary.distance
-        } : null
-      }))
-    };
+    setIsLoading(true);
 
     try {
-      console.log('Submitting package data:', packageData);
+      // Create day-wise cityArea array from itineraryDays
+      const dayWiseCityArea = itineraryDays.map(day => ({
+        day: day.day,
+        cityArea: day.selectedItinerary?.cityArea || []
+      }));
 
-      const response = await fetch(url, {
-        method: method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(packageData),
-      });
+      const packageData = {
+        packageType: formData.packageType,
+        packageCategory: formData.packageCategory,
+        packageName: formData.packageName,
+        packageImages: formData.packageImages,
+        state: formData.state,
+        priceTag: formData.priceTag,
+        duration: formData.duration,
+        status: formData.status,
+        displayOrder: formData.displayOrder,
+        hotelCategory: formData.hotelCategory,
+        pickupLocation: formData.pickupLocation,
+        pickupTransfer: formData.pickupTransfer,
+        dropLocation: formData.dropLocation,
+        validTill: formData.validTill,
+        tourBy: formData.tourBy,
+        agentPackage: formData.agentPackage,
+        customizablePackage: formData.customizablePackage || false,
+        packagePlaces: packagePlaces
+          .filter((place) => place.placeCover && place.nights)
+          .map((place) => ({
+            placeCover: place.placeCover,
+            nights: parseInt(place.nights),
+            transfer: place.transfer || false,
+          })),
+        themes: formData.themes || [],
+        tags: formData.tags || [],
+        amenities: formData.amenities || [],
+        initialAmount: formData.initialAmount,
+        defaultHotelPackage: formData.defaultHotelPackage,
+        defaultVehicle: formData.defaultVehicle,
+        packageDescription: formData.packageDescription || "",
+        packageInclusions: formData.packageInclusions || "",
+        packageExclusions: formData.packageExclusions || "",
+        customExclusions: formData.customExclusions || [], // Add this line
+    
+        cityArea: dayWiseCityArea, // Update to use day-wise cityArea
+        itineraryDays: itineraryDays.map((day) => ({
+          day: day.day,
+          selectedItinerary: day.selectedItinerary
+            ? {
+                itineraryTitle: day.selectedItinerary.itineraryTitle,
+                itineraryDescription: day.selectedItinerary.itineraryDescription,
+                cityName: day.selectedItinerary.cityName,
+                totalHours: day.selectedItinerary.totalHours,
+                distance: day.selectedItinerary.distance,
+                cityArea: day.selectedItinerary.cityArea || [], // Include day-specific cityArea
+                activities: day.selectedItinerary.activities || [],
+                sightseeing: day.selectedItinerary.sightseeing || [],
+                inclusions: day.selectedItinerary.inclusions || [],
+                exclusions: day.selectedItinerary.exclusions || [],
+              }
+            : null,
+        })),
+      };
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const response = await fetch(
+        `${config.API_HOST}/api/packages/${isEditing ? editId : 'createpackage'}`,
+        {
+          method: isEditing ? "PATCH" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(packageData),
+        }
+      );
 
       const data = await response.json();
-      
-      if (data.success) {
-        // Store the package ID in cabsData for next steps
+
+      // Update allTabsData with package information
+      setAllTabsData((prev) => {
+        const newData = {
+          ...prev,
+          package: packageData,
+        };
+        console.log("After package tab:", newData);
+        return newData;
+      });
+
+      if (response.ok) {
+        // Set the cabs data and move to next tab
         setCabsData({
-          ...data.package,
-          packageId: data.package._id || editId,
+          ...(data.data || data.package || data),
+          packageId: (data.data || data.package || data)._id || editId,
           pickupLocation: packageData.pickupLocation,
           dropLocation: packageData.dropLocation,
           packagePlaces: packageData.packagePlaces,
-          duration: packageData.duration
+          duration: packageData.duration,
         });
-        
-        // Move to the next tab
-        setActiveTab('Cabs');
+
+        const currentTabIndex = tabs.indexOf(activeTab);
+        if (currentTabIndex < tabs.length - 1) {
+          setActiveTab(tabs[currentTabIndex + 1]);
+        }
       } else {
-        console.error("Error saving package:", data.message);
-        alert("Failed to save package. Please check the form and try again.");
+        throw new Error(
+          data.error || data.message || `Server error: ${response.status}`
+        );
       }
     } catch (error) {
-      console.error("Error submitting package:", error);
-      alert("An error occurred while saving the package. Please try again.");
+      console.error("Full error details:", error);
+
+      let errorMessage = "Failed to save package. ";
+      if (error.message) {
+        errorMessage += error.message;
+      } else if (error.response) {
+        errorMessage += `Server responded with status: ${error.response.status}`;
+      } else {
+        errorMessage += "Please check your network connection and try again.";
+      }
+
+      alert(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
   };
-
-  // const handleAddItineraryDay = () => {
-  //   const nextDay = itineraryDays.length + 1;
-  //   setItineraryDays([
-  //     ...itineraryDays,
-  //     {
-  //       day: nextDay,
-  //       selectedItinerary: null,
-  //       details: { title: "", description: "" },
-  //     },
-  //   ]);
-  // };
-
-  // const handleRemoveItineraryDay = () => {
-  //   if (itineraryDays.length === 1) return;
-  //   const updatedItinerary = [...itineraryDays];
-  //   updatedItinerary.pop();
-  //   setItineraryDays(updatedItinerary);
-  // };
 
   const [maxNightsReached, setMaxNightsReached] = useState(0);
 
@@ -663,45 +1100,45 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
   };
 
   const handlePlaceSelection = (index, selectedPlace) => {
-    // Update the state with the selected place and clear search results
+    console.log("Handling place selection:", { index, selectedPlace });
+
     const updatedPlaces = [...packagePlaces];
     updatedPlaces[index].placeCover = selectedPlace.placeName;
     setPackagePlaces(updatedPlaces);
-    setSearchResults([]);
 
-    // Create a new entry with the selected place as the "fromCity"
-    const newEntry = { fromCity: selectedPlace.placeName, toCity: "" };
+    // Calculate total nights to check if we should fetch itineraries
+    const totalNights = updatedPlaces.reduce(
+      (sum, place) => sum + parseInt(place.nights || 0),
+      0
+    );
+    const maxNights = parseInt(formData.duration?.split("N")[0] || 0);
 
-    // Update the tripData array by inserting the new entry at the correct position
-    const updatedTripData = [
-      ...tripData.slice(0, index),
-      newEntry,
-      ...tripData.slice(index),
-    ];
+    console.log("Nights calculation:", { totalNights, maxNights });
 
-    // Update the "toCity" of the previous entry and calculate the day number
-    if (index > 0) {
-      updatedTripData[index - 1].toCity = selectedPlace.placeName;
+    // Update tripData
+    const newEntry = {
+      fromCity: selectedPlace.placeName,
+      toCity: "", // Will be set based on next place or drop location
+      day: index + 1,
+    };
 
-      // Calculate the day number based on the cumulative days
-      let cumulativeDays = 1; // Start from day 1
-      for (let i = 0; i < index; i++) {
-        const nights = updatedPlaces[i].nights || 1; // Default to 1 night if not specified
-        cumulativeDays += Number(nights); // Add the nights to the cumulative days
-      }
-      updatedTripData[index - 1].day = cumulativeDays;
-    }
+    setTripData((prev) => {
+      const updated = [...prev];
+      updated[index] = newEntry;
+      return updated;
+    });
 
-    // Remove the last entry if it is empty
+    // If we have all required data, trigger itinerary fetch
     if (
-      updatedTripData[updatedTripData.length - 1].fromCity === "" &&
-      updatedTripData[updatedTripData.length - 1].toCity === ""
+      totalNights === maxNights &&
+      formData.pickupLocation &&
+      formData.dropLocation
     ) {
-      updatedTripData.pop();
+      console.log("All conditions met, fetching itineraries");
+      setTimeout(() => {
+        initializeItineraryDays();
+      }, 0);
     }
-
-    // Update state with the new tripData
-    setTripData(updatedTripData);
   };
 
   const handleImageChange = (e) => {
@@ -748,7 +1185,6 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
         (snapshot) => {
           const progress =
             (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          console.log(`Upload is ${progress}% done`);
         },
         (error) => {
           reject(error);
@@ -801,7 +1237,9 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
     }));
     setValidationErrors((prevErrors) => ({
       ...prevErrors,
-      pickupLocation: selectedOption.label ? "" : "Please enter the information",
+      pickupLocation: selectedOption.label
+        ? ""
+        : "Please enter the information",
     }));
   };
 
@@ -810,11 +1248,6 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
       ...prevFormData,
       dropLocation: inputValue,
     }));
-
-    // setValidationErrors((prevErrors) => ({
-    //   ...prevErrors,
-    //   [name]: value ? "" : "Please enter the information",
-    // }));
 
     // Fetch data for drop location
     fetch(`${config.API_HOST}/api/cities/searchcities?search=${inputValue}`)
@@ -886,12 +1319,11 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
   };
 
   useEffect(() => {
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
-
 
   const handleMultiSelectChange = (field, selectedOptions) => {
     setFormData((prevFormData) => ({
@@ -908,103 +1340,81 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
   };
 
   useEffect(() => {
-      // Initialize the travel data
-      const newTravelData = {};
-  
-      if (cabsData && activeTab === 'Cabs') {
-          const { pickupLocation, dropLocation, packagePlaces } = cabsData;
-  
-          // Ensure there is at least one place in packagePlaces
-          const firstCity = packagePlaces[0]?.placeCover;
-  
-          // Store travel 1 with pickupLocation and first city
-          newTravelData['travel 1'] = firstCity ? [pickupLocation, firstCity] : [pickupLocation, dropLocation];
-  
-          // Iterate through packagePlaces to create travel entries
-          packagePlaces.forEach((place, index) => {
-              if (place.placeCover) {
-                  if (index < packagePlaces.length - 1) {
-                      // For travel 2 and onward, link current place to the next place
-                      newTravelData[`travel ${index + 2}`] = [
-                          packagePlaces[index].placeCover,
-                          packagePlaces[index + 1].placeCover
-                      ];
-                  } else {
-                      // Last travel leg: from last place to dropLocation
-                      newTravelData[`travel ${index + 2}`] = [
-                          packagePlaces[index].placeCover,
-                          dropLocation
-                      ];
-                  }
-              }
-          });
+    // Initialize the travel data
+    const newTravelData = {};
 
-          fetchCabs();
-      }
-  
-      console.log(newTravelData);
-      setTravelData(newTravelData);
+    if (cabsData && activeTab === "Cabs") {
+      const { pickupLocation, dropLocation, packagePlaces } = cabsData;
+
+      // Ensure there is at least one place in packagePlaces
+      const firstCity = packagePlaces[0]?.placeCover;
+
+      // Store travel 1 with pickupLocation and first city
+      newTravelData["travel 1"] = firstCity
+        ? [pickupLocation, firstCity]
+        : [pickupLocation, dropLocation];
+
+      // Iterate through packagePlaces to create travel entries
+      packagePlaces.forEach((place, index) => {
+        if (place.placeCover) {
+          if (index < packagePlaces.length - 1) {
+            // For travel 2 and onward, link current place to the next place
+            newTravelData[`travel ${index + 2}`] = [
+              packagePlaces[index].placeCover,
+              packagePlaces[index + 1].placeCover,
+            ];
+          } else {
+            // Last travel leg: from last place to dropLocation
+            newTravelData[`travel ${index + 2}`] = [
+              packagePlaces[index].placeCover,
+              dropLocation,
+            ];
+          }
+        }
+      });
+
+      fetchCabs();
+    }
+
+    setTravelData(newTravelData);
   }, [cabsData]);
 
   const fetchCabs = async () => {
     try {
-        const response = await fetch(`${config.API_HOST}/api/cabs/getallcabs`);
-        const data = await response.json();
-
-        // Assuming the result contains an array of cabs
-        const segregatedCabs = data.result.reduce((acc, cab) => {
-            const { cabType } = cab;
-            if (!acc[cabType]) {
-                acc[cabType] = []; // Initialize an array if it doesn't exist
-            }
-            acc[cabType].push(cab); // Push the cab to the corresponding cabType array
-            return acc;
-        }, {});
-
-        setCabs(segregatedCabs); // Set the segregated cabs data
-    } catch (error) {
-        console.error('Error fetching cabs:', error);
-    }
-};
-
-
-  const handleCabsSubmit = async () => {
-    try {
-      if (!editId) {
-        console.error('Package ID is undefined');
-        return;
-      }
-
-      const url = `${config.API_HOST}/api/packages/${editId}/travel-prices`;
-      const method = "PATCH";
-
-      // Convert travelData object to array format
-      const travelInfoArray = Object.values(travelData).map(route => route);
-
-      // Prepare the correct data structure for the API
-      const payload = {
-        travelPrices: {
-          prices: cabPayLoad.prices,
-          travelInfo: travelInfoArray,
-          cabs: cabs
-        }
-      };
-
-      console.log('Submitting payload:', payload); // Debug log
-
-      const response = await fetch(url, {
-        method: method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
+      const response = await fetch(`${config.API_HOST}/api/cabs/getallcabs`);
       const data = await response.json();
-      setThirdStep(data);
-      setActiveTab('Hotels'); // Move to next step after successful submission
+
+      // Assuming the result contains an array of cabs
+      const segregatedCabs = data.result.reduce((acc, cab) => {
+        const { cabType } = cab;
+        if (!acc[cabType]) {
+          acc[cabType] = []; // Initialize an array if it doesn't exist
+        }
+        acc[cabType].push(cab); // Push the cab to the corresponding cabType array
+        return acc;
+      }, {});
+
+      setCabs(segregatedCabs); // Set the segregated cabs data
     } catch (error) {
-      console.error('Error updating prices:', error);
+      console.error("Error fetching cabs:", error);
+    }
+  };
+
+  const handleCabsSubmit = (cabData) => {
+    // Simply store the received cab data
+    setAllTabsData((prev) => {
+      const newData = {
+        ...prev,
+        cabs: cabData,
+      };
+      console.log("After cabs tab:", newData);
+      return newData;
+    });
+
+    // Move to next tab
+    const currentTabIndex = tabs.indexOf(activeTab);
+    if (currentTabIndex < tabs.length - 1) {
+      setActiveTab(tabs[currentTabIndex + 1]);
     }
   };
 
@@ -1015,7 +1425,7 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
       if (initialData.travelPrices) {
         setCabsData({
           ...initialData,
-          packageId: initialData._id
+          packageId: initialData._id,
         });
         setCabPayload(initialData.travelPrices);
         setTravelData(initialData.travelPrices.travelInfo);
@@ -1035,8 +1445,11 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
         tags: initialData.tags || [],
         pickupLocation: initialData.pickupLocation || "",
         dropLocation: initialData.dropLocation || "",
+        state: initialData.state || "",
+        customExclusions: initialData.customExclusions || [], // Add this line
+  
       });
-      
+
       // Set package places
       if (initialData.packagePlaces && initialData.packagePlaces.length > 0) {
         setPackagePlaces(initialData.packagePlaces);
@@ -1050,11 +1463,16 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
 
       // Initialize trip data from package places
       if (initialData.packagePlaces) {
-        const newTripData = initialData.packagePlaces.map((place, index, array) => ({
-          fromCity: place.placeCover,
-          toCity: index < array.length - 1 ? array[index + 1].placeCover : initialData.dropLocation,
-          day: index + 1
-        }));
+        const newTripData = initialData.packagePlaces.map(
+          (place, index, array) => ({
+            fromCity: place.placeCover,
+            toCity:
+              index < array.length - 1
+                ? array[index + 1].placeCover
+                : initialData.dropLocation,
+            day: index + 1,
+          })
+        );
         setTripData(newTripData);
       }
 
@@ -1065,11 +1483,11 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
 
       // Initialize itinerary days based on duration
       if (initialData.duration) {
-        const nights = parseInt(initialData.duration.split('D')[0]);
+        const nights = parseInt(initialData.duration.split("D")[0]);
         const days = Array.from({ length: nights }, (_, i) => ({
           day: i + 1,
           description: "",
-          selectedItinerary: null
+          selectedItinerary: null,
         }));
         setItineraryDays(days);
       }
@@ -1083,8 +1501,9 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
 
       // Calculate max nights reached
       if (initialData.packagePlaces) {
-        const totalNights = initialData.packagePlaces.reduce((acc, place) => 
-          acc + parseInt(place.nights || 0), 0
+        const totalNights = initialData.packagePlaces.reduce(
+          (acc, place) => acc + parseInt(place.nights || 0),
+          0
         );
         setMaxNightsReached(totalNights);
       }
@@ -1094,154 +1513,841 @@ const PackageCreation = ({ initialData, isEditing, editId }) => {
   // Add this effect to handle itinerary initialization
   useEffect(() => {
     if (tripData && tripData.length > 0) {
+      console.log("TripData updated, fetching itineraries...");
       fetchItinerariesForTripData(tripData);
     }
   }, [tripData]);
 
+  // Function to handle itinerary selection
   const handleItinerarySelection = (index, selectedItinerary) => {
-    // Update the selected itinerary for the corresponding day
-    setItineraryDays((prevDays) => {
-      const updatedDays = [...prevDays];
-      if (updatedDays[index]) {
-        updatedDays[index].selectedItinerary = selectedItinerary;
-      }
-      return updatedDays;
-    });
+    try {
+      console.log("Selected Itinerary:", selectedItinerary); // Debug log
 
-    // Update the selected itinerary title for the corresponding input field
-    setSelectedItineraryTitles((prevTitles) => {
-      const updatedTitles = [...prevTitles];
-      updatedTitles[index] = selectedItinerary.itineraryTitle;
-      return updatedTitles;
-    });
+      setItineraryDays((prevDays) => {
+        const updatedDays = [...prevDays];
+        if (!updatedDays[index]) {
+          updatedDays[index] = { day: index + 1 };
+        }
 
-    // Close the dropdown for the corresponding input field
-    setShowDropdowns((prevDropdowns) => {
-      const updatedDropdowns = [...prevDropdowns];
-      updatedDropdowns[index] = false;
-      return updatedDropdowns;
-    });
+        // Ensure cityArea is properly formatted with full details
+        const cityAreaWithDetails = (selectedItinerary.cityArea || []).map(placeName => {
+          return {
+            placeName: placeName,
+            type: 'default',
+            cost: { SUV: '', Sedan: '', Traveller: '' },
+            paid: false,
+            price: 0,
+            city: selectedItinerary.cityName, // Use city instead of cityName for consistency
+            description: '',
+            imageUrls: [],
+            distance: null,
+            time: null,
+            status: 'enabled'
+          };
+        });
+
+        // Update the selected itinerary with formatted cityArea
+        updatedDays[index].selectedItinerary = {
+          ...selectedItinerary,
+          cityArea: cityAreaWithDetails
+        };
+
+        console.log("Updated Day Data:", updatedDays[index]); // Debug log
+        return updatedDays;
+      });
+
+      // Update selected titles
+      setSelectedItineraryTitles((prevTitles) => {
+        const updatedTitles = [...prevTitles];
+        updatedTitles[index] = selectedItinerary.itineraryTitle;
+        return updatedTitles;
+      });
+
+      // Close dropdowns
+      setShowDropdowns((prev) => {
+        const updated = [...prev];
+        updated[index] = false;
+        return updated;
+      });
+
+    } catch (error) {
+      console.error("Error in handleItinerarySelection:", error);
+    }
   };
 
-  const fetchItinerary = async (itineraryTitle) => {
+  const fetchItinerariesForTripData = async (tripData) => {
     try {
-      const response = await fetch(
-        `${config.API_HOST}/api/itinerary/searchitineraries?search=${itineraryTitle}`
-      );
-      const data = await response.json();
-      return data;
+      console.log("Starting fetchItinerariesForTripData with:", tripData);
+      const sequence = generateItinerarySequence();
+
+      if (!sequence.length) {
+        console.error("No sequence generated");
+        return;
+      }
+
+      console.log("Generated sequence:", sequence);
+      const updatedDays = [...itineraryDays];
+      const updatedTitles = [...selectedItineraryTitles];
+
+      for (let i = 0; i < sequence.length; i++) {
+        try {
+          const dayInfo = sequence[i];
+          if (!dayInfo) {
+            console.error(`No day info for index ${i}`);
+            continue;
+          }
+
+          let searchQuery;
+          if (dayInfo.type === "travel") {
+            searchQuery = `${dayInfo.from} to ${dayInfo.to}${
+              dayInfo.isNightTravel ? " night" : ""
+            }`;
+          } else {
+            searchQuery = `${dayInfo.location} Local`;
+          }
+
+          console.log(
+            `Fetching itinerary for day ${i + 1} with query:`,
+            searchQuery
+          );
+
+          const response = await fetch(
+            `${
+              config.API_HOST
+            }/api/itinerary/searchitineraries?search=${encodeURIComponent(
+              searchQuery
+            )}`
+          );
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          console.log(`Received data for day ${i + 1}:`, data);
+
+          if (data && data.length > 0) {
+            updatedTitles[i] = searchQuery;
+            if (!updatedDays[i]) {
+              updatedDays[i] = { day: i + 1 };
+            }
+            updatedDays[i].selectedItinerary = data[0];
+            updatedDays[i].searchResults = data;
+
+            // Automatically trigger itinerary selection
+            handleItinerarySelection(i, data[0]);
+          }
+        } catch (error) {
+          console.error(`Error fetching itinerary for day ${i + 1}:`, error);
+          continue;
+        }
+      }
+
+      setItineraryDays(updatedDays);
+      setSelectedItineraryTitles(updatedTitles);
+      console.log("Updated itinerary days:", updatedDays);
     } catch (error) {
-      console.error("Error fetching itinerary:", error);
-      return null;
+      console.error("Error in fetchItinerariesForTripData:", error);
     }
   };
 
   // Add this useEffect to handle initial itinerary loading for edit mode
   useEffect(() => {
     if (isEditing && initialData && initialData.packagePlaces) {
+      console.log("Initializing itinerary for edit mode...");
       fetchItinerariesForTripData(initialData.packagePlaces);
     }
   }, [isEditing, initialData]);
 
+  // Add these icons at the top of your file
+  const TabIcons = {
+    Package: (
+      <svg
+        className="w-4 h-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.5"
+          d="M20 7L12 3L4 7M20 7L12 11M20 7V17L12 21M12 11L4 7M12 11V21M4 7V17L12 21"
+        />
+      </svg>
+    ),
+    Cabs: (
+      <svg
+        className="w-4 h-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.5"
+          d="M8 7h8m-8 5h8m-4 5h4M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-4l-4 4-4-4z"
+        />
+      </svg>
+    ),
+    Hotels: (
+      <svg
+        className="w-4 h-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.5"
+          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+        />
+      </svg>
+    ),
+    FinalCosting: (
+      <svg
+        className="w-4 h-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.5"
+          d="M3 3h18v18H3V3z"
+        />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.5"
+          d="M3 9h18M3 15h18"
+        />
+      </svg>
+    ),
+  };
+
+  const handleHotelDataConfirm = (data) => {
+    setSelectedHotelData(data);
+    setActiveTab("Final Costing");
+  };
+
+  // Add handler for Hotels tab
+  const handleHotelsSubmit = async () => {
+    // Store hotels data
+    setAllTabsData((prev) => ({
+      ...prev,
+      hotels: {
+        selectedHotelData,
+        selectedHotels,
+      },
+    }));
+
+    // Move to next tab
+    const currentTabIndex = tabs.indexOf(activeTab);
+    if (currentTabIndex < tabs.length - 1) {
+      setActiveTab(tabs[currentTabIndex + 1]);
+    }
+
+    console.log("All tabs data so far:", allTabsData);
+  };
+
+  const handleFinalCostingSubmit = async (finalCostingData) => {
+    // Update allTabsData with the final costing data
+    setAllTabsData((prev) => {
+      const newData = {
+        ...prev,
+        hotels: finalCostingData.hotels,
+        activities: finalCostingData.activities,
+        sightseeing: finalCostingData.sightseeing,
+        finalCosting: finalCostingData.pricing,
+      };
+
+      // Call the API with the complete data
+      submitCompletePackage(newData);
+
+      return newData;
+    });
+  };
+
+  const submitCompletePackage = async (completeData) => {
+    try {
+      // Prepare the complete data payload
+      const payload = {
+        package: completeData.package,
+        cabs: completeData.cabs,
+        hotels: completeData.hotels,
+        activities: completeData.activities,
+        sightseeing: completeData.sightseeing,
+        finalCosting: completeData.finalCosting,
+      };
+
+      console.log("Submitting Complete Package Data:", payload);
+
+      const response = await fetch(`${config.API_HOST}/api/add/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("API Response:", result);
+
+      // Success handling
+      alert("Package saved successfully!");
+    } catch (error) {
+      console.error("Error in submitCompletePackage:", error);
+      alert("Error saving package. Please try again.");
+    }
+  };
+
+  // 1. Add missing state for selectedHotels
+  const [selectedHotels, setSelectedHotels] = useState([]);
+
+  // Add state for global master modal
+  const [showGlobalMasterModal, setShowGlobalMasterModal] = useState(false);
+  const [globalMasterData, setGlobalMasterData] = useState([]);
+  console.log(globalMasterData)
+  const [selectedGlobalMasterItems, setSelectedGlobalMasterItems] = useState([]);
+  const [loadingGlobalMaster, setLoadingGlobalMaster] = useState(false);
+
+  // Add a useEffect to monitor packagePlaces changes
+  useEffect(() => {
+    if (
+      packagePlaces.length > 0 &&
+      formData.duration &&
+      formData.pickupLocation &&
+
+      
+      formData.dropLocation
+    ) {
+      const totalNights = packagePlaces.reduce(
+        (sum, place) => sum + parseInt(place.nights || 0),
+        0
+      );
+      const maxNights = parseInt(formData.duration?.split("N")[0] || 0);
+
+      console.log("Package places changed:", {
+        totalNights,
+        maxNights,
+        places: packagePlaces,
+      });
+
+      if (totalNights === maxNights) {
+        console.log("Conditions met, initializing itineraries");
+        initializeItineraryDays();
+      }
+    }
+  }, [
+    packagePlaces,
+    formData.duration,
+    formData.pickupLocation,
+    formData.dropLocation,
+  ]);
+
+  // Function to fetch global master data
+  const fetchGlobalMasterData = async () => {
+    setLoadingGlobalMaster(true);
+    try {
+      const response = await fetch(`${config.API_HOST}/api/globalmaster/getall`);
+      if (!response.ok) throw new Error('Failed to fetch global master data');
+      const data = await response.json();
+      setGlobalMasterData(data);
+    } catch (error) {
+      alert('Error fetching global master data: ' + error.message);
+    } finally {
+      setLoadingGlobalMaster(false);
+    }
+  };
+
+  // Function to handle global master item selection
+  const handleGlobalMasterSelection = (item) => {
+    setSelectedGlobalMasterItems(prev => {
+      if (prev.some(selectedItem => selectedItem._id === item._id)) {
+        return prev.filter(selectedItem => selectedItem._id !== item._id);
+      } else {
+        return [...prev, item];
+      }
+    });
+  };
+
+  // Function to add selected global master items to inclusions or exclusions
+  const addSelectedGlobalMasterItems = () => {
+    try {
+      if (selectedGlobalMasterItems.length === 0) {
+        alert("Please select at least one item from global master data.");
+        return;
+      }
+
+      // Separate inclusions and exclusions
+      const inclusions = selectedGlobalMasterItems.filter(item => 
+        item.name.toLowerCase().includes('inclusion')
+      );
+      const exclusions = selectedGlobalMasterItems.filter(item => 
+        item.name.toLowerCase().includes('exclusion')
+      );
+      const otherItems = selectedGlobalMasterItems.filter(item => 
+        !item.name.toLowerCase().includes('inclusion') && 
+        !item.name.toLowerCase().includes('exclusion')
+      );
+
+      let updatedFormData = { ...formData };
+      let message = [];
+
+      // Add inclusions to packageInclusions
+      if (inclusions.length > 0) {
+        const currentInclusions = formData.packageInclusions || '';
+        const newInclusionsContent = inclusions.map(item => item.description).join('<br><br>');
+        const updatedInclusions = currentInclusions 
+          ? currentInclusions + '<br><br>' + newInclusionsContent
+          : newInclusionsContent;
+        
+        updatedFormData.packageInclusions = updatedInclusions;
+        message.push(`${inclusions.length} inclusion(s)`);
+      }
+
+      // Add exclusions to packageExclusions
+      if (exclusions.length > 0) {
+        const currentExclusions = formData.packageExclusions || '';
+        const newExclusionsContent = exclusions.map(item => item.description).join('<br><br>');
+        const updatedExclusions = currentExclusions 
+          ? currentExclusions + '<br><br>' + newExclusionsContent
+          : newExclusionsContent;
+        
+        updatedFormData.packageExclusions = updatedExclusions;
+        message.push(`${exclusions.length} exclusion(s)`);
+      }
+
+      // Add other items to customExclusions
+      if (otherItems.length > 0) {
+        const newCustomExclusions = otherItems.map(item => ({
+          name: item.name,
+          description: item.description
+        }));
+
+        const updatedCustomExclusions = [...(formData.customExclusions || []), ...newCustomExclusions];
+        updatedFormData.customExclusions = updatedCustomExclusions;
+        message.push(`${otherItems.length} other item(s) to custom exclusions`);
+      }
+
+      setFormData(updatedFormData);
+
+      // Reset selection and close modal
+      setSelectedGlobalMasterItems([]);
+      setShowGlobalMasterModal(false);
+      
+      alert(`${message.join(', ')} added successfully!`);
+      
+    } catch (error) {
+      console.error("Error adding global master items:", error);
+      alert("Error adding selected items. Please try again.");
+    }
+  };
+
+  // Function to open global master modal
+  const openGlobalMasterModal = () => {
+    setShowGlobalMasterModal(true);
+    fetchGlobalMasterData();
+  };
+
   return (
-    <div className="stepper-form w-full">
-      <div className="activeTab mb-2">
+    <div className="stepper-form w-full mt-4">
+      <div className="sticky top-0 z-50 bg-white shadow-sm  mx-auto">
+        <div className="mx-auto">
+          <div className="flex items-center justify-between border-b w-full">
+            {tabs.map((tab, index) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`
+                  relative flex-1 px-4 py-2 -mb-px
+                  flex items-center justify-center gap-2
+                  transition-all duration-200
+                  ${
+                    activeTab === tab
+                      ? "bg-[rgb(45,45,68)] text-white border-b-2 border-white"
+                      : index < tabs.indexOf(activeTab)
+                      ? "text-green-600"
+                      : "text-gray-500 hover:text-gray-700"
+                  }
+                `}
+              >
+                {/* Icon with background */}
+                <div
+                  className={`
+                  w-6 h-6 rounded-full
+                  flex items-center justify-center
+                  ${
+                    activeTab === tab
+                      ? "bg-white"
+                      : index < tabs.indexOf(activeTab)
+                      ? "bg-green-100"
+                      : "bg-gray-100"
+                  } 
+                `}
+                >
+                  <span
+                    className={
+                      activeTab === tab ? "text-[rgb(43,104,135)]" : ""
+                    }
+                  >
+                    {TabIcons[tab]}
+                  </span>
+                </div>
 
+                {/* Label */}
+                <span className="text-xs font-medium whitespace-nowrap text-center">
+                  {tab}
+                </span>
 
-      <ul className="flex flex-wrap text-sm font-medium text-center text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400">
-            {tabs.map((tab) => (
-                <li key={tab} className="me-2">
-                    <button
-                        onClick={() => setActiveTab(tab)}
-                        className={`inline-block p-4 rounded-t-lg 
-                            ${activeTab === tab ? 'text-blue-600 bg-gray-100 dark:bg-gray-800 dark:text-blue-500' : 'hover:text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 dark:hover:text-gray-300'} 
-                          
-                        `}
-                    >
-                        {tab}
-                    </button>
-                </li>
+                {/* Completed indicator */}
+                {index < tabs.indexOf(activeTab) && (
+                  <svg
+                    className="w-3 h-3 text-green-600"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                )}
+              </button>
             ))}
-        </ul>
+          </div>
+        </div>
 
+        {/* Progress Bar */}
+        <div className="h-0.5 bg-gray-100 w-full">
+          <div
+            className="h-full transition-all duration-300"
+            style={{
+              width: `${((tabs.indexOf(activeTab) + 1) / tabs.length) * 100}%`,
+              backgroundImage: "linear-gradient(to right, #10B981, #3B82F6)",
+            }}
+          />
+        </div>
       </div>
-    {activeTab === 'Package' && <div className="step-1">
-    <PackageForm 
-    formData={formData}
-    validationErrors={validationErrors}
-    handleInputChange={handleInputChange}
-    pickupLocationSearchResults={pickupLocationSearchResults}
-    setSearchInput={setSearchInput}
-    handlePickupLocationChange={handlePickupLocationChange}
-    searchInput={searchInput}
-    handleSelectSuggestion={handleSelectSuggestion}
-    dropLocationSearchResults={dropLocationSearchResults}
-    setPickupSearchInput={setPickupSearchInput}
-    handleDropLocationChange={handleDropLocationChange}
-    pickupSearchInput={pickupSearchInput}
-    handleDropSelectSuggestion={handleDropSelectSuggestion}
-    handleCustomizableChange={handleCustomizableChange}
-    handleImageChange={handleImageChange}
-    handleImageUpload={handleImageUpload}
-    packagePlaces={packagePlaces}
-    isDropdownOpen={isDropdownOpen}
-    maxNightsReached={maxNightsReached}
-    maxNights={maxNights}
-    handleAddPackagePlace={handleAddPackagePlace}
-    showIteniraryBoxes={showIteniraryBoxes}
-    numRooms={numRooms}
-    handleNumRoomsChange={handleNumRoomsChange}
-    handleSubmit={handleSubmit}
-    handleDropDownChange={handleDropDownChange}
-    handleMultiSelectChange={handleMultiSelectChange}
-    handleRichTextChange={handleRichTextChange}
-    RichTextInput={RichTextInput}
-    handleDropdownChange={handleDropdownChange}
-    handlePlaceSelection={handlePlaceSelection}
-    handlePlaceInputChange={handlePlaceInputChange}
-    handleRemovePackagePlace={handleRemovePackagePlace}
-    setActiveSuggestion={setActiveSuggestion}
-    activeSuggestion={activeSuggestion}
-    searchResults={searchResults}
-    activeIndex={activeIndex}
-    renderItineraryBoxes={renderItineraryBoxes}
-    dropdownRef={dropdownRef}
-    handleItenaryBoxes={handleItenaryBoxes}
-    isEditing={isEditing}
-    initialData={initialData}
-    setFormData={setFormData}
-    uploading={uploading}
-    />
-    </div>}
-    {activeTab === 'Cabs' && <div className="step-2">
-      <CabCalculation 
-        cabsData={cabsData}
-        cabs={cabs}
-        setTravelData={setTravelData}
-        travelData={travelData}
-        setPricing={setPricing}
-        pricing={pricing}
-        handleCabsSubmit={handleCabsSubmit}
-        setCabPayload={setCabPayload}
-        setFormData={setFormData}
-        cabPayLoad={cabPayLoad}
-        isEditing={isEditing}
-        fetchCabs={fetchCabs}
-      />
-    </div>}
-    {activeTab === 'Hotels' && <div className="step-3">
-  <HotelCalculation
-    travelData={packagePlaces.map((place, index) => ({
-      day: index + 1,
-      city: place.placeCover,
-      nights: place.nights
-    }))}
-    cabsData={cabsData}
-    isEditing={isEditing}
-    editId={editId}
-    existingHotels={initialData?.hotels} // Add this line to pass existing hotels
-  />
-</div>}
+
+      {/* Add some spacing for the content below the sticky header */}
+      <div className="mt-6 px-4 sm:px-6 lg:px-8">
+        {activeTab === "Package" && (
+          <div className="step-1">
+            <PackageForm
+              formData={formData}
+              validationErrors={validationErrors}
+              handleInputChange={handleInputChange}
+              pickupLocationSearchResults={pickupLocationSearchResults}
+              setSearchInput={setSearchInput}
+              handlePickupLocationChange={handlePickupLocationChange}
+              searchInput={searchInput}
+              handleSelectSuggestion={handleSelectSuggestion}
+              dropLocationSearchResults={dropLocationSearchResults}
+              setPickupSearchInput={setPickupSearchInput}
+              handleDropLocationChange={handleDropLocationChange}
+              pickupSearchInput={pickupSearchInput}
+              handleDropSelectSuggestion={handleDropSelectSuggestion}
+              handleCustomizableChange={handleCustomizableChange}
+              handleImageChange={handleImageChange}
+              handleImageUpload={handleImageUpload}
+              packagePlaces={packagePlaces}
+              isDropdownOpen={isDropdownOpen}
+              maxNightsReached={maxNightsReached}
+              maxNights={maxNights}
+              handleAddPackagePlace={handleAddPackagePlace}
+              showIteniraryBoxes={showIteniraryBoxes}
+              numRooms={numRooms}
+              handleNumRoomsChange={handleNumRoomsChange}
+              handleSubmit={handleSubmit}
+              handleDropDownChange={handleDropDownChange}
+              handleMultiSelectChange={handleMultiSelectChange}
+              handleRichTextChange={handleRichTextChange}
+              RichTextInput={RichTextInput}
+              handleDropdownChange={handleDropdownChange}
+              handlePlaceSelection={handlePlaceSelection}
+              handlePlaceInputChange={handlePlaceInputChange}
+              handleRemovePackagePlace={handleRemovePackagePlace}
+              setActiveSuggestion={setActiveSuggestion}
+              activeSuggestion={activeSuggestion}
+              searchResults={searchResults}
+              activeIndex={activeIndex}
+              renderItineraryBoxes={renderItineraryBoxes}
+              dropdownRef={dropdownRef}
+              handleItenaryBoxes={handleItenaryBoxes}
+              isEditing={isEditing}
+              initialData={initialData}
+              setFormData={setFormData}
+              uploading={uploading}
+              isLoading={isLoading}
+              setShowGlobalMasterModal={openGlobalMasterModal}
+            />
+          </div>
+        )}
+        {activeTab === "Cabs" && (
+          <div className="step-2">
+            <CabCalculation
+              cabsData={cabsData}
+              cabs={cabs}
+              pricing={pricing}
+              setPricing={setPricing}
+              travelData={travelData}
+              handleCabsSubmit={handleCabsSubmit}
+              setCabPayload={setCabPayload}
+              setFormData={setFormData}
+              cabPayLoad={cabPayLoad}
+              isEditing={isEditing}
+              fetchCabs={fetchCabs}
+              initialData={initialData?.cabsData}
+            />
+          </div>
+        )}
+        {activeTab === "Hotels" && (
+          <div className="step-3">
+            <HotelCalculation
+              travelData={packagePlaces.map((place, index) => ({
+                day: index + 1,
+                city: place.placeCover,
+                nights: place.nights,
+              }))}
+              cabsData={cabsData}
+              isEditing={isEditing}
+              editId={editId}
+              existingHotels={initialData?.hotels}
+              onConfirmSelection={handleHotelDataConfirm}
+            />
+          </div>
+        )}
+        {activeTab === "Final Costing" && (
+          <div className="step-4">
+            <FinalCosting
+            places={allTabsData?.package?.itineraryDays}
+              selectedHotelData={selectedHotelData}
+              onSubmit={handleFinalCostingSubmit}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* City Selection Modal */}
+      {showCityModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold">Select Places to Add</h3>
+              <button 
+                onClick={() => setShowCityModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="max-h-96 overflow-y-auto">
+              {matchedCities.length === 0 ? (
+                <p className="text-gray-600 py-4">No places found for this city.</p>
+              ) : (
+                <div className="space-y-3">
+                  {matchedCities.map(city => {
+                    // Check if any price exists
+                    const hasPrice = city?.cost?.SUV || city?.cost?.Sedan || city?.cost?.Traveller;
+                    
+                    return (
+                      <div 
+                        key={city._id}
+                        className={`border rounded-lg p-3 cursor-pointer ${
+                          selectedCities.some(item => item._id === city._id) 
+                            ? 'border-blue-500 bg-blue-50' 
+                            : hasPrice 
+                              ? 'border-red-500 bg-red-50'
+                              : 'border-gray-200'
+                        }`}
+                        onClick={() => {
+                          if (hasPrice) {
+                            // Show confirmation dialog for cities with price
+                            if (window.confirm(`This place has associated costs:\n${
+                              city?.cost?.SUV ? `SUV: ₹${city.cost.SUV}\n` : ''
+                            }${
+                              city?.cost?.Sedan ? `Sedan: ₹${city.cost.Sedan}\n` : ''
+                            }${
+                              city?.cost?.Traveller ? `Traveller: ₹${city.cost.Traveller}` : ''
+                            }\n\nDo you want to add this place?`)) {
+                              handleCitySelection(city);
+                            }
+                          } else {
+                            handleCitySelection(city);
+                          }
+                        }}
+                      >
+                        <div className="flex items-start">
+                          <input 
+                            type="checkbox" 
+                            checked={selectedCities.some(item => item._id === city._id)}
+                            readOnly
+                            className="mt-1 h-4 w-4"
+                          />
+                          <div className="ml-3">
+                            <h4 className={`font-medium ${hasPrice ? 'text-red-600' : ''}`}>
+                              {city.placeName}
+                              {hasPrice && (
+                                <span className="ml-2 text-xs bg-red-100 text-red-600 px-2 py-1 rounded">
+                                  Has Cost
+                                </span>
+                              )}
+                            </h4>
+                            <p className="text-sm text-gray-600">{city.description || 'No description'}</p>
+                            {hasPrice && (
+                              <>
+                                <br/>
+                                <div className="space-y-1">
+                                  {city?.cost?.SUV && (
+                                    <p className="font-medium text-red-600">₹ {city.cost.SUV} SUV</p>
+                                  )}
+                                  {city?.cost?.Sedan && (
+                                    <p className="font-medium text-red-600">₹ {city.cost.Sedan} Sedan</p>
+                                  )}
+                                  {city?.cost?.Traveller && (
+                                    <p className="font-medium text-red-600">₹ {city.cost.Traveller} Traveller</p>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-4 pt-3 border-t">
+              <button
+                onClick={() => setShowCityModal(false)}
+                className="px-4 py-2 border rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={addSelectedCitiesToItinerary}
+                disabled={selectedCities.length === 0}
+                className={`px-4 py-2 rounded-md text-white ${
+                  selectedCities.length === 0 
+                    ? 'bg-blue-300' 
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                Add Selected
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Master Data Modal */}
+      {showGlobalMasterModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold">Select Global Master Data</h3>
+              <button 
+                onClick={() => {
+                  setShowGlobalMasterModal(false);
+                  setSelectedGlobalMasterItems([]);
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="max-h-96 overflow-y-auto">
+              {loadingGlobalMaster ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-2 text-gray-600">Loading global master data...</p>
+                </div>
+              ) : globalMasterData.length === 0 ? (
+                <p className="text-gray-600 py-4 text-center">No global master data found.</p>
+              ) : (
+                <div className="space-y-3">
+                  {globalMasterData.map(item => (
+                    <div 
+                      key={item._id}
+                      className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                        selectedGlobalMasterItems.some(selectedItem => selectedItem._id === item._id) 
+                          ? 'border-green-500 bg-green-50' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => handleGlobalMasterSelection(item)}
+                    >
+                      <div className="flex items-start">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedGlobalMasterItems.some(selectedItem => selectedItem._id === item._id)}
+                          readOnly
+                          className="mt-1 h-4 w-4 text-green-600"
+                        />
+                        <div className="ml-3 flex-1">
+                          <h4 className="font-medium text-gray-800 mb-2">
+                            {item.name}
+                          </h4>
+                          <div className="text-sm text-gray-600 max-h-20 overflow-y-auto">
+                            <div dangerouslySetInnerHTML={{ __html: item.description }} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-between items-center mt-4 pt-3 border-t">
+              <div className="text-sm text-gray-600">
+                {selectedGlobalMasterItems.length > 0 && (
+                  <span>{selectedGlobalMasterItems.length} item(s) selected</span>
+                )}
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowGlobalMasterModal(false);
+                    setSelectedGlobalMasterItems([]);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={addSelectedGlobalMasterItems}
+                  disabled={selectedGlobalMasterItems.length === 0}
+                  className={`px-4 py-2 rounded-md text-white ${
+                    selectedGlobalMasterItems.length === 0 
+                      ? 'bg-green-300 cursor-not-allowed' 
+                      : 'bg-green-600 hover:bg-green-700'
+                  }`}
+                >
+                  Add Selected ({selectedGlobalMasterItems.length})
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1266,7 +2372,7 @@ const RichTextInput = ({ value, onChange }) => {
   const editorStyle = {
     height: "200px",
     paddingBottom: "50px",
-    borderRadius: "10px"
+    borderRadius: "10px",
   };
 
   return (

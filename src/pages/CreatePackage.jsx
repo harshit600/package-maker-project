@@ -16,7 +16,7 @@ const CreatePackage = () => {
       if (editId) {
         setIsLoading(true);
         try {
-          const response = await fetch(`${config.API_HOST}/api/packages/getpackage/${editId}`);
+          const response = await fetch(`${config.API_HOST}/api/add/get/${editId}`);
           const data = await response.json();
           setPackageData(data);
         } catch (error) {

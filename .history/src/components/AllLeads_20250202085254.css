@@ -1,0 +1,62 @@
+/* Slide Panel Animation */
+.panel-slide {
+  transform: translateX(100%);
+  transition: transform 0.3s ease-out;
+}
+
+.slide-in {
+  transform: translateX(0);
+}
+
+.slide-out {
+  transform: translateX(100%);
+}
+
+/* Backdrop Animation */
+.backdrop-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.backdrop-out {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.75;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 0.75;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Optional: Add smooth transition for the edit button */
+.edit-button {
+  transition: all 0.2s ease-in-out;
+}
+
+.edit-button:hover {
+  transform: scale(1.1);
+}
+
+/* Optional: Add transition for the panel content */
+.panel-content {
+  opacity: 0;
+  transform: translateX(20px);
+  transition: all 0.3s ease-out;
+}
+
+.slide-in .panel-content {
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: 0.1s;
+}

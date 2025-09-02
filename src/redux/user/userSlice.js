@@ -4,6 +4,7 @@ const initialState = {
   currentUser: null,
   error: null,
   loading: false,
+  showSidebar: false,
 };
 
 const userSlice = createSlice({
@@ -17,6 +18,7 @@ const userSlice = createSlice({
       state.currentUser = action.payload;
       state.loading = false;
       state.error = null;
+      state.showSidebar = true;
     },
     signInFailure: (state, action) => {
       state.error = action.payload;
@@ -58,6 +60,15 @@ const userSlice = createSlice({
       state.error = action.payload;
       state.loading = false;
     },
+    signOut: (state) => {
+      state.currentUser = null;
+      state.loading = false;
+      state.error = false;
+      state.showSidebar = false;
+    },
+    toggleSidebar: (state) => {
+      state.showSidebar = !state.showSidebar;
+    },
   },
 });
 
@@ -74,6 +85,8 @@ export const {
   signoutUserFailure,
   signoutUserStart,
   signoutUserSuccess,
+  signOut,
+  toggleSidebar,
 } = userSlice.actions;
 
 export default userSlice.reducer;

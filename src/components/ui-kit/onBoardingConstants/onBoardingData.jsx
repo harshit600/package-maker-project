@@ -12,6 +12,16 @@ export const durationOptions = [
     { label: "9D/8N", value: "9D/8N" },
     { label: "10D/9N", value: "10D/9N" },
     { label: "11D/10N", value: "11D/10N" },
+    { label: "12D/11N", value: "12D/11N" },
+    { label: "13D/12N", value: "13D/12N" },
+    { label: "14D/13N", value: "14D/13N" },
+    { label: "15D/14N", value: "15D/14N" },
+    { label: "16D/15N", value: "16D/15N" },
+    { label: "17D/16N", value: "17D/16N" },
+    { label: "18D/17N", value: "18D/17N" },
+    { label: "19D/18N", value: "19D/18N" },
+    { label: "20D/19N", value: "20D/19N" },
+    
     // Add more options as needed
   ];
   
@@ -19,6 +29,10 @@ export const durationOptions = [
     { label: "Select Type", value: "" },
     { label: "Family", value: "Family" },
     { label: "Friends", value: "Friends" },
+    { label: "Honeymoon", value: "Honeymoon" },
+    { label: "Corporate", value: "Corporate" },
+
+  
     // Add more options...
   ];
   
@@ -105,4 +119,43 @@ export const durationOptions = [
     { value: 'Family (4)', label: 'Family (4)' },
     { value: 'Couple', label: 'Couple' },
   ];
-  
+  // Add this to your existing exports
+export const stateOptions = [
+  { value: "andhra_pradesh", label: "Andhra Pradesh" },
+  { value: "arunachal_pradesh", label: "Arunachal Pradesh" },
+  { value: "assam", label: "Assam" },
+  { value: "bihar", label: "Bihar" },
+  { value: "chhattisgarh", label: "Chhattisgarh" },
+  { value: "goa", label: "Goa" },
+  { value: "gujarat", label: "Gujarat" },
+  { value: "haryana", label: "Haryana" },
+  { value: "himachal_pradesh", label: "Himachal Pradesh" },
+  { value: "jharkhand", label: "Jharkhand" },
+  { value: "karnataka", label: "Karnataka" },
+  { value: "kerala", label: "Kerala" },
+  { value: "madhya_pradesh", label: "Madhya Pradesh" },
+  { value: "maharashtra", label: "Maharashtra" },
+  { value: "manipur", label: "Manipur" },
+  { value: "meghalaya", label: "Meghalaya" },
+  { value: "mizoram", label: "Mizoram" },
+  { value: "nagaland", label: "Nagaland" },
+  { value: "odisha", label: "Odisha" },
+  { value: "punjab", label: "Punjab" },
+  { value: "rajasthan", label: "Rajasthan" },
+  { value: "sikkim", label: "Sikkim" },
+  { value: "tamil_nadu", label: "Tamil Nadu" },
+  { value: "telangana", label: "Telangana" },
+  { value: "tripura", label: "Tripura" },
+  { value: "uttar_pradesh", label: "Uttar Pradesh" },
+  { value: "uttarakhand", label: "Uttarakhand" },
+  { value: "west_bengal", label: "West Bengal" },
+  { value: "andaman_and_nicobar_islands", label: "Andaman and Nicobar Islands" },
+  { value: "chandigarh", label: "Chandigarh" },
+  { value: "dadra_and_nagar_haveli", label: "Dadra and Nagar Haveli" },
+  { value: "daman_and_diu", label: "Daman and Diu" },
+  { value: "delhi", label: "Delhi" },
+  { value: "jammu_and_kashmir", label: "Jammu and Kashmir" },
+  { value: "ladakh", label: "Ladakh" },
+  { value: "lakshadweep", label: "Lakshadweep" },
+  { value: "puducherry", label: "Puducherry" }
+];

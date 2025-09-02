@@ -18,6 +18,13 @@ export default defineConfig({
     exclude: ['react-script-tag'],
   },
   build: {
-    outDir: 'dist', // Make sure this matches your Netlify publish directory
+    outDir: 'dist',
+    assetsDir: 'assets',
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
   },
+  base: './', // This ensures assets are loaded with relative paths
 })

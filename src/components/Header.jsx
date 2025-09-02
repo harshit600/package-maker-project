@@ -1,61 +1,221 @@
-import { FaSearch } from 'react-icons/fa';
-import { Link } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { FaUserCircle } from "react-icons/fa";
+import { Link, useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { useState, useEffect } from "react";
+import { signOut, toggleSidebar } from "../redux/user/userSlice"; // Make sure this path matches your Redux slice location
+import config from "../../config.jsx";
 
 export default function Header() {
-  const { currentUser } = useSelector(state => state.user);
+  const { currentUser, showSidebar } = useSelector((state) => state.user);
+  const [localUser, setLocalUser] = useState(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const token = localUser?.data?.token;
+
+        console.log("Token being used:", token);
+
+        if (!token) {
+          console.log("No token available");
+          return;
+        }
+
+        const response = await fetch(`${config.API_HOST}/api/maker/get-maker`, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Since localUser already has the profile data, we can use that directly
+          setUserProfile(localUser.data);
+        } else {
+          console.error("Server responded with status:", response.status);
+        }
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
+      }
+    };
+
+    if (localUser) {
+      fetchUserProfile();
+    }
+  }, [localUser]);
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const parsedData = JSON.parse(userStr);
+        // Extract user data from the data property, similar to UserProfile.jsx
+        setLocalUser(parsedData.data || parsedData);
+      }
+    } catch (error) {
+      console.error("Error parsing user data:", error);
+    }
+  }, []);
+
+  // Add this useEffect to sync with Redux state
+  useEffect(() => {
+    if (currentUser) {
+      setLocalUser(currentUser);
+    } else {
+      setLocalUser(null);
+    }
+  }, [currentUser]); // This will run whenever currentUser changes in Redux
+
+  // Default avatar URL - replace with your default image
+  const defaultAvatar =
+    "https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=400&auto=format&fit=crop&q=60";
+
+  const handleLogout = async () => {
+    try {
+      // Clear localStorage
+      localStorage.removeItem("user");
+
+      // Clear Redux state
+      dispatch(signOut());
+
+      // Clear local state
+      setLocalUser(null);
+
+      // Navigate to signin page and refresh
+      navigate("/signin");
+      window.location.reload();
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
+  const handleSidebarToggle = () => {
+    dispatch(toggleSidebar());
+  };
+
   return (
-    <header className='h-14  border-b border-gray-200 dark:bg-gray-800 dark:border-gray-700 mb-4'>
-        
-         <nav className="fixed top-0 z-50 bg-gray-50 shadow-sm w-full">
-  <div className="px-3 py-3 lg:px-5 lg:pl-3">
-    <div className="flex items-center justify-between">
-      <div className="flex items-center justify-start rtl:justify-end">
-        <button data-drawer-target="logo-sidebar" data-drawer-toggle="logo-sidebar" aria-controls="logo-sidebar" type="button" className="inline-flex items-center p-2 text-sm text-gray-500 rounded-lg sm:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600">
-            <span className="sr-only">Open sidebar</span>
-            <svg className="w-6 h-6" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-               <path clipRule="evenodd" fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z"></path>
-            </svg>
-         </button>
-        <a href="/" className="flex ms-2 md:me-24">
-          {/* <img src="https://flowbite.com/docs/images/logo.svg" className="h-8 me-3" alt="FlowBite Logo" /> */}
-          <span className="self-center text-xl font-semibold text-blue-600 sm:text-2xl whitespace-nowrap dark:text-white">PlutoTours</span>
-        </a>
-      </div>
-      <div className="flex items-center">
-          <div className="flex items-center ms-3">
-            <div>
-            <Link to="/profile">{currentUser ? <img className='rounded-full w-7 h-7 object-cover' src={currentUser.avatar} alt='' /> : <li className='text-slate-700 hover:underline cursor-pointer'>Sign in</li>}</Link>
-            </div>
-            <div className="z-50 hidden my-4 text-base list-none bg-white divide-y divide-gray-100 rounded shadow dark:bg-gray-700 dark:divide-gray-600" id="dropdown-user">
-              <div className="px-4 py-3" role="none">
-                <p className="text-sm text-gray-900 dark:text-white" role="none">
-                  Neil Sims
-                </p>
-                <p className="text-sm font-medium text-gray-900 truncate dark:text-gray-300" role="none">
-                  neil.sims@flowbite.com
-                </p>
+    <header className="w-full bg-[#2d2d44] shadow-lg">
+      <div className="bg-white/5 backdrop-blur-sm">
+        <nav className="px-4 py-3">
+          <div className="flex items-center justify-between max-w-[90vw] mx-auto">
+            {/* Hamburger Menu for Mobile */}
+            {localUser && (
+              <button
+                onClick={handleSidebarToggle}
+                className="lg:hidden p-2 text-gray-300 hover:text-white transition-colors duration-200"
+                aria-label="Toggle sidebar"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
+                </svg>
+              </button>
+            )}
+
+            {/* Logo Section */}
+            <Link to="/" className="flex items-center group">
+              <span className="text-lg sm:text-xl text-gray-100 group-hover:text-blue-300 transition-all duration-300">
+                {localUser ? (
+                  <div className="flex items-center space-x-2">
+                    <span className="hidden sm:inline">
+                      Welcome,{" "}
+                      {userProfile
+                        ? `${userProfile.firstName || ""} ${
+                            userProfile.lastName || ""
+                          }`.trim()
+                        : "User"}
+                    </span>
+                    <span className="text-sm text-gray-400 hidden sm:inline">
+                      (
+                      {userProfile?.userType === "B2B sale"
+                        ? "B2B Sales Representative"
+                        : userProfile?.userType ||
+                          userProfile?.role ||
+                          "Regular User"}
+                      )
+                    </span>
+                  </div>
+                ) : (
+                  "Package Maker Pluto Tours"
+                )}
+              </span>
+            </Link>
+
+            {/* Profile Section */}
+            <div className="flex items-center space-x-3 sm:space-x-6">
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                {localUser ? (
+                  <>
+                    <span className="text-sm font-medium text-gray-300 group-hover:text-blue-300 transition-all duration-200 hidden sm:block">
+                      {userProfile ? (
+                        <div className="flex items-center space-x-2">
+                          <span>{userProfile.firstName}</span>
+                          <span className="text-sm text-gray-400">
+                            ({userProfile.userType})
+                          </span>
+                        </div>
+                      ) : (
+                        "User"
+                      )}
+                    </span>
+                    <div className="relative">
+                      {localUser.avatar ? (
+                        <img
+                          className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg object-cover ring-2 ring-gray-700/30 group-hover:ring-blue-500/50 transition-all duration-200"
+                          src={localUser.avatar}
+                          alt="Profile"
+                          onError={(e) => {
+                            e.target.src = defaultAvatar;
+                            e.target.onerror = null;
+                          }}
+                        />
+                      ) : (
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gray-700/30 ring-2 ring-gray-700/30 group-hover:ring-blue-500/50 transition-all duration-200 flex items-center justify-center backdrop-blur-sm">
+                          <FaUserCircle className="w-5 h-5 sm:w-6 sm:h-6 text-gray-300 group-hover:text-blue-300" />
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 right-0 w-2 h-2 sm:w-3 sm:h-3 bg-emerald-400 rounded-full border-2 border-[#1a1b2e]"></div>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-100 bg-[rgb(59,130,246,0.2)] rounded-lg hover:bg-[rgb(59,130,246,0.3)] hover:text-blue-300 transition-all duration-200 backdrop-blur-sm"
+                    >
+                      <span className="hidden sm:inline">Logout</span>
+                      <span className="sm:hidden">Out</span>
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    to="/signin"
+                    className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-100 bg-[rgb(59,130,246,0.2)] rounded-lg hover:bg-[rgb(59,130,246,0.3)] hover:text-blue-300 transition-all duration-200 backdrop-blur-sm"
+                  >
+                    <FaUserCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="hidden sm:inline">Sign in</span>
+                    <span className="sm:hidden">In</span>
+                  </Link>
+                )}
               </div>
-              <ul className="py-1" role="none">
-                <li>
-                  <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600 dark:hover:text-white" role="menuitem">Dashboard</a>
-                </li>
-                <li>
-                  <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600 dark:hover:text-white" role="menuitem">Settings</a>
-                </li>
-                <li>
-                  <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600 dark:hover:text-white" role="menuitem">Earnings</a>
-                </li>
-                <li>
-                  <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600 dark:hover:text-white" role="menuitem">Sign out</a>
-                </li>
-              </ul>
             </div>
           </div>
-        </div>
-    </div>
-  </div>
-  </nav>
+        </nav>
+      </div>
     </header>
-  )
+  );
 }

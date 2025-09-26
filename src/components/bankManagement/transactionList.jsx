@@ -38,10 +38,39 @@ console.log(transactionList);
     
     try {
       const currentDate = new Date().toISOString();
-      await updateBankTransaction(transactionId, {
+      const transaction = transactionList.find(t => t._id === transactionId);
+      
+      console.log('Transaction found:', transaction);
+      console.log('Is dual bank transaction:', transaction?.isDualBankTransaction);
+      console.log('toBank:', transaction?.toBank);
+      console.log('toBankPaymentType:', transaction?.toBankPaymentType);
+      
+      // Prepare update payload
+      const updatePayload = {
         accept: true,
         clearDate: currentDate
-      });
+      };
+      
+      // For dual bank transactions, include required fields
+      if (transaction?.isDualBankTransaction) {
+        updatePayload.toBank = transaction.toBank?._id || transaction.toBank;
+        updatePayload.toBankPaymentType = transaction.toBankPaymentType;
+        // Include additional fields that might be required
+        updatePayload.toBankName = transaction.toBank?.bankName || transaction.toBankName;
+        updatePayload.toAccountNumber = transaction.toAccountNumber;
+        updatePayload.isDualBankTransaction = transaction.isDualBankTransaction;
+        console.log('Added dual bank fields:', {
+          toBank: updatePayload.toBank,
+          toBankPaymentType: updatePayload.toBankPaymentType,
+          toBankName: updatePayload.toBankName,
+          toAccountNumber: updatePayload.toAccountNumber,
+          isDualBankTransaction: updatePayload.isDualBankTransaction
+        });
+      }
+      
+      console.log('Final update payload:', updatePayload);
+      
+      await updateBankTransaction(transactionId, updatePayload);
     } catch (error) {
       console.error('Error accepting transaction:', error);
       alert('Failed to accept transaction. Please try again.');
@@ -55,10 +84,25 @@ console.log(transactionList);
     setUpdatingTransactions(prev => ({ ...prev, [transactionId]: true }));
     
     try {
-      await updateBankTransaction(transactionId, {
+      const transaction = transactionList.find(t => t._id === transactionId);
+      
+      // Prepare update payload
+      const updatePayload = {
         accept: false,
         clearDate: null
-      });
+      };
+      
+      // For dual bank transactions, include required fields
+      if (transaction?.isDualBankTransaction) {
+        updatePayload.toBank = transaction.toBank?._id || transaction.toBank;
+        updatePayload.toBankPaymentType = transaction.toBankPaymentType;
+        // Include additional fields that might be required
+        updatePayload.toBankName = transaction.toBank?.bankName || transaction.toBankName;
+        updatePayload.toAccountNumber = transaction.toAccountNumber;
+        updatePayload.isDualBankTransaction = transaction.isDualBankTransaction;
+      }
+      
+      await updateBankTransaction(transactionId, updatePayload);
     } catch (error) {
       console.error('Error rejecting transaction:', error);
       alert('Failed to reject transaction. Please try again.');
@@ -87,15 +131,16 @@ console.log(transactionList);
 
   // Get status color based on payment type
   const getStatusColor = (paymentType) => {
-    return paymentType === 'IN' ? 'text-green-600' : 'text-red-600';
+    return paymentType?.toLowerCase() === 'in' ? 'text-green-600' : 'text-red-600';
   };
 
   // Get status badge
   const getStatusBadge = (paymentType) => {
-    const color = paymentType === 'IN' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+    const isCredit = paymentType?.toLowerCase() === 'in';
+    const color = isCredit ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
     return (
       <span className={`px-2 py-1 text-xs font-medium rounded-full ${color}`}>
-        {paymentType === 'in' ? 'Credit' : 'Debit'}
+        {isCredit ? 'Credit' : 'Debit'}
       </span>
     );
   };
@@ -164,6 +209,12 @@ console.log(transactionList);
                       {transaction.leadName || 'Unnamed Lead'}
                     </h3>
                     {getStatusBadge(transaction.paymentType)}
+                    {/* Dual Bank Transaction Badge */}
+                    {transaction.isDualBankTransaction && (
+                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                        Dual Bank
+                      </span>
+                    )}
                     {/* Status Badge */}
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                       transaction.accept === true ? 'bg-green-100 text-green-800' : 
@@ -182,7 +233,7 @@ console.log(transactionList);
                 <div className="flex items-center gap-4">
                   <div className="text-right">
                     <div className={`text-lg font-bold ${getStatusColor(transaction.paymentType)}`}>
-                      {transaction.paymentType === 'in' ? '+' : '-'}{formatAmount(transaction.transactionAmount)}
+                      {transaction.paymentType?.toLowerCase() === 'in' ? '+' : '-'}{formatAmount(transaction.transactionAmount)}
                     </div>
                     <div className="text-sm text-gray-500">
                       {formatDate(transaction.transactionDate)}
@@ -243,7 +294,9 @@ console.log(transactionList);
                   {/* Right Column */}
                   <div className="space-y-4">
                     <div>
-                      <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide">Bank Information</h4>
+                      <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                        {transaction.isDualBankTransaction ? 'From Bank Information' : 'Bank Information'}
+                      </h4>
                       <div className="mt-2 space-y-2">
                         <div className="flex justify-between">
                           <span className="text-gray-600">Bank Name:</span>
@@ -255,10 +308,33 @@ console.log(transactionList);
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600">To Account:</span>
-                          <span className="font-medium">{transaction.toAccount}</span>
+                          <span className="font-medium">{transaction.toAccount || transaction.toAccountNumber}</span>
                         </div>
                       </div>
                     </div>
+
+                    {/* Dual Bank Transaction - To Bank Information */}
+                    {transaction.isDualBankTransaction && (
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide">To Bank Information</h4>
+                        <div className="mt-2 space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Bank Name:</span>
+                            <span className="font-medium">{transaction.toBank?.bankName || transaction.toBankName}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Account Number:</span>
+                            <span className="font-medium font-mono">{transaction.toAccountNumber}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Payment Type:</span>
+                            <span className={`font-medium ${getStatusColor(transaction.toBankPaymentType)}`}>
+                              {transaction.toBankPaymentType?.toLowerCase() === 'in' ? 'Credit' : 'Debit'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div>
                       <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide">Timestamps</h4>

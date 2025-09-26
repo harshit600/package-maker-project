@@ -1169,9 +1169,9 @@ const PlutoToursPDF = ({
                   </View>
 
                   {packageSummary.transfer?.details?.length > 0 ? (
-  packageSummary.transfer.details.map((cab, index) => (
+  packageSummary?.transfer?.details?.map((cab, index) => (
     <View
-      key={cab._id || index}
+      key={cab?._id || index}
       style={{
         backgroundColor: "#F8FAFC",
         borderRadius: 6,
@@ -1194,7 +1194,7 @@ const PlutoToursPDF = ({
             marginBottom: 1,
           }}
         >
-          {cab.cabName || "Standard Vehicle"}
+          {cab?.cabName || "Standard Vehicle"}
         </Text>
       </View>
 
@@ -1205,7 +1205,7 @@ const PlutoToursPDF = ({
           marginBottom: 2,
         }}
       >
-        {cab.cabType || "Sedan"}
+        {cab?.cabType || "Sedan"}
       </Text>
 
       <View style={{ flexDirection: "row", gap: 5, marginTop: 2 }}>
@@ -1226,7 +1226,7 @@ const PlutoToursPDF = ({
               fontWeight: "500",
             }}
           >
-            {cab.vehicleCategory || ""}
+            {cab?.vehicleCategory || ""}
           </Text>
         </View>
 
@@ -1247,7 +1247,7 @@ const PlutoToursPDF = ({
               fontWeight: "500",
             }}
           >
-            {cab.cabSeatingCapacity || "4"} Seater
+            {cab?.cabSeatingCapacity || "4"} Seater
           </Text>
         </View>
       </View>

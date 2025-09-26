@@ -21,7 +21,7 @@ export const HotelManagerProvider = ({ children }) => {
 
       while (hasMorePages) {
         const response = await fetch(
-          `${config.API_HOST}/api/packagemaker/get-packagemaker?page=${currentPage}&limit=20`
+          `${config.API_HOST}/api/packagemaker/get-packagemaker?page=${currentPage}&limit=30`
         );
         const data = await response.json();
 

@@ -4,15 +4,8 @@ import { useEffect, useState } from "react";
 import { usePackage } from "../context/PackageContext";
 import { Icons, pdfStyles } from "./newFile";
 
-import {
-  Document,
-  Page,
-  View,
-  Text,
-
-} from "@react-pdf/renderer";
+import { Document, Page, View, Text } from "@react-pdf/renderer";
 import { Image } from "@react-pdf/renderer";
-
 
 // Add this helper function at the top of the component
 const decodeHtmlEntities = (text) => {
@@ -120,8 +113,6 @@ const DemandSetuPDF = ({
 
   // Use the selected color scheme
   const theme = colorTheme === "orange" ? colors.orange : colors.default;
-
- 
 
   return (
     <Document>
@@ -1330,7 +1321,9 @@ const DemandSetuPDF = ({
                     .slice(index)
                     .filter((d, i, arr) => {
                       if (i === 0) return true;
-                      return d.selectedItinerary?.cityName === cityInfo?.cityName;
+                      return (
+                        d.selectedItinerary?.cityName === cityInfo?.cityName
+                      );
                     }).length;
 
                   return (
@@ -1574,162 +1567,165 @@ const DemandSetuPDF = ({
                   </View>
 
                   {packageSummary.transfer?.details?.length > 0 ? (
-  packageSummary.transfer.details.map((cab, index) => (
-    <View
-      key={cab._id || index}
-      style={{
-        backgroundColor: "#F8FAFC",
-        borderRadius: 6,
-        padding: 5,
-        marginBottom: 6, // Optional spacing between multiple cabs
-      }}
-    >
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 10,
-            color: "#1E293B",
-            fontWeight: "600",
-            marginBottom: 1,
-          }}
-        >
-          {cab.cabName || "Standard Vehicle"}
-        </Text>
-      </View>
+                    packageSummary.transfer.details.map((cab, index) => (
+                      <View
+                        key={cab?._id || index}
+                        style={{
+                          backgroundColor: "#F8FAFC",
+                          borderRadius: 6,
+                          padding: 5,
+                          marginBottom: 6, // Optional spacing between multiple cabs
+                        }}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              color: "#1E293B",
+                              fontWeight: "600",
+                              marginBottom: 1,
+                            }}
+                          >
+                            {cab?.cabName || "Standard Vehicle"}
+                          </Text>
+                        </View>
 
-      <Text
-        style={{
-          fontSize: 9,
-          color: "#1E293B",
-          marginBottom: 2,
-        }}
-      >
-        {cab.cabType || "Sedan"}
-      </Text>
+                        <Text
+                          style={{
+                            fontSize: 9,
+                            color: "#1E293B",
+                            marginBottom: 2,
+                          }}
+                        >
+                          {cab?.cabType || "Sedan"}
+                        </Text>
 
-      <View style={{ flexDirection: "row", gap: 5, marginTop: 2 }}>
-        <View
-          style={{
-            backgroundColor: "#EFF6FF",
-            paddingHorizontal: 4,
-            paddingVertical: 1,
-            borderRadius: 3,
-            flexDirection: "row",
-            alignItems: "center",
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 8,
-              color: "#2d2d44",
-              fontWeight: "500",
-            }}
-          >
-            {cab.vehicleCategory || ""}
-          </Text>
-        </View>
+                        <View
+                          style={{ flexDirection: "row", gap: 5, marginTop: 2 }}
+                        >
+                          <View
+                            style={{
+                              backgroundColor: "#EFF6FF",
+                              paddingHorizontal: 4,
+                              paddingVertical: 1,
+                              borderRadius: 3,
+                              flexDirection: "row",
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 8,
+                                color: "#2d2d44",
+                                fontWeight: "500",
+                              }}
+                            >
+                              {cab?.vehicleCategory || ""}
+                            </Text>
+                          </View>
 
-        <View
-          style={{
-            backgroundColor: "#EFF6FF",
-            paddingHorizontal: 4,
-            paddingVertical: 1,
-            borderRadius: 3,
-            flexDirection: "row",
-            alignItems: "center",
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 8,
-              color: "#2d2d44",
-              fontWeight: "500",
-            }}
-          >
-            {cab.cabSeatingCapacity || "4"} Seater
-          </Text>
-        </View>
-      </View>
-    </View>
-  ))
-) : (
-  <View
-    style={{
-      backgroundColor: "#F8FAFC",
-      borderRadius: 6,
-      padding: 5,
-    }}
-  >
-    <Text
-      style={{
-        fontSize: 10,
-        color: "#1E293B",
-        fontWeight: "600",
-        marginBottom: 1,
-      }}
-    >
-      Standard Vehicle
-    </Text>
-    <Text
-      style={{
-        fontSize: 9,
-        color: "#1E293B",
-        marginBottom: 2,
-      }}
-    >
-      Sedan
-    </Text>
-    <View style={{ flexDirection: "row", gap: 5, marginTop: 2 }}>
-      <View
-        style={{
-          backgroundColor: "#EFF6FF",
-          paddingHorizontal: 4,
-          paddingVertical: 1,
-          borderRadius: 3,
-          flexDirection: "row",
-          alignItems: "center",
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 8,
-            color: "#2d2d44",
-            fontWeight: "500",
-          }}
-        >
-          {" "}
-        </Text>
-      </View>
-      <View
-        style={{
-          backgroundColor: "#EFF6FF",
-          paddingHorizontal: 4,
-          paddingVertical: 1,
-          borderRadius: 3,
-          flexDirection: "row",
-          alignItems: "center",
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 8,
-            color: "#2d2d44",
-            fontWeight: "500",
-          }}
-        >
-          4 Seater
-        </Text>
-      </View>
-    </View>
-  </View>
-)}
-
+                          <View
+                            style={{
+                              backgroundColor: "#EFF6FF",
+                              paddingHorizontal: 4,
+                              paddingVertical: 1,
+                              borderRadius: 3,
+                              flexDirection: "row",
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 8,
+                                color: "#2d2d44",
+                                fontWeight: "500",
+                              }}
+                            >
+                              {cab?.cabSeatingCapacity || "4"} Seater
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    ))
+                  ) : (
+                    <View
+                      style={{
+                        backgroundColor: "#F8FAFC",
+                        borderRadius: 6,
+                        padding: 5,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          color: "#1E293B",
+                          fontWeight: "600",
+                          marginBottom: 1,
+                        }}
+                      >
+                        Standard Vehicle
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 9,
+                          color: "#1E293B",
+                          marginBottom: 2,
+                        }}
+                      >
+                        Sedan
+                      </Text>
+                      <View
+                        style={{ flexDirection: "row", gap: 5, marginTop: 2 }}
+                      >
+                        <View
+                          style={{
+                            backgroundColor: "#EFF6FF",
+                            paddingHorizontal: 4,
+                            paddingVertical: 1,
+                            borderRadius: 3,
+                            flexDirection: "row",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 8,
+                              color: "#2d2d44",
+                              fontWeight: "500",
+                            }}
+                          >
+                            {" "}
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            backgroundColor: "#EFF6FF",
+                            paddingHorizontal: 4,
+                            paddingVertical: 1,
+                            borderRadius: 3,
+                            flexDirection: "row",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 8,
+                              color: "#2d2d44",
+                              fontWeight: "500",
+                            }}
+                          >
+                            4 Seater
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
                 </View>
               </View>
             </View>
@@ -3015,7 +3011,7 @@ const DemandSetuPDF = ({
                       color: "#64748B",
                     }}
                   >
-                    info@ptwholidays.com
+                    info@demandsetutours.com
                   </Text>
                 </View>
               </View>

@@ -59,35 +59,41 @@ function ProfitLoss() {
       // Margin percentage from operation
       const marginPercentage = operation.marginPercentage || 0;
       
-             // Calculate margin amount on base cost
-       const marginAmount = baseCost * (marginPercentage / 100);
-       
-       // Base cost + margin amount
-       const baseCostWithMargin = baseCost + marginAmount;
-       
-       // Calculate GST amount (5% on base cost + margin)
-       const gstAmount = baseCostWithMargin * 0.05;
-       
-       // Profit is the margin amount
-       const profit = marginAmount;
+      // Discount percentage from operation
+      const discountPercentage = operation.discountPercentage || 0;
       
-      return {
-        totalRevenue: acc.totalRevenue + totalPackageCost,
-        totalCosts: acc.totalCosts + baseCost,
-        grossProfit: acc.grossProfit + profit,
-        operatingExpenses: acc.operatingExpenses + baseCost,
-        netProfit: acc.netProfit + profit
-      };
-    }, {
-      totalRevenue: 0,
-      totalCosts: 0,
-      grossProfit: 0,
-      operatingExpenses: 0,
-      netProfit: 0
-    });
+      // Calculate margin amount on base cost
+      const marginAmount = baseCost * (marginPercentage / 100);
+      
+      // Base cost + margin amount
+      const baseCostWithMargin = baseCost + marginAmount;
+      
+      // Calculate discount amount on base cost + margin
+      const discountAmount = baseCostWithMargin * (discountPercentage / 100);
+      
+      // Calculate GST amount (5% on base cost + margin - discount)
+      const gstAmount = (baseCostWithMargin - discountAmount) * 0.05;
+      
+      // Profit is the margin amount minus discount amount
+      const profit = marginAmount - discountAmount;
+     
+     return {
+       totalRevenue: acc.totalRevenue + totalPackageCost,
+       totalCosts: acc.totalCosts + baseCost,
+       grossProfit: acc.grossProfit + profit,
+       operatingExpenses: acc.operatingExpenses + baseCost,
+       netProfit: acc.netProfit + profit
+     };
+   }, {
+     totalRevenue: 0,
+     totalCosts: 0,
+     grossProfit: 0,
+     operatingExpenses: 0,
+     netProfit: 0
+   });
 
-    return totals;
-  };
+   return totals;
+ };
 
   const currentData = calculateTotals();
   const filteredData = getFilteredData();
@@ -392,17 +398,23 @@ function ProfitLoss() {
                   // Margin percentage from operation
                   const marginPercentage = operation.marginPercentage || 0;
                   
-                                     // Calculate margin amount on base cost
-                   const marginAmount = baseCost * (marginPercentage / 100);
-                   
-                   // Base cost + margin amount
-                   const baseCostWithMargin = baseCost + marginAmount;
-                   
-                   // Calculate GST amount (5% on base cost + margin)
-                   const gstAmount = baseCostWithMargin * 0.05;
-                   
-                   // Profit is the margin amount
-                   const profit = marginAmount;
+                  // Discount percentage from operation
+                  const discountPercentage = operation.discountPercentage || 0;
+                  
+                  // Calculate margin amount on base cost
+                  const marginAmount = baseCost * (marginPercentage / 100);
+                  
+                  // Base cost + margin amount
+                  const baseCostWithMargin = baseCost + marginAmount;
+                  
+                  // Calculate discount amount on base cost + margin
+                  const discountAmount = baseCostWithMargin * (discountPercentage / 100);
+                  
+                  // Calculate GST amount (5% on base cost + margin - discount)
+                  const gstAmount = (baseCostWithMargin - discountAmount) * 0.05;
+                  
+                  // Profit is the margin amount minus discount amount
+                  const profit = marginAmount - discountAmount;
                   
                   // Calculate margin percentage for display
                   const marginDisplay = baseCost > 0 ? ((profit / baseCost) * 100).toFixed(1) : 0;
@@ -624,7 +636,7 @@ function ProfitLoss() {
                                           <span className="font-bold text-green-800 ml-2">Profit: {formatCurrency(profit)}</span>
                                         </p>
                                                                                                                           <p className="text-xs text-green-600 mt-1">
-                                            Breakdown: Base Cost ({formatCurrency(baseCost)}) + Margin ({formatCurrency(marginAmount)}) + GST ({formatCurrency(gstAmount)}) = Final Cost ({formatCurrency(totalPackageCost)})
+                                            Breakdown: Base Cost ({formatCurrency(baseCost)}) + Margin ({formatCurrency(marginAmount)}) - Discount ({formatCurrency(discountAmount)}) + GST ({formatCurrency(gstAmount)}) = Final Cost ({formatCurrency(totalPackageCost)})
                                           </p>
                                       </div>
                                     </div>

@@ -55,9 +55,11 @@ import BankList from "./components/bankManagement/bankList";
 import BankReport from "./components/bankManagement/bankReport";
 import { BankManagementProvider } from "./components/bankManagement/bankManagementContext";
 import TransactionList from "./components/bankManagement/transactionList";
-import ServiceReport from "./components/bankManagement/serviceReport";
+import ServiceReport from "./components/bankManagement/ServiceReport";
 import ProfitLoss from "./components/bankManagement/profitLoss";
-
+import OperationProfitLoss from "./components/bankManagement/operationProfit";
+import HotelLedger from "./components/bankManagement/hotelLedger";
+import TransportLedger from "./components/bankManagement/transportLedger";
 export default function App() {
   return (
     <Provider store={store}>
@@ -148,6 +150,9 @@ export default function App() {
                             <Route path="/transaction-list" element={<TransactionList />} />
                             <Route path="/Service-report" element={<ServiceReport />} />
                             <Route path="/profit-loss-report" element={<ProfitLoss />} />
+                            <Route path="/operation-profit-loss" element={<OperationProfitLoss />} />
+                            <Route path="/hotel-ledger" element={<HotelLedger />} />
+                            <Route path="/transport-ledger" element={<TransportLedger />} />
                           </Route>
                           <Route path="/about" element={<About />} />
                         </Routes>

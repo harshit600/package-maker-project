@@ -29,7 +29,7 @@ function BankList() {
   const fetchBanks = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${config.API_HOST}/api/bankaccountdetail/get`, {
+      const response = await fetch(`${config.API_HOST}/api/bankaccountdetail/get-manual`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

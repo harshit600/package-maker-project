@@ -45,6 +45,7 @@ const FinalCosting = ({ selectedLead, setActiveTab }) => {
     setMarginData
   } = useFinalcosting();
   const { packageSummary } = usePackage();
+  console.log(packageSummary,"packageSummary")
   const [showMargin, setShowMargin] = useState(false);
   const [history, setHistory] = useState([]);
   console.log(history,"history")

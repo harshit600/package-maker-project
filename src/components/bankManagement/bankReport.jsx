@@ -10,7 +10,7 @@ function BankReport() {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const { bankReport, bankReportLoading, bankReportList } = useBankManagement();
-
+console.log(bankReport);
   // Refresh function to clear data and fetch fresh data
   const handleRefresh = async () => {
     try {
@@ -60,8 +60,13 @@ function BankReport() {
     setSelectedTransaction(null);
   };
 
-  // Get unique banks for filter
-  const uniqueBanks = bankReport ? [...new Set(bankReport.map(item => item.bankName))] : [];
+  // Get unique banks for filter (including both source and destination banks for dual transactions)
+  const uniqueBanks = bankReport ? [
+    ...new Set([
+      ...bankReport.map(item => item.bankName),
+      ...bankReport.filter(item => item.isDualBankTransaction && item.toBankName).map(item => item.toBankName)
+    ])
+  ] : [];
 
   // Filter transactions based on selected filters
   const filteredTransactions = useMemo(() => {
@@ -69,9 +74,12 @@ function BankReport() {
 
     let filtered = bankReport;
 
-    // Filter by bank
+    // Filter by bank (check both source and destination banks for dual transactions)
     if (selectedBank !== 'All Banks') {
-      filtered = filtered.filter(item => item.bankName === selectedBank);
+      filtered = filtered.filter(item => 
+        item.bankName === selectedBank || 
+        (item.isDualBankTransaction && item.toBankName === selectedBank)
+      );
     }
 
     // Filter by transaction type
@@ -249,6 +257,7 @@ function BankReport() {
                   <th>Payment by</th>
                   <th>Payment To</th>
                   <th>Through Bank</th>
+                  <th>To Bank</th>
                   <th>In</th>
                   <th>Out</th>
                   <th>Balance</th>
@@ -263,7 +272,7 @@ function BankReport() {
                     <td>{formatDate(transaction.clearDate)}</td>
                     <td className="payment-by-cell">
                       <div className="payment-by-info">
-                        <div className="payer-name">{transaction.leadName}</div>
+                        <div className="payer-name">{transaction.leadName || '-'}</div>
                         <div className="reference-numbers">
                           <span className="reference-number new-reference">
                             {transaction.transactionId}
@@ -272,7 +281,21 @@ function BankReport() {
                       </div>
                     </td>
                     <td>Company</td>
-                    <td>{transaction.bankName}</td>
+                    <td>
+                      {transaction.isDualBankTransaction ? transaction.bankName : ''}
+                    </td>
+                    <td>
+                      {transaction.isDualBankTransaction ? (
+                        <div className="bank-info">
+                          <div className="bank-name">{transaction.toBankName}</div>
+                          <div className="account-number">{transaction.toAccountNumber}</div>
+                        </div>
+                      ) : (
+                        <div className="bank-info">
+                          <div className="bank-name">{transaction.bankName}</div>
+                        </div>
+                      )}
+                    </td>
                     <td className="amount-in">
                       {transaction.paymentType === 'in' ? formatAmount(transaction.transactionAmount) : '-'}
                     </td>
@@ -280,7 +303,10 @@ function BankReport() {
                       {transaction.paymentType === 'out' ? formatAmount(transaction.transactionAmount) : '-'}
                     </td>
                     <td className="balance">
-                      {formatAmount(transaction.bankTotalsAtTransaction?.totalamount || 0)}
+                      {transaction.isDualBankTransaction 
+                        ? formatAmount(transaction.bank?.totalamount || 0)
+                        : formatAmount(transaction.bank?.totalamount || 0)
+                      }
                     </td>
                     <td>₹0.00</td>
                     <td>
@@ -316,16 +342,45 @@ function BankReport() {
                 </div>
                 <div className="detail-row">
                   <span className="detail-label">Lead Name:</span>
-                  <span className="detail-value">{selectedTransaction.leadName}</span>
+                  <span className="detail-value">{selectedTransaction.leadName || '-'}</span>
                 </div>
-                <div className="detail-row">
-                  <span className="detail-label">Bank Name:</span>
-                  <span className="detail-value">{selectedTransaction.bankName}</span>
+                
+                {/* Source Bank Information */}
+                <div className="detail-section">
+                  <h4>Source Bank Details</h4>
+                  <div className="detail-row">
+                    <span className="detail-label">Bank Name:</span>
+                    <span className="detail-value">{selectedTransaction.bankName}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-label">Account Number:</span>
+                    <span className="detail-value">{selectedTransaction.accountNumber}</span>
+                  </div>
                 </div>
-                <div className="detail-row">
-                  <span className="detail-label">Account Number:</span>
-                  <span className="detail-value">{selectedTransaction.accountNumber}</span>
-                </div>
+
+                {/* Destination Bank Information (only for dual bank transactions) */}
+                {selectedTransaction.isDualBankTransaction && (
+                  <div className="detail-section">
+                    <h4>Destination Bank Details</h4>
+                    <div className="detail-row">
+                      <span className="detail-label">To Bank Name:</span>
+                      <span className="detail-value">{selectedTransaction.toBankName}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">To Account Number:</span>
+                      <span className="detail-value">{selectedTransaction.toAccountNumber}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">To Bank Payment Type:</span>
+                      <span className="detail-value">
+                        <span className={`payment-type ${selectedTransaction.toBankPaymentType}`}>
+                          {selectedTransaction.toBankPaymentType === 'in' ? 'Incoming' : 'Outgoing'}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="detail-row">
                   <span className="detail-label">Payment Mode:</span>
                   <span className="detail-value">{selectedTransaction.paymentMode}</span>
@@ -336,6 +391,9 @@ function BankReport() {
                     <span className={`payment-type ${selectedTransaction.paymentType}`}>
                       {selectedTransaction.paymentType === 'in' ? 'Incoming' : 'Outgoing'}
                     </span>
+                    {selectedTransaction.isDualBankTransaction && (
+                      <span className="dual-transaction-label"> (Bank Transfer)</span>
+                    )}
                   </span>
                 </div>
                 <div className="detail-row">
@@ -346,7 +404,11 @@ function BankReport() {
                 </div>
                 <div className="detail-row">
                   <span className="detail-label">Description:</span>
-                  <span className="detail-value">{selectedTransaction.description}</span>
+                  <span className="detail-value">{selectedTransaction.description || '-'}</span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">Transaction Date:</span>
+                  <span className="detail-value">{formatDate(selectedTransaction.transactionDate)}</span>
                 </div>
                 <div className="detail-row">
                   <span className="detail-label">Created Date:</span>
@@ -356,8 +418,60 @@ function BankReport() {
                   <span className="detail-label">Clear Date:</span>
                   <span className="detail-value">{formatDate(selectedTransaction.clearDate)}</span>
                 </div>
-                <div className="detail-row">
-                  <span className="detail-label">Bank Totals:</span>
+
+                {/* Operation Details (if available) */}
+                {selectedTransaction.operationId && (
+                  <div className="detail-section">
+                    <h4>Operation Details</h4>
+                    <div className="detail-row">
+                      <span className="detail-label">Operation ID:</span>
+                      <span className="detail-value">{selectedTransaction.operationId}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cab Amount Details (if available) */}
+                {selectedTransaction.totalCabamount && (
+                  <div className="detail-section">
+                    <h4>Cab Booking Details</h4>
+                    <div className="detail-row">
+                      <span className="detail-label">Total Amount:</span>
+                      <span className="detail-value">{formatAmount(selectedTransaction.totalCabamount.totalamount)}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">Travel Date:</span>
+                      <span className="detail-value">{formatDate(selectedTransaction.totalCabamount.travelDate)}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">Destination:</span>
+                      <span className="detail-value">{selectedTransaction.totalCabamount.destination}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">Duration:</span>
+                      <span className="detail-value">{selectedTransaction.totalCabamount.days} days, {selectedTransaction.totalCabamount.nights} nights</span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">Travelers:</span>
+                      <span className="detail-value">{selectedTransaction.totalCabamount.adults} adults{selectedTransaction.totalCabamount.kids ? `, ${selectedTransaction.totalCabamount.kids} kids` : ''}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">From:</span>
+                      <span className="detail-value">{selectedTransaction.totalCabamount.from}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">Package Type:</span>
+                      <span className="detail-value">{selectedTransaction.totalCabamount.packageType}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">Package Category:</span>
+                      <span className="detail-value">{selectedTransaction.totalCabamount.packageCategory}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bank Totals */}
+                <div className="detail-section">
+                  <h4>Bank Totals at Transaction</h4>
                   <div className="bank-totals">
                     <div className="total-item">
                       <span>In: </span>

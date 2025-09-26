@@ -33,7 +33,26 @@ const PackageDetailsPopup = ({
       // Use plandata if available
       const plandata = selectedRoom.plandata[1];
       const foundRate = plandata.find(item => {
-        const itemDate = new Date(item.date).toISOString().split('T')[0];
+        // Validate the date before processing
+        if (!item.date || typeof item.date !== 'string') {
+          return false;
+        }
+        
+        // Check if the date string looks malformed (contains multiple dates)
+        if (item.date.includes(' ') && item.date.split(' ').length > 1) {
+          console.warn('Malformed date detected in plandata (getRoomRate):', item.date);
+          return false;
+        }
+        
+        const dateObj = new Date(item.date);
+        
+        // Check if the date is valid
+        if (isNaN(dateObj.getTime())) {
+          console.warn('Invalid date detected in plandata (getRoomRate):', item.date);
+          return false;
+        }
+        
+        const itemDate = dateObj.toISOString().split('T')[0];
         return itemDate === formattedDate;
       });
       
@@ -52,7 +71,26 @@ const PackageDetailsPopup = ({
         for (const period in apRates) {
           if (Array.isArray(apRates[period])) {
             const matchingRate = apRates[period].find(rate => {
-              const rateDate = new Date(rate.date).toISOString().split('T')[0];
+              // Validate the date before processing
+              if (!rate.date || typeof rate.date !== 'string') {
+                return false;
+              }
+              
+              // Check if the date string looks malformed (contains multiple dates)
+              if (rate.date.includes(' ') && rate.date.split(' ').length > 1) {
+                console.warn('Malformed date detected in apRates (getRoomRate):', rate.date);
+                return false;
+              }
+              
+              const dateObj = new Date(rate.date);
+              
+              // Check if the date is valid
+              if (isNaN(dateObj.getTime())) {
+                console.warn('Invalid date detected in apRates (getRoomRate):', rate.date);
+                return false;
+              }
+              
+              const rateDate = dateObj.toISOString().split('T')[0];
               return rateDate === formattedDate;
             });
             
@@ -89,7 +127,26 @@ const PackageDetailsPopup = ({
       // Use plandata if available
       const plandata = selectedRoom?.plandata[3];
       const foundRate = plandata.find(item => {
-        const itemDate = new Date(item.date).toISOString().split('T')[0];
+        // Validate the date before processing
+        if (!item.date || typeof item.date !== 'string') {
+          return false;
+        }
+        
+        // Check if the date string looks malformed (contains multiple dates)
+        if (item.date.includes(' ') && item.date.split(' ').length > 1) {
+          console.warn('Malformed date detected in plandata (getExtraAdultRate):', item.date);
+          return false;
+        }
+        
+        const dateObj = new Date(item.date);
+        
+        // Check if the date is valid
+        if (isNaN(dateObj.getTime())) {
+          console.warn('Invalid date detected in plandata (getExtraAdultRate):', item.date);
+          return false;
+        }
+        
+        const itemDate = dateObj.toISOString().split('T')[0];
         return itemDate === formattedDate;
       });
       
@@ -107,7 +164,26 @@ const PackageDetailsPopup = ({
       if (extraAdultInventory) {
         // Look through all extra adult rate periods
         for (const rate of extraAdultInventory) {
-          const rateDate = new Date(rate.date).toISOString().split('T')[0];
+          // Validate the date before processing
+          if (!rate.date || typeof rate.date !== 'string') {
+            continue;
+          }
+          
+          // Check if the date string looks malformed (contains multiple dates)
+          if (rate.date.includes(' ') && rate.date.split(' ').length > 1) {
+            console.warn('Malformed date detected in extraAdultInventory:', rate.date);
+            continue;
+          }
+          
+          const dateObj = new Date(rate.date);
+          
+          // Check if the date is valid
+          if (isNaN(dateObj.getTime())) {
+            console.warn('Invalid date detected in extraAdultInventory:', rate.date);
+            continue;
+          }
+          
+          const rateDate = dateObj.toISOString().split('T')[0];
           // Compare the rateDate with formattedDate
           if (rateDate === formattedDate) {
             extraAdultRate = rate.value; // Assign the value if a match is found

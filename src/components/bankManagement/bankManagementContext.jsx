@@ -33,6 +33,7 @@ export function BankManagementProvider({ children }) {
   };
 
   const updateBankTransaction = async (transactionId, payload) => {
+   
     const response = await fetch(
       `${config.API_HOST}/api/banktransactions/update/${transactionId}`,
       {
@@ -87,14 +88,15 @@ export function BankManagementProvider({ children }) {
   };
   const bankReportList = async () => {
     setBankReportLoading(true);
-    const response = await fetch(`${config.API_HOST}/api/bankaccountdetail/transactions/totals`);
+    const response = await fetch(`${config.API_HOST}/api/banktransactions/get`);
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
       throw new Error(errorText || `Failed to fetch lead (${response.status})`);
     }
     const data = await response.json();
-    const filteredData = data?.data?.transactions?.filter(item => item.accept === true);
-    setBankReport(filteredData);
+    const filteredData = data?.data?.filter(item => item.accept === true);
+    const reversedData = filteredData?.reverse() || [];
+    setBankReport(reversedData);
     setBankReportLoading(false);
     return data;
   };

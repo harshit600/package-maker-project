@@ -15,13 +15,16 @@ function SideBar() {
   const location = useLocation();
   const dispatch = useDispatch();
 console.log(userData)
-  const [isUsersOpen, setIsUsersOpen] = useState(false);
-  const [isAccountOpen, setIsAccountOpen] = useState(false);
-  const [isLeadManagementOpen, setIsLeadManagementOpen] = useState(false);
-  const [isLoggedOut, setIsLoggedOut] = useState(false);
+const [isUsersOpen, setIsUsersOpen] = useState(false);
+const [isAccountOpen, setIsAccountOpen] = useState(false);
+const [isLeadManagementOpen, setIsLeadManagementOpen] = useState(false);
+const [isProfitLossOpen, setIsProfitLossOpen] = useState(false);
+const [isLoggedOut, setIsLoggedOut] = useState(false);
+const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchUserData = async () => {
+      setIsLoading(true);
       try {
         const userStr = localStorage.getItem("user");
         if (!userStr) return;
@@ -54,6 +57,8 @@ console.log(userData)
         }
       } catch (err) {
         console.error("Error fetching user data:", err);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -84,7 +89,7 @@ console.log(userData)
     dispatch(toggleSidebar());
   };
 
-  if (!showSidebar) return null;
+  if (!showSidebar || isLoading) return null;
 
   return (
     <>
@@ -874,6 +879,62 @@ console.log(userData)
                               <span className="ml-2 sm:ml-3 font-medium truncate"> Bank List</span>
                             </div>
                             <div
+                              onClick={() => handleNavigation("/hotel-ledger")}
+                              className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.5)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                isActive("/hotel-ledger")
+                                  ? "bg-[rgb(59,130,246,0.5)] text-white"
+                                  : "text-white"
+                              }`}
+                            >
+                              <svg
+                                className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                                  isActive("/hotel-ledger")
+                                    ? "text-blue-600"
+                                    : "text-white group-hover:text-blue-600"
+                                }`}
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                                />
+                              </svg>
+                              <span className="ml-2 sm:ml-3 font-medium truncate"> Hotel Ledger</span>
+                            </div>
+                            <div
+                              onClick={() => handleNavigation("/transport-ledger")}
+                              className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.5)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                isActive("/transport-ledger")
+                                  ? "bg-[rgb(59,130,246,0.5)] text-white"
+                                  : "text-white"
+                              }`}
+                            >
+                              <svg
+                                className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                                  isActive("/transport-ledger")
+                                    ? "text-blue-600"
+                                    : "text-white group-hover:text-blue-600"
+                                }`}
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                                />
+                              </svg>
+                              <span className="ml-2 sm:ml-3 font-medium truncate"> Transport Ledger</span>
+                            </div>
+                            <div
                               onClick={() => handleNavigation("/transaction-list")}
                               className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.5)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
                                 isActive("/transaction-list")
@@ -930,16 +991,16 @@ console.log(userData)
                               <span className="ml-2 sm:ml-3 font-medium truncate"> Bank Report</span>
                             </div>
                             <div
-                              onClick={() => handleNavigation("/profit-loss-report")}
+                              onClick={() => setIsProfitLossOpen(!isProfitLossOpen)}
                               className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.5)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
-                                isActive("/profit-loss-report")
+                                isActive("/profit-loss-report") || isActive("/operation-profit-loss")
                                   ? "bg-[rgb(59,130,246,0.5)] text-white"
                                   : "text-white"
                               }`}
                             >
                               <svg
                                 className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
-                                  isActive("/profit-loss-report")
+                                  isActive("/profit-loss-report") || isActive("/operation-profit-loss")
                                     ? "text-blue-600"
                                     : "text-white group-hover:text-blue-600"
                                 }`}
@@ -952,11 +1013,91 @@ console.log(userData)
                                   strokeLinecap="round"
                                   strokeLinejoin="round"
                                   strokeWidth={2}
-                                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
                                 />
                               </svg>
-                              <span className="ml-2 sm:ml-3 font-medium truncate"> Profit & Loss Report</span>
+                              <span className="ml-2 sm:ml-3 font-medium truncate">Profit & Loss Report</span>
+                              <svg
+                                className={`w-4 h-4 ml-auto transition-transform duration-200 ${
+                                  isProfitLossOpen ? 'rotate-180' : ''
+                                }`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 9l-7 7-7-7"
+                                />
+                              </svg>
                             </div>
+
+                            {/* Profit & Loss submenu */}
+                            {isProfitLossOpen && (
+                              <div className="ml-6 sm:ml-8 space-y-1 sm:space-y-2">
+                                {/* General Profit & Loss */}
+                                <div
+                                  onClick={() => handleNavigation("/profit-loss-report")}
+                                  className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.3)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                    isActive("/profit-loss-report")
+                                      ? "bg-[rgb(59,130,246,0.3)] text-white"
+                                      : "text-gray-300"
+                                  }`}
+                                >
+                                  <svg
+                                    className={`w-3 h-3 sm:w-4 sm:h-4 transition duration-75 ${
+                                      isActive("/profit-loss-report")
+                                        ? "text-blue-400"
+                                        : "text-gray-400 group-hover:text-blue-400"
+                                    }`}
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                                    />
+                                  </svg>
+                                  <span className="ml-2 sm:ml-3 font-medium truncate">sales P&L</span>
+                                </div>
+
+                                {/* Operation Profit Loss */}
+                                <div
+                                  onClick={() => handleNavigation("/operation-profit-loss")}
+                                  className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.3)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                    isActive("/operation-profit-loss")
+                                      ? "bg-[rgb(59,130,246,0.3)] text-white"
+                                      : "text-gray-300"
+                                  }`}
+                                >
+                                  <svg
+                                    className={`w-3 h-3 sm:w-4 sm:h-4 transition duration-75 ${
+                                      isActive("/operation-profit-loss")
+                                        ? "text-blue-400"
+                                        : "text-gray-400 group-hover:text-blue-400"
+                                    }`}
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+                                    />
+                                  </svg>
+                                  <span className="ml-2 sm:ml-3 font-medium truncate">Operation P&L</span>
+                                </div>
+                              </div>
+                            )}
                             <div
                               onClick={() => handleNavigation("/Service-report")}
                               className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.5)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${

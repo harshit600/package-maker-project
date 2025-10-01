@@ -10,6 +10,7 @@ import SightseeingSlider from "./SightseeingSlider";
 import ChangeHotel from "./changeHotel";
 import ActivityAndSightseeing from "./activityAndSigth";
 import PackageDetailsPopup from "./PackageDetailsPopup";
+import ViewPackagePopup from "./ViewPackagePopup";
 import FinalCosting from "./finalCosting";
 import RoomSlider from "./RoomSlider";
 import CreatePackageApproval from "../pages/CreatePackageApproval";
@@ -45,6 +46,7 @@ const AllLeads = () => {
   const [viewLead, setViewLead] = useState(null);
   const [availablePackages, setAvailablePackages] = useState([]);
   const [isPackageInfoOpen, setIsPackageInfoOpen] = useState(false);
+  const [isViewPackagePopupOpen, setIsViewPackagePopupOpen] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState({
     activities: [],
     // ... other package properties ...
@@ -181,7 +183,6 @@ const AllLeads = () => {
             }
           : null,
       };
-console.log(payload);
       const created = await createBankTransaction(payload);
 
       // Optimistically add to local list for UI feedback
@@ -318,6 +319,7 @@ console.log(payload);
     const stateMapping = {
       'himachal': 'Himachal Pradesh',
       'Himachal': 'Himachal Pradesh',
+      'himachal': 'himachal',
       'Himachal Pradesh': 'Himachal Pradesh',
       'himachal_pradesh': 'Himachal Pradesh',
       'sikkim': 'Sikkim',
@@ -325,6 +327,8 @@ console.log(payload);
       'sikkim': 'sikkim',
       'andhra_pradesh': 'Andhra Pradesh',
       'arunachal_pradesh': 'Arunachal Pradesh',
+      'arunachal': 'Arunachal Pradesh',
+      'arunachal pradesh': 'arunachal pradesh',
       'assam': 'Assam',
       'assam':'assam',
       'Assam': 'Assam',
@@ -726,6 +730,7 @@ console.log(payload);
 
       if (day.selectedHotel?.selectedRoom) {
         const plandata = day.selectedHotel.selectedRoom.plandata?.[1];
+        console.log(plandata)
         if (Array.isArray(plandata)) {
           const foundRate = plandata.find((item) => {
             // Validate the date before processing
@@ -735,7 +740,6 @@ console.log(payload);
             
             // Check if the date string looks malformed (contains multiple dates)
             if (item.date.includes(' ') && item.date.split(' ').length > 1) {
-              console.warn('Malformed date detected in plandata:', item.date);
               return false;
             }
             
@@ -743,7 +747,6 @@ console.log(payload);
             
             // Check if the date is valid
             if (isNaN(dateObj.getTime())) {
-              console.warn('Invalid date detected in plandata:', item.date);
               return false;
             }
             
@@ -751,12 +754,12 @@ console.log(payload);
             return itemDate === formattedDate;
           });
           if (foundRate) {
-            displayRate = foundRate.value;
+            displayRate = foundRate.value; // Keep null if it's null in the data
           } else {
-            displayRate = day.selectedHotel.selectedRoom.baseRate;
+            displayRate =  "no rate found"|| day.selectedHotel.selectedRoom.baseRate;
           }
         } else {
-          displayRate = day.selectedHotel.selectedRoom.baseRate;
+          displayRate = "no rate found"|| day.selectedHotel.selectedRoom.baseRate;
         }
       } else if (defaultRoom) {
         // For default room, try to get AP rate from inventory
@@ -774,7 +777,6 @@ console.log(payload);
                 
                 // Check if the date string looks malformed (contains multiple dates)
                 if (rate.date.includes(' ') && rate.date.split(' ').length > 1) {
-                  console.warn('Malformed date detected:', rate.date);
                   return false;
                 }
                 
@@ -782,17 +784,15 @@ console.log(payload);
                 
                 // Check if the date is valid
                 if (isNaN(dateObj.getTime())) {
-                  console.warn('Invalid date detected:', rate.date);
                   return false;
                 }
                 
                 const rateDate = dateObj.toISOString().split("T")[0];
-                console.log(rateDate, formattedDate);
                 return rateDate === formattedDate;
               });
 
               if (matchingRate) {
-                displayRate = matchingRate.value;
+                displayRate = matchingRate.value; // Keep null if it's null in the data
                 break;
               }
             }
@@ -801,7 +801,7 @@ console.log(payload);
 
         // Fallback to base rate if no inventory rate found
         if (!displayRate) {
-          displayRate = defaultRoom.baseRate;
+          displayRate = "no rate found"|| defaultRoom.baseRate;
         }
       }
     }
@@ -822,13 +822,13 @@ console.log(payload);
           });
 
           if (foundRate) {
-            extraAdultRate = foundRate.value;
+            extraAdultRate = foundRate.value; // Keep null if it's null in the data
           } else {
             extraAdultRate =
-              day.selectedHotel.selectedRoom.extraAdultCharge || 0;
+              "no rate found"|| day.selectedHotel.selectedRoom.extraAdultCharge || 0;
           }
         } else {
-          extraAdultRate = day.selectedHotel.selectedRoom.extraAdultCharge || 0;
+          extraAdultRate = "no rate found"|| day.selectedHotel.selectedRoom.extraAdultCharge || 0;
         }
       } else if (defaultRoom) {
         // For default room, try to get extra adult rate from inventory
@@ -843,7 +843,7 @@ console.log(payload);
 
             // Compare the rateDate with formattedDate
             if (rateDate === formattedDate) {
-              extraAdultRate = rate.value; // Assign the value if a match is found
+              extraAdultRate = rate.value; // Keep null if it's null in the data
               break; // Exit the loop once a match is found
             }
           }
@@ -851,7 +851,7 @@ console.log(payload);
 
         // Fallback to standard extra adult charge if no inventory rate found
         if (!extraAdultRate) {
-          extraAdultRate = defaultRoom.extraAdultCharge || 0;
+          extraAdultRate = "no rate found"|| defaultRoom.extraAdultCharge || 0;
         }
       }
 
@@ -868,10 +868,10 @@ console.log(payload);
           if (foundRate) {
             childRate = foundRate.value;
           } else {
-            childRate = day.selectedHotel.selectedRoom.childCharge || 0;
+            childRate = "no rate found"|| day.selectedHotel.selectedRoom.childCharge || 0;
           }
         } else {
-          childRate = day.selectedHotel.selectedRoom.childCharge || 0;
+          childRate = "no rate found"|| day.selectedHotel.selectedRoom.childCharge || 0;
         }
       } else if (defaultRoom) {
         const childInventory =
@@ -1171,8 +1171,8 @@ console.log(payload);
               {selectedRoom && (
                 <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-gray-600">
                   <div>
-                    <span className="font-medium">Extra Adult:</span> ₹
-                    {extraAdultRate || selectedRoom.extraAdultCharge}
+                    <span className="font-medium">Extra Adult:</span> 
+                    {extraAdultRate !== null ? `₹${extraAdultRate}` : <span className="text-red-500">No rate found</span>}
                   </div>
                 </div>
               )}
@@ -1181,7 +1181,7 @@ console.log(payload);
                 {/* Base Rate */}
                 <div className="flex items-baseline ">
                   <p className="text-2xl font-bold text-gray-900">
-                    ₹{(displayRate || 0).toLocaleString("en-IN")}
+                    {displayRate !== null ? `₹${displayRate.toLocaleString("en-IN")}` : <span className="text-red-500">No rate found</span>}
                   </p>
                   <p className="text-sm text-gray-500 ml-2">per night</p>
                   <div className="flex items-center p-3">
@@ -1276,13 +1276,33 @@ console.log(payload);
                     Total Amount
                   </p>
 
-                  <p className="text-2xl font-bold text-blue-600">
-                    ₹
-                    {(
-                      displayRate * (hotelRoomsAndBeds[`hotel-${day.day}`]?.rooms ?? selectedLead?.noOfRooms ?? 1) +
-                      (extraAdultRate || selectedRoom?.extraAdultCharge) *
-                        (hotelRoomsAndBeds[`hotel-${day.day}`]?.extraBeds ?? selectedLead?.extraBeds ?? 0)
-                    ).toLocaleString("en-IN") || "N/A"}
+                  {/* <p className="text-2xl font-bold text-blue-600">
+                    {displayRate !== null && !isNaN(displayRate) ? (
+                      `₹${(
+                        displayRate * (hotelRoomsAndBeds[`hotel-${day.day}`]?.rooms ?? selectedLead?.noOfRooms ?? 1) +
+                        (extraAdultRate !== null ? extraAdultRate : (selectedRoom?.extraAdultCharge || 0)) *
+                          (hotelRoomsAndBeds[`hotel-${day.day}`]?.extraBeds ?? selectedLead?.extraBeds ?? 0)
+                      ).toLocaleString("en-IN")}`
+                    ) : (
+                      <span className="text-red-500">Cannot calculate - No base rate found</span>
+                    )}
+                  </p> */}
+                     <p className="text-2xl font-bold text-blue-600">
+                    {displayRate !== null && !isNaN(displayRate) ? (
+                      `₹${(() => {
+                        const rooms = hotelRoomsAndBeds[`hotel-${day.day}`]?.rooms ?? selectedLead?.noOfRooms ?? 1;
+                        const extraBeds = hotelRoomsAndBeds[`hotel-${day.day}`]?.extraBeds ?? selectedLead?.extraBeds ?? 0;
+                        const roomCost = displayRate * rooms;
+                        const extraAdultCost = extraBeds > 0 && extraAdultRate !== null && !isNaN(extraAdultRate) 
+                          ? extraAdultRate * extraBeds 
+                          : (extraBeds > 0 && selectedRoom?.extraAdultCharge && !isNaN(selectedRoom?.extraAdultCharge))
+                            ? selectedRoom.extraAdultCharge * extraBeds 
+                            : 0;
+                        return (roomCost + extraAdultCost).toLocaleString("en-IN");
+                      })()}`
+                    ) : (
+                      <span className="text-red-500">Cannot calculate - No base rate found</span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -1500,7 +1520,6 @@ console.log(payload);
   const indexOfFirstLead = indexOfLastLead - leadsPerPage;
   const currentLeads = filteredLeads.slice(indexOfFirstLead, indexOfLastLead);
   const totalPages = Math.ceil(filteredLeads.length / leadsPerPage);
-console.log(currentLeads);
   // Get unique categories from leads instead of packages
   const uniqueCategories = [
     ...new Set(leads.map((lead) => lead.packageCategory)),
@@ -3859,7 +3878,7 @@ console.log(currentLeads);
                                 scope="col"
                                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                               >
-                                PRICE
+                               View
                               </th>
                               <th
                                 scope="col"
@@ -3910,11 +3929,15 @@ console.log(currentLeads);
                                       : "N/A"}
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm font-medium text-green-600">
-                                      {pkg.finalCosting?.baseTotal
-                                        ? `₹${pkg.finalCosting.baseTotal}`
-                                        : "₹N/A"}
-                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        setSelectedPackage(pkg);
+                                        setIsViewPackagePopupOpen(true);
+                                      }}
+                                      className=" text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-md text-sm"
+                                    >
+                                      view 
+                                    </button>
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <button
@@ -5187,6 +5210,13 @@ console.log(currentLeads);
           </div>
         </div>
       )}
+
+      {/* View Package Popup */}
+      <ViewPackagePopup
+        isOpen={isViewPackagePopupOpen}
+        onClose={() => setIsViewPackagePopupOpen(false)}
+        packageData={selectedPackage}
+      />
     </div>
   );
 };

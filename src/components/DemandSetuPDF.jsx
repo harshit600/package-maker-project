@@ -21,6 +21,81 @@ const decodeHtmlEntities = (text) => {
     .trim();
 };
 
+// Enhanced HTML parser for list items with formatting
+const parseHtmlContent = (htmlString) => {
+  if (!htmlString) return [];
+  
+  // Extract list items from ol/ul tags
+  const listItemRegex = /<li[^>]*>(.*?)<\/li>/gs;
+  const matches = [...htmlString.matchAll(listItemRegex)];
+  
+  if (matches.length === 0) {
+    // If no list items found, try paragraph parsing as fallback
+    return htmlString
+      .replace(/<p>/g, "")
+      .split("</p>")
+      .map((item) => parseInlineFormatting(item))
+      .filter((item) => item && item.length > 0);
+  }
+  
+  return matches.map(match => parseInlineFormatting(match[1]));
+};
+
+// Parse inline formatting like <strong>, <span>, etc. and return text segments with formatting info
+const parseInlineFormatting = (htmlString) => {
+  if (!htmlString) return [];
+  
+  // Remove style attributes and color attributes
+  let cleaned = htmlString.replace(/style="[^"]*"/g, '')
+                          .replace(/color:\s*rgb\([^)]*\);?/g, '');
+  
+  // Extract text segments with their formatting
+  const segments = [];
+  let currentText = '';
+  let isBold = false;
+  
+  // Simple parser that handles <strong> tags
+  const strongRegex = /<strong[^>]*>(.*?)<\/strong>/gs;
+  let lastIndex = 0;
+  
+  for (const match of cleaned.matchAll(strongRegex)) {
+    // Add text before the strong tag
+    const beforeText = cleaned.substring(lastIndex, match.index);
+    if (beforeText) {
+      const cleanedBefore = beforeText.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+      if (cleanedBefore) {
+        segments.push({ text: cleanedBefore, bold: false });
+      }
+    }
+    
+    // Add the bold text
+    const boldText = match[1].replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    if (boldText) {
+      segments.push({ text: boldText, bold: true });
+    }
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Add remaining text after the last match
+  if (lastIndex < cleaned.length) {
+    const remainingText = cleaned.substring(lastIndex).replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    if (remainingText) {
+      segments.push({ text: remainingText, bold: false });
+    }
+  }
+  
+  // If no segments were created, just clean and return the whole text
+  if (segments.length === 0) {
+    const fullText = cleaned.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    if (fullText) {
+      segments.push({ text: fullText, bold: false });
+    }
+  }
+  
+  return segments;
+};
+
 // Update the PackagePDF component
 const DemandSetuPDF = ({
   packageSummary,
@@ -886,7 +961,7 @@ const DemandSetuPDF = ({
                       fontWeight: "bold",
                     }}
                   >
-                    {(selectedLead?.adults || 0) + (selectedLead?.kids || 0)}G
+                    {(selectedLead?.adults || 0) + (selectedLead?.kids || 0)}
                   </Text>
                 </View>
                 <View
@@ -904,7 +979,7 @@ const DemandSetuPDF = ({
                       fontWeight: "bold",
                     }}
                   >
-                    {selectedLead?.noOfRooms || "0"}R
+                    {selectedLead?.noOfRooms || "0"}
                   </Text>
                 </View>
               </View>
@@ -1244,17 +1319,30 @@ const DemandSetuPDF = ({
                   borderLeftColor: "#2d2d44",
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: "#374151",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {decodeHtmlEntities(
-                    packageSummary.package.packageDescription
-                  )}
-                </Text>
+                {parseHtmlContent(packageSummary.package.packageDescription).map((textSegments, idx) => (
+                  <Text
+                    key={idx}
+                    style={{
+                      fontSize: 14,
+                      color: "#374151",
+                      lineHeight: 1.5,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {Array.isArray(textSegments) ? (
+                      textSegments.map((segment, segIdx) => (
+                        <Text 
+                          key={segIdx} 
+                          style={segment.bold ? { fontWeight: 'bold', fontFamily: 'Helvetica-Bold' } : {}}
+                        >
+                          {segment.text}
+                        </Text>
+                      ))
+                    ) : (
+                      textSegments
+                    )}
+                  </Text>
+                ))}
               </View>
             )}
           </View>
@@ -1630,26 +1718,7 @@ const DemandSetuPDF = ({
                             </Text>
                           </View>
 
-                          <View
-                            style={{
-                              backgroundColor: "#EFF6FF",
-                              paddingHorizontal: 4,
-                              paddingVertical: 1,
-                              borderRadius: 3,
-                              flexDirection: "row",
-                              alignItems: "center",
-                            }}
-                          >
-                            <Text
-                              style={{
-                                fontSize: 8,
-                                color: "#2d2d44",
-                                fontWeight: "500",
-                              }}
-                            >
-                              {cab?.cabSeatingCapacity || "4"} Seater
-                            </Text>
-                          </View>
+                         
                         </View>
                       </View>
                     ))
@@ -2185,8 +2254,8 @@ const DemandSetuPDF = ({
                           borderRadius: 12,
                           borderWidth: 1,
                           borderColor: "#E2E8F0",
-                          overflow: "hidden",
                           position: "relative",
+                          width: "100%",
                         }}
                       >
                         {/* Day Header */}
@@ -2234,9 +2303,6 @@ const DemandSetuPDF = ({
                                 fontSize: 10,
                                 color: "#64748B",
                                 marginBottom: 2,
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
                               }}
                             >
                               {formattedDate}
@@ -2248,10 +2314,8 @@ const DemandSetuPDF = ({
                                 color: "#1E293B",
                                 marginBottom: 4,
                                 lineHeight: 1.2,
-                                flexShrink: 1,
-                                minWidth: 0,
                               }}
-                              wrap={false}
+                              wrap={true}
                             >
                               {dayData.itineraryTitle}
                             </Text>
@@ -2332,18 +2396,21 @@ const DemandSetuPDF = ({
                         </View>
 
                         {/* Day Content */}
-                        <View style={{ padding: 16, gap: 12 }}>
+                        <View style={{ padding: 16, gap: 12, width: "100%" }}>
                           {/* Description */}
                           {dayData.itineraryDescription && (
-                            <Text
-                              style={{
-                                fontSize: 12,
-                                color: "#475569",
-                                lineHeight: 1.5,
-                              }}
-                            >
-                              {decodeHtmlEntities(dayData.itineraryDescription)}
-                            </Text>
+                            <View style={{ width: "100%", marginBottom: 8, paddingRight: 8 }}>
+                              <Text
+                                style={{
+                                  fontSize: 11,
+                                  color: "#475569",
+                                  lineHeight: 1.6,
+                                  textAlign: "left",
+                                }}
+                              >
+                                {decodeHtmlEntities(dayData.itineraryDescription)}
+                              </Text>
+                            </View>
                           )}
 
                           {/* Compact City Areas */}
@@ -2527,7 +2594,7 @@ const DemandSetuPDF = ({
                                     Activities
                                   </Text>
                                 </View>
-                                <View style={{ gap: 4 }}>
+                                <View style={{ gap: 4, width: "100%" }}>
                                   {dayData.activities
                                     .slice(0, 3)
                                     .map((activity, actIndex) => (
@@ -2535,8 +2602,9 @@ const DemandSetuPDF = ({
                                         key={actIndex}
                                         style={{
                                           flexDirection: "row",
-                                          alignItems: "center",
+                                          alignItems: "flex-start",
                                           gap: 6,
+                                          width: "100%",
                                         }}
                                       >
                                         <View
@@ -2545,6 +2613,7 @@ const DemandSetuPDF = ({
                                             height: 4,
                                             backgroundColor: "#2d2d44",
                                             borderRadius: 2,
+                                            marginTop: 4,
                                           }}
                                         />
                                         <Text
@@ -2553,6 +2622,7 @@ const DemandSetuPDF = ({
                                             color: "#475569",
                                             flex: 1,
                                           }}
+                                          wrap={true}
                                         >
                                           {decodeHtmlEntities(activity)}
                                         </Text>
@@ -2720,18 +2790,25 @@ const DemandSetuPDF = ({
                 {/* Main Inclusions - Fixed HTML parsing */}
                 {packageSummary?.package?.packageInclusions && (
                   <View style={pdfStyles.exclusionsList}>
-                    {packageSummary.package.packageInclusions
-                      .split("</p>")
-                      .map((item) => decodeHtmlEntities(item))
-                      .filter(Boolean) // Remove empty strings
-                      .map((inclusion, index) => (
-                        <View key={index} style={pdfStyles.exclusionItem}>
-                          <View style={pdfStyles.bulletPoint} />
-                          <Text style={pdfStyles.exclusionText}>
-                            {inclusion}
-                          </Text>
-                        </View>
-                      ))}
+                    {parseHtmlContent(packageSummary.package.packageInclusions).map((textSegments, index) => (
+                      <View key={index} style={pdfStyles.exclusionItem}>
+                        <View style={pdfStyles.bulletPoint} />
+                        <Text style={pdfStyles.exclusionText}>
+                          {Array.isArray(textSegments) ? (
+                            textSegments.map((segment, segIdx) => (
+                              <Text 
+                                key={segIdx} 
+                                style={segment.bold ? { fontWeight: 'bold', fontFamily: 'Helvetica-Bold' } : {}}
+                              >
+                                {segment.text}
+                              </Text>
+                            ))
+                          ) : (
+                            textSegments
+                          )}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 )}
               </View>
@@ -2750,16 +2827,25 @@ const DemandSetuPDF = ({
               {/* Main Exclusions - Fixed HTML parsing */}
               {packageSummary?.package?.packageExclusions && (
                 <View style={pdfStyles.exclusionsList}>
-                  {packageSummary.package.packageExclusions
-                    .split("</p>")
-                    .map((item) => decodeHtmlEntities(item))
-                    .filter(Boolean) // Remove empty strings
-                    .map((exclusion, index) => (
-                      <View key={index} style={pdfStyles.exclusionItem}>
-                        <View style={pdfStyles.bulletPoint} />
-                        <Text style={pdfStyles.exclusionText}>{exclusion}</Text>
-                      </View>
-                    ))}
+                  {parseHtmlContent(packageSummary.package.packageExclusions).map((textSegments, index) => (
+                    <View key={index} style={pdfStyles.exclusionItem}>
+                      <View style={pdfStyles.bulletPoint} />
+                      <Text style={pdfStyles.exclusionText}>
+                        {Array.isArray(textSegments) ? (
+                          textSegments.map((segment, segIdx) => (
+                            <Text 
+                              key={segIdx} 
+                              style={segment.bold ? { fontWeight: 'bold', fontFamily: 'Helvetica-Bold' } : {}}
+                            >
+                              {segment.text}
+                            </Text>
+                          ))
+                        ) : (
+                          textSegments
+                        )}
+                      </Text>
+                    </View>
+                  ))}
                 </View>
               )}
               {/* Custom Exclusions - Fixed HTML parsing and bullet points */}
@@ -2781,18 +2867,26 @@ const DemandSetuPDF = ({
                         {section.name}
                       </Text>
                     </View>
-                    {/* Parse HTML content properly with entity decoding */}
-                    {section.description
-                      ?.replace(/<p>/g, "") // Remove opening p tags
-                      .split("</p>") // Split by closing p tags
-                      .map((item) => decodeHtmlEntities(item))
-                      .filter((item) => item && item.length > 0) // Remove empty items
-                      .map((item, idx) => (
-                        <View key={idx} style={pdfStyles.exclusionItem}>
-                          <View style={pdfStyles.bulletPoint} />
-                          <Text style={pdfStyles.exclusionText}>{item}</Text>
-                        </View>
-                      ))}
+                    {/* Parse HTML content properly with list items and formatting */}
+                    {parseHtmlContent(section.description).map((textSegments, idx) => (
+                      <View key={idx} style={pdfStyles.exclusionItem}>
+                        <View style={pdfStyles.bulletPoint} />
+                        <Text style={pdfStyles.exclusionText}>
+                          {Array.isArray(textSegments) ? (
+                            textSegments.map((segment, segIdx) => (
+                              <Text 
+                                key={segIdx} 
+                                style={segment.bold ? { fontWeight: 'bold', fontFamily: 'Helvetica-Bold' } : {}}
+                              >
+                                {segment.text}
+                              </Text>
+                            ))
+                          ) : (
+                            textSegments
+                          )}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 )
               )}

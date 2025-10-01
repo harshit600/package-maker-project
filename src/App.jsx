@@ -60,6 +60,9 @@ import ProfitLoss from "./components/bankManagement/profitLoss";
 import OperationProfitLoss from "./components/bankManagement/operationProfit";
 import HotelLedger from "./components/bankManagement/hotelLedger";
 import TransportLedger from "./components/bankManagement/transportLedger";
+import TeamLeaderApproval from "./components/teamLeaderApproval";
+import SaleDashboard from "./components/SaleDashboard";
+import GlobalNotification from "./components/GlobalNotification";
 export default function App() {
   return (
     <Provider store={store}>
@@ -73,6 +76,7 @@ export default function App() {
               <BrowserRouter>
                 <AuthProvider>
                   <Header />
+                  <GlobalNotification />
                   <ToastContainer />
                   <div
                     className="flex"
@@ -141,6 +145,7 @@ export default function App() {
                             <Route path="/all-leads" element={<AllLeads />} />
                             <Route path="/all-leads-admin" element={<AllLeadmanagement />} />
                             <Route path="/package-approval" element={<PackageApproval />} />
+                            <Route path="//package-approve" element={<TeamLeaderApproval />} />
                             <Route path="/margin-master" element={<MarginMaster />} />
                             <Route path="/cab-vendor-details" element={<CabVendorDetails />} />
                             <Route path="/package-download-tracker" element={<PackageDownloadTracker />} />
@@ -153,6 +158,7 @@ export default function App() {
                             <Route path="/operation-profit-loss" element={<OperationProfitLoss />} />
                             <Route path="/hotel-ledger" element={<HotelLedger />} />
                             <Route path="/transport-ledger" element={<TransportLedger />} />
+                            <Route path="/sale-dashboard" element={<SaleDashboard />} />
                           </Route>
                           <Route path="/about" element={<About />} />
                         </Routes>

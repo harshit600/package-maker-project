@@ -161,14 +161,41 @@ const UserProfile = () => {
         [field]: value
       };
 
-      // Clear team leader and manager names when company or designation changes
+      // Clear team leader and manager names and IDs when company or designation changes
       if (field === "companyName" || field === "designation") {
         updatedFormData.teamLeaderName = "";
+        updatedFormData.teamLeaderId = "";
         updatedFormData.managerName = "";
+        updatedFormData.managerId = "";
       }
 
       return updatedFormData;
     });
+  };
+
+  // Handle team leader selection with both name and ID
+  const handleTeamLeaderChange = (selectedName) => {
+    const selectedTeamLeader = getTeamLeadersByCompany(editFormData.companyName)
+      .find(leader => `${leader.firstName} ${leader.lastName}` === selectedName);
+    
+    setEditFormData(prev => ({
+      ...prev,
+      teamLeaderName: selectedName,
+      teamLeaderId: selectedTeamLeader ? selectedTeamLeader._id : ""
+    }));
+  };
+
+  // Handle manager selection with both name and ID
+  const handleManagerChange = (selectedName) => {
+    console.log("Selected Name:", selectedName);
+    const selectedManager = getManagersByCompany(editFormData.companyName)
+      .find(manager => `${manager.firstName} ${manager.lastName}` === selectedName);
+    
+    setEditFormData(prev => ({
+      ...prev,
+      managerName: selectedName,
+      managerId: selectedManager ? selectedManager._id : ""
+    }));
   };
 
   const handleUpdateProfile = async () => {
@@ -571,7 +598,7 @@ const UserProfile = () => {
                       <div>
                         <select
                           value={editFormData[field.field] || ""}
-                          onChange={(e) => handleInputChange(field.field, e.target.value)}
+                          onChange={(e) => handleTeamLeaderChange(e.target.value)}
                           className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="">Select Team Leader</option>
@@ -590,12 +617,30 @@ const UserProfile = () => {
                             {getTeamLeadersByCompany(editFormData.companyName).length} team leader(s) available
                           </p>
                         )}
+                        {/* Debug info to show captured ID */}
+                        {editFormData.teamLeaderId && (
+                          <p className="mt-1 text-xs text-blue-600">
+                            Selected Team Leader ID: {editFormData.teamLeaderId}
+                          </p>
+                        )}
+                        {/* Help message if team leader name is selected but ID is not captured */}
+                        {editFormData.teamLeaderName && !editFormData.teamLeaderId && (
+                          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                            <p className="text-xs text-yellow-800">
+                              <strong>Note:</strong> If Team Leader ID is not visible, please:
+                              <br />
+                              1. First click on "Select Team Leader" option
+                              <br />
+                              2. Then click on the team leader name again
+                            </p>
+                          </div>
+                        )}
                       </div>
                     ) : field.type === "managerSelect" ? (
                       <div>
                         <select
                           value={editFormData[field.field] || ""}
-                          onChange={(e) => handleInputChange(field.field, e.target.value)}
+                          onChange={(e) => handleManagerChange(e.target.value)}
                           className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="">Select Manager</option>
@@ -613,6 +658,24 @@ const UserProfile = () => {
                           <p className="mt-1 text-sm text-green-600">
                             {getManagersByCompany(editFormData.companyName).length} manager(s) available
                           </p>
+                        )}
+                        {/* Debug info to show captured ID */}
+                        {editFormData.managerId && (
+                          <p className="mt-1 text-xs text-blue-600">
+                            Selected Manager ID: {editFormData.managerId}
+                          </p>
+                        )}
+                        {/* Help message if manager name is selected but ID is not captured */}
+                        {editFormData.managerName && !editFormData.managerId && (
+                          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                            <p className="text-xl text-yellow-800">
+                              <strong>Note:</strong> If Manager ID is not visible after select manager name at bottom, please:
+                              <br />
+                              1. First click on "Select Manager" option
+                              <br />
+                              2. Then click on the manager name again
+                            </p>
+                          </div>
                         )}
                       </div>
                     ) : (

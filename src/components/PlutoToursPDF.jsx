@@ -25,6 +25,81 @@ const decodeHtmlEntities = (text) => {
     .trim();
 };
 
+// Enhanced HTML parser for list items with formatting
+const parseHtmlContent = (htmlString) => {
+  if (!htmlString) return [];
+  
+  // Extract list items from ol/ul tags
+  const listItemRegex = /<li[^>]*>(.*?)<\/li>/gs;
+  const matches = [...htmlString.matchAll(listItemRegex)];
+  
+  if (matches.length === 0) {
+    // If no list items found, try paragraph parsing as fallback
+    return htmlString
+      .replace(/<p>/g, "")
+      .split("</p>")
+      .map((item) => parseInlineFormatting(item))
+      .filter((item) => item && item.length > 0);
+  }
+  
+  return matches.map(match => parseInlineFormatting(match[1]));
+};
+
+// Parse inline formatting like <strong>, <span>, etc. and return text segments with formatting info
+const parseInlineFormatting = (htmlString) => {
+  if (!htmlString) return [];
+  
+  // Remove style attributes and color attributes
+  let cleaned = htmlString.replace(/style="[^"]*"/g, '')
+                          .replace(/color:\s*rgb\([^)]*\);?/g, '');
+  
+  // Extract text segments with their formatting
+  const segments = [];
+  let currentText = '';
+  let isBold = false;
+  
+  // Simple parser that handles <strong> tags
+  const strongRegex = /<strong[^>]*>(.*?)<\/strong>/gs;
+  let lastIndex = 0;
+  
+  for (const match of cleaned.matchAll(strongRegex)) {
+    // Add text before the strong tag
+    const beforeText = cleaned.substring(lastIndex, match.index);
+    if (beforeText) {
+      const cleanedBefore = beforeText.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+      if (cleanedBefore) {
+        segments.push({ text: cleanedBefore, bold: false });
+      }
+    }
+    
+    // Add the bold text
+    const boldText = match[1].replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    if (boldText) {
+      segments.push({ text: boldText, bold: true });
+    }
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Add remaining text after the last match
+  if (lastIndex < cleaned.length) {
+    const remainingText = cleaned.substring(lastIndex).replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    if (remainingText) {
+      segments.push({ text: remainingText, bold: false });
+    }
+  }
+  
+  // If no segments were created, just clean and return the whole text
+  if (segments.length === 0) {
+    const fullText = cleaned.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    if (fullText) {
+      segments.push({ text: fullText, bold: false });
+    }
+  }
+  
+  return segments;
+};
+
 // Update the PackagePDF component
 const PlutoToursPDF = ({
   packageSummary,
@@ -132,36 +207,38 @@ const PlutoToursPDF = ({
 
   return (
     <Document>
+      {/* First Page - Main Content */}
       <Page
         size="A4"
         style={{
           ...pdfStyles.page,
+          paddingTop: 20,
+          paddingBottom: 40,
+          paddingLeft: 20,
+          paddingRight: 20,
+          backgroundColor: "#ffffff",
           position: "relative",
-          backgroundColor: "#2b6887", // Light blue background
-          backgroundImage:
-            "https://res.cloudinary.com/dcp1ev1uk/image/upload/v1724223741/himaclahimg2_cs0qvm.jpg",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          backgroundOpacity: 0.1, // Make the background image more subtle
         }}
+        wrap={true}
+        break={true}
       >
-        {/* Existing content */}
+        {/* Main Content Container */}
         <View
           style={{
-            position: "relative", // This ensures content stays above the background
-            zIndex: 1,
+            flex: 1,
+            marginBottom: 20,
           }}
         >
           {/* Modern Professional Header */}
           <View
             style={{
-              padding: 24,
-              borderBottomLeftRadius: 20,
-              borderBottomRightRadius: 20,
-              marginBottom: 20,
+              padding: 20,
+              borderBottomLeftRadius: 16,
+              borderBottomRightRadius: 16,
+              marginBottom: 16,
               position: "relative",
               overflow: "hidden",
+              backgroundColor: "#2b6887",
             }}
           >
             {/* Background Pattern */}
@@ -598,9 +675,9 @@ const PlutoToursPDF = ({
           <View
             style={{
               flexDirection: "row",
-              gap: 12,
-              marginVertical: 20,
-              marginHorizontal: 20,
+              gap: 8,
+              marginVertical: 16,
+              marginHorizontal: 0,
             }}
           >
             {destinationImages.map((imageUrl, index) => (
@@ -608,7 +685,7 @@ const PlutoToursPDF = ({
                 key={index}
                 style={{
                   flex: 1,
-                  height: 200,
+                  height: 150,
                   borderRadius: 8,
                   overflow: "hidden",
                   borderWidth: 1,
@@ -627,8 +704,15 @@ const PlutoToursPDF = ({
             ))}
           </View>
 
-          {/* Add Lead Details Section right after the header and before Journey Overview */}
-          <View style={pdfStyles.leadDetailsSection}>
+          {/* Lead Details Section */}
+          <View style={{
+            marginBottom: 16,
+            padding: 12,
+            backgroundColor: "#F8FAFC",
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: "#E2E8F0",
+          }}>
             <View
               style={{
                 flexDirection: "row",
@@ -815,7 +899,14 @@ const PlutoToursPDF = ({
               </View>
             </View>
           </View>
-          <View style={pdfStyles.leadDetailsSection}>
+          <View style={{
+            marginBottom: 16,
+            padding: 12,
+            backgroundColor: "#F8FAFC",
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: "#E2E8F0",
+          }}>
             <View
               style={{
                 flexDirection: "row",
@@ -848,26 +939,39 @@ const PlutoToursPDF = ({
                   borderLeftColor: "#2d2d44",
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: "#374151",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {decodeHtmlEntities(
-                    packageSummary.package.packageDescription
-                  )}
-                </Text>
+                {parseHtmlContent(packageSummary.package.packageDescription).map((textSegments, idx) => (
+                  <Text
+                    key={idx}
+                    style={{
+                      fontSize: 14,
+                      color: "#374151",
+                      lineHeight: 1.5,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {Array.isArray(textSegments) ? (
+                      textSegments.map((segment, segIdx) => (
+                        <Text 
+                          key={segIdx} 
+                          style={segment.bold ? { fontWeight: 'bold', fontFamily: 'Helvetica-Bold' } : {}}
+                        >
+                          {segment.text}
+                        </Text>
+                      ))
+                    ) : (
+                      textSegments
+                    )}
+                  </Text>
+                ))}
               </View>
             )}
           </View>
           {/* Enhanced Itinerary Overview with hotels and cab info */}
           <View
             style={{
-              marginTop: 12,
-              marginBottom: 16,
-              padding: 12,
+              marginTop: 8,
+              marginBottom: 12,
+              padding: 10,
               backgroundColor: "#F8FAFC",
               borderRadius: 6,
               borderWidth: 1,
@@ -1423,26 +1527,27 @@ const PlutoToursPDF = ({
           </View>
 
           {/* Main Content Section */}
-          <View style={pdfStyles.mainContent}>
+          <View style={{
+            flex: 1,
+            marginBottom: 16,
+          }}>
             {/* Modern Journey Itinerary Section */}
             <View
               style={{
-                marginTop: 20,
-                marginBottom: 24,
+                marginTop: 12,
+                marginBottom: 16,
                 backgroundColor: "#FFFFFF",
-                borderRadius: 16,
+                borderRadius: 12,
                 borderWidth: 1,
                 borderColor: "#E2E8F0",
                 overflow: "hidden",
-                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
               }}
             >
               {/* Modern Gradient Header */}
               <View
                 style={{
-                  background:
-                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                  padding: 20,
+                 
+                  padding: 16,
                   position: "relative",
                   overflow: "hidden",
                 }}
@@ -1737,7 +1842,7 @@ const PlutoToursPDF = ({
               </View>
 
               {/* Compact Day-by-Day Timeline */}
-              <View style={{ padding: 20, gap: 16 }}>
+              <View style={{ padding: 12, gap: 12 }}>
                 {packageSummary?.package?.itineraryDays?.map((day, index) => {
                   const dayData = day.selectedItinerary;
                   const dayHotel = packageSummary.hotels.find(
@@ -1792,13 +1897,12 @@ const PlutoToursPDF = ({
                         <View
                           style={{
                             backgroundColor: "#F8FAFC",
-                            padding: 16,
+                            padding: 12,
                             borderBottomWidth: 1,
                             borderBottomColor: "#E2E8F0",
                             flexDirection: "row",
                             alignItems: "center",
-                            gap: 16,
-                            // Remove justifyContent: 'space-between' to allow flexible width
+                            gap: 12,
                           }}
                         >
                           {/* Day Badge */}
@@ -1931,7 +2035,7 @@ const PlutoToursPDF = ({
                         </View>
 
                         {/* Day Content */}
-                        <View style={{ padding: 16, gap: 12 }}>
+                        <View style={{ padding: 12, gap: 8 }}>
                           {/* Description */}
                           {dayData.itineraryDescription && (
                             <Text
@@ -2183,8 +2287,8 @@ const PlutoToursPDF = ({
             {/* Modern Inclusions Section */}
             <View
               style={{
-                marginTop: 20,
-                marginBottom: 16,
+                marginTop: 12,
+                marginBottom: 12,
                 backgroundColor: "#FFFFFF",
                 borderRadius: 8,
                 borderWidth: 1,
@@ -2196,12 +2300,12 @@ const PlutoToursPDF = ({
               <View
                 style={{
                   backgroundColor: "#F8FAFC",
-                  padding: 12,
+                  padding: 10,
                   borderBottomWidth: 1,
                   borderBottomColor: "#E2E8F0",
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: 8,
+                  gap: 6,
                 }}
               >
                 <View style={{ width: 16, height: 16 }}>
@@ -2297,7 +2401,7 @@ const PlutoToursPDF = ({
               </View>
 
               {/* Inclusions List */}
-              <View style={{ padding: 16, gap: 12 }}>
+              <View style={{ padding: 12, gap: 8 }}>
                 {/* Hotels */}
                 <View
                   style={{
@@ -2319,25 +2423,39 @@ const PlutoToursPDF = ({
                 {/* Main Inclusions - Fixed HTML parsing */}
                 {packageSummary?.package?.packageInclusions && (
                   <View style={pdfStyles.exclusionsList}>
-                    {packageSummary.package.packageInclusions
-                      .split("</p>")
-                      .map((item) => decodeHtmlEntities(item))
-                      .filter(Boolean) // Remove empty strings
-                      .map((inclusion, index) => (
-                        <View key={index} style={pdfStyles.exclusionItem}>
-                          <View style={pdfStyles.bulletPoint} />
-                          <Text style={pdfStyles.exclusionText}>
-                            {inclusion}
-                          </Text>
-                        </View>
-                      ))}
+                    {parseHtmlContent(packageSummary.package.packageInclusions).map((textSegments, index) => (
+                      <View key={index} style={pdfStyles.exclusionItem}>
+                        <View style={pdfStyles.bulletPoint} />
+                        <Text style={pdfStyles.exclusionText}>
+                          {Array.isArray(textSegments) ? (
+                            textSegments.map((segment, segIdx) => (
+                              <Text 
+                                key={segIdx} 
+                                style={segment.bold ? { fontWeight: 'bold', fontFamily: 'Helvetica-Bold' } : {}}
+                              >
+                                {segment.text}
+                              </Text>
+                            ))
+                          ) : (
+                            textSegments
+                          )}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 )}
               </View>
             </View>
 
             {/* Package Exclusions Section */}
-            <View style={pdfStyles.exclusionsContainer}>
+            <View style={{
+              marginBottom: 12,
+              padding: 12,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: "#E2E8F0",
+            }}>
               {/* Header */}
               <View style={pdfStyles.exclusionsHeader}>
                 <Icons.Close />
@@ -2349,16 +2467,25 @@ const PlutoToursPDF = ({
               {/* Main Exclusions - Fixed HTML parsing */}
               {packageSummary?.package?.packageExclusions && (
                 <View style={pdfStyles.exclusionsList}>
-                  {packageSummary.package.packageExclusions
-                    .split("</p>")
-                    .map((item) => decodeHtmlEntities(item))
-                    .filter(Boolean) // Remove empty strings
-                    .map((exclusion, index) => (
-                      <View key={index} style={pdfStyles.exclusionItem}>
-                        <View style={pdfStyles.bulletPoint} />
-                        <Text style={pdfStyles.exclusionText}>{exclusion}</Text>
-                      </View>
-                    ))}
+                  {parseHtmlContent(packageSummary.package.packageExclusions).map((textSegments, index) => (
+                    <View key={index} style={pdfStyles.exclusionItem}>
+                      <View style={pdfStyles.bulletPoint} />
+                      <Text style={pdfStyles.exclusionText}>
+                        {Array.isArray(textSegments) ? (
+                          textSegments.map((segment, segIdx) => (
+                            <Text 
+                              key={segIdx} 
+                              style={segment.bold ? { fontWeight: 'bold', fontFamily: 'Helvetica-Bold' } : {}}
+                            >
+                              {segment.text}
+                            </Text>
+                          ))
+                        ) : (
+                          textSegments
+                        )}
+                      </Text>
+                    </View>
+                  ))}
                 </View>
               )}
               {/* Custom Exclusions - Fixed HTML parsing and bullet points */}
@@ -2380,26 +2507,42 @@ const PlutoToursPDF = ({
                         {section.name}
                       </Text>
                     </View>
-                    {/* Parse HTML content properly with entity decoding */}
-                    {section.description
-                      ?.replace(/<p>/g, "") // Remove opening p tags
-                      .split("</p>") // Split by closing p tags
-                      .map((item) => decodeHtmlEntities(item))
-                      .filter((item) => item && item.length > 0) // Remove empty items
-                      .map((item, idx) => (
-                        <View key={idx} style={pdfStyles.exclusionItem}>
-                          <View style={pdfStyles.bulletPoint} />
-                          <Text style={pdfStyles.exclusionText}>{item}</Text>
-                        </View>
-                      ))}
+                    {/* Parse HTML content properly with list items and formatting */}
+                    {parseHtmlContent(section.description).map((textSegments, idx) => (
+                      <View key={idx} style={pdfStyles.exclusionItem}>
+                        <View style={pdfStyles.bulletPoint} />
+                        <Text style={pdfStyles.exclusionText}>
+                          {Array.isArray(textSegments) ? (
+                            textSegments.map((segment, segIdx) => (
+                              <Text 
+                                key={segIdx} 
+                                style={segment.bold ? { fontWeight: 'bold', fontFamily: 'Helvetica-Bold' } : {}}
+                              >
+                                {segment.text}
+                              </Text>
+                            ))
+                          ) : (
+                            textSegments
+                          )}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 )
               )}
             </View>
+            {/* Account Details Section */}
             <AccountDetailsSection />
 
             {/* Package Cost Section */}
-            <View style={pdfStyles.costContainer}>
+            <View style={{
+              marginBottom: 12,
+              padding: 12,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: "#E2E8F0",
+            }}>
               {/* Package Cost Card */}
               <View
                 style={{
@@ -2486,14 +2629,14 @@ const PlutoToursPDF = ({
             {/* Enhanced Agent Info Box */}
             <View
               style={{
-                marginBottom: 24,
-                padding: 16,
+                marginBottom: 16,
+                padding: 12,
                 backgroundColor: "#F8FAFC",
                 borderRadius: 8,
                 borderWidth: 1,
                 borderColor: "#E2E8F0",
                 position: "relative",
-                marginTop: 24,
+                marginTop: 12,
               }}
             >
               {/* Decorative Element */}
@@ -2673,16 +2816,33 @@ const PlutoToursPDF = ({
             </View>
 
             {/* Environmental Note */}
-            <View style={pdfStyles.environmentalNote}>
-              <Text style={pdfStyles.environmentalText}>
-                Please think twice before printing this mail. Save paper, it's
-                good for the environment.
+            <View style={{
+              marginBottom: 12,
+              padding: 8,
+              backgroundColor: "#F0FDF4",
+              borderRadius: 6,
+              borderWidth: 1,
+              borderColor: "#BBF7D0",
+            }}>
+              <Text style={{
+                fontSize: 9,
+                color: "#166534",
+                textAlign: "center",
+                fontStyle: "italic",
+              }}>
+                Please think twice before printing this mail. Save paper, it's good for the environment.
               </Text>
             </View>
-            {/* Break to new page before Policy Section */}
 
             {/* Date Change Policy Section */}
-            <View style={pdfStyles.policySection}>
+            <View style={{
+              marginBottom: 16,
+              padding: 12,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: "#E2E8F0",
+            }}>
               <Text style={pdfStyles.policyTitle}>Date Change Policy</Text>
 
               <View style={pdfStyles.policyContainer}>
@@ -2759,8 +2919,22 @@ const PlutoToursPDF = ({
             </View>
           </View>
         </View>
+      </Page>
 
-        {/* Add the footer */}
+      {/* Second Page - Footer and Additional Info */}
+      <Page
+        size="A4"
+        style={{
+          ...pdfStyles.page,
+          paddingTop: 20,
+          paddingBottom: 20,
+          paddingLeft: 20,
+          paddingRight: 20,
+          backgroundColor: "#ffffff",
+        }}
+        wrap={true}
+      >
+        {/* Footer Content */}
         <CompanyFooter />
       </Page>
     </Document>
@@ -2879,14 +3053,11 @@ const AccountDetailsSection = () => (
 const CompanyFooter = () => (
   <View
     style={{
-      position: "absolute",
-      bottom: 0,
-      left: 0,
-      right: 0,
+      flex: 1,
       padding: 20,
       backgroundColor: "rgb(45 45 68)",
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
+      borderRadius: 16,
+      marginTop: 20,
     }}
   >
     {/* Company Logo and Name Section */}
@@ -2902,9 +3073,9 @@ const CompanyFooter = () => (
     >
       <Image
         style={{
-          width: 100,
-          height: 120,
-          marginRight: 15,
+          width: 80,
+          height: 100,
+          marginRight: 12,
         }}
         source="https://res.cloudinary.com/dcp1ev1uk/image/upload/v1749122411/PTW_Holidays_Logo_1_mgi4uu.png"
       />
@@ -2913,7 +3084,7 @@ const CompanyFooter = () => (
         <Text
           style={{
             color: "#FFFFFF",
-            fontSize: 24,
+            fontSize: 20,
             fontWeight: "bold",
             fontFamily: "Helvetica-Bold",
           }}
@@ -2923,10 +3094,10 @@ const CompanyFooter = () => (
         <Text
           style={{
             color: "#E2E8F0",
-            fontSize: 12,
+            fontSize: 10,
             marginTop: 4,
           }}
-        ></Text>
+        >Your Trusted Travel Partner</Text>
       </View>
     </View>
 
@@ -2952,7 +3123,7 @@ const CompanyFooter = () => (
         <Text
           style={{
             color: "#FFFFFF",
-            fontSize: 10,
+            fontSize: 9,
           }}
         >
           Sheryl Villa 2nd Floor, near Taste buds restaurant, Panthaghati,
@@ -2975,7 +3146,7 @@ const CompanyFooter = () => (
         <Text
           style={{
             color: "#FFFFFF",
-            fontSize: 10,
+            fontSize: 9,
           }}
         >
           +91-8353056000
@@ -2997,7 +3168,7 @@ const CompanyFooter = () => (
         <Text
           style={{
             color: "#FFFFFF",
-            fontSize: 10,
+            fontSize: 9,
           }}
         >
           www.ptwholidays.com
@@ -3053,9 +3224,9 @@ const CompanyFooter = () => (
     <Text
       style={{
         color: "#CBD5E1",
-        fontSize: 8,
+        fontSize: 7,
         textAlign: "center",
-        marginTop: 10,
+        marginTop: 8,
       }}
     >
       © {new Date().getFullYear()} PTW Holidays. All rights reserved.

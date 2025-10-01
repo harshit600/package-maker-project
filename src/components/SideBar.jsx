@@ -131,7 +131,7 @@ const [isLoading, setIsLoading] = useState(true);
               </svg>
             </button>
           </div>
-
+       
           {/* User Info Section - Updated styling with responsive design */}
           {userData ? (
             <div className="mb-4 sm:mb-6 text-center p-3 sm:p-4 bg-white/10 backdrop-blur-md rounded-lg">
@@ -238,6 +238,65 @@ const [isLoading, setIsLoading] = useState(true);
             <div className="space-y-1 sm:space-y-1.5">
               {userData?.userType === "For B2B Sale" || userData?.userType === "For Internal sale" ? (
                 <>
+                
+                <div
+                        onClick={() => handleNavigation("/sale-dashboard")}
+                        className={`flex items-center px-2 sm:px-3 py-2 text-xs sm:text-sm rounded-lg transition-all duration-200 cursor-pointer group ${
+                          isActive("/sale-dashboard")
+                            ? "bg-white text-[#2d2d44]"
+                            : "text-white hover:bg-[rgb(59,130,246,0.5)]"
+                        }`}
+                      >
+                        <svg
+                          className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                            isActive("/sale-dashboard")
+                              ? "text-blue-600"
+                              : "text-white group-hover:text-blue-600"
+                          }`}
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                          />
+                        </svg>
+                        <span className="ml-2 sm:ml-3 font-medium truncate"> Dashboard </span>
+                      </div>
+                 {  userData?.designation == "team leader" && (
+          <div
+                        onClick={() => handleNavigation("/package-approve")}
+                        className={`flex items-center px-2 sm:px-3 py-2 text-xs sm:text-sm rounded-lg transition-all duration-200 cursor-pointer group ${
+                          isActive("/hotel-manager")
+                            ? "bg-white text-[#2d2d44]"
+                            : "text-white hover:bg-[rgb(59,130,246,0.5)]"
+                        }`}
+                      >
+                        <svg
+                          className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                            isActive("/package-approve")
+                              ? "text-blue-600"
+                              : "text-white group-hover:text-blue-600"
+                          }`}
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                          />
+                        </svg>
+                        <span className="ml-2 sm:ml-3 font-medium truncate">Package Approval </span>
+                      </div>
+                      )}
                   {/* B2B Sale and Internal Sale specific menu items */}
                   <div
                     onClick={() => handleNavigation("/leads")}
@@ -325,35 +384,7 @@ const [isLoading, setIsLoading] = useState(true);
                     <span className="ml-2 sm:ml-3 font-medium truncate">All Leads</span>
                   </div>
                 
-                  {/* Added Packages for B2B Sale */}
-                  <div
-                    onClick={() => handleNavigation("/packages")}
-                    className={`flex items-center px-2 sm:px-3 py-2 text-xs sm:text-sm rounded-lg transition-all duration-200 cursor-pointer group ${
-                      isActive("/packages")
-                        ? "bg-white text-[#2d2d44]"
-                        : "text-white hover:bg-[rgb(59,130,246,0.5)]"
-                    }`}
-                  >
-                    <svg
-                      className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
-                        isActive("/packages")
-                          ? "text-blue-600"
-                          : "text-white group-hover:text-blue-600"
-                      }`}
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
-                      />
-                    </svg>
-                    <span className="ml-2 sm:ml-3 font-medium truncate">Packages</span>
-                  </div>
+                 
                 </>
               ) : (
                 <>

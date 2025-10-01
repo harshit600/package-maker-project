@@ -17,21 +17,31 @@ const RoomSlider = ({
     const firstRoom = selectedHotelForRooms?.rooms?.data?.[0];
     if (!firstRoom) return null;
 
+    // Validate travelDate exists and is valid
+    if (!travelDate) return firstRoom.baseRate;
+
     // Calculate the actual date based on day number - Fix the date calculation
     const baseDate = new Date(travelDate);
+    // Check if baseDate is valid
+    if (isNaN(baseDate.getTime())) return firstRoom.baseRate;
+    
     const dayOffset = (selectedDayForHotelSlider?.day || 1) - 1;
     const actualDate = new Date(baseDate.getTime() + (dayOffset * 24 * 60 * 60 * 1000));
-   
+    
+    // Check if actualDate is valid
+    if (isNaN(actualDate.getTime())) return firstRoom.baseRate;
     
     const roomInventory = selectedHotelForRooms?.inventory?.b2c?.[firstRoom.roomName];
     const planRates = roomInventory?.rates?.[mealPlan];
     
-    if (planRates && actualDate) {
+    if (planRates) {
       // Check all rate periods (1, 2, 3, 4, etc.)
       for (const period in planRates) {
         if (Array.isArray(planRates[period]) && planRates[period].length > 0) {
           const matchingRate = planRates[period].find(rate => {
             const rateDate = new Date(rate.date);
+            // Validate rateDate
+            if (isNaN(rateDate.getTime())) return false;
             // Compare dates without time component
             const rateDateStr = rateDate.toISOString().split('T')[0];
             const actualDateStr = actualDate.toISOString().split('T')[0];
@@ -173,25 +183,36 @@ const RoomSlider = ({
                                       .map(([plan, planData]) => {
                                         const travelDate = selectedLead?.travelDate;
                                         const dayOffset = (selectedDayForHotelSlider?.day || 1) - 1;
-                                        // Fix date calculation - use getTime() to avoid mutating original date
-                                        const baseDate = new Date(travelDate);
-                                        const actualDate = new Date(baseDate.getTime() + (dayOffset * 24 * 60 * 60 * 1000));
                                         let matchingRate = null;
-
-
-                                        // Look through all rate periods
-                                        if (planData) {
-                                          for (const period in planData) {
-                                            if (Array.isArray(planData[period]) && planData[period].length > 0) {
-                                              const foundRate = planData[period].find(rate => {
-                                                const rateDate = new Date(rate.date);
-                                                const rateDateStr = rateDate.toISOString().split('T')[0];
-                                                const actualDateStr = actualDate.toISOString().split('T')[0];
-                                                return rateDateStr === actualDateStr;
-                                              });
-                                              if (foundRate) {
-                                                matchingRate = foundRate;
-                                                break;
+                                        
+                                        // Validate travelDate before proceeding
+                                        if (travelDate) {
+                                          // Fix date calculation - use getTime() to avoid mutating original date
+                                          const baseDate = new Date(travelDate);
+                                          // Check if baseDate is valid
+                                          if (!isNaN(baseDate.getTime())) {
+                                            const actualDate = new Date(baseDate.getTime() + (dayOffset * 24 * 60 * 60 * 1000));
+                                            
+                                            // Check if actualDate is valid
+                                            if (!isNaN(actualDate.getTime())) {
+                                              // Look through all rate periods
+                                              if (planData) {
+                                                for (const period in planData) {
+                                                  if (Array.isArray(planData[period]) && planData[period].length > 0) {
+                                                    const foundRate = planData[period].find(rate => {
+                                                      const rateDate = new Date(rate.date);
+                                                      // Validate rateDate
+                                                      if (isNaN(rateDate.getTime())) return false;
+                                                      const rateDateStr = rateDate.toISOString().split('T')[0];
+                                                      const actualDateStr = actualDate.toISOString().split('T')[0];
+                                                      return rateDateStr === actualDateStr;
+                                                    });
+                                                    if (foundRate) {
+                                                      matchingRate = foundRate;
+                                                      break;
+                                                    }
+                                                  }
+                                                }
                                               }
                                             }
                                           }
@@ -220,9 +241,14 @@ const RoomSlider = ({
                                               const childCharge = roomInventory?.rates?.childCharge ? 
                                                 (() => {
                                                   const travelDate = selectedLead?.travelDate;
+                                                  if (!travelDate) return room.childCharge || 0;
+                                                  
                                                   const dayOffset = (selectedDayForHotelSlider?.day || 1) - 1;
                                                   const baseDate = new Date(travelDate);
+                                                  if (isNaN(baseDate.getTime())) return room.childCharge || 0;
+                                                  
                                                   const actualDate = new Date(baseDate.getTime() + (dayOffset * 24 * 60 * 60 * 1000));
+                                                  if (isNaN(actualDate.getTime())) return room.childCharge || 0;
                                                   
                                                   // Look for matching rate in childCharge data
                                                   const childRates = roomInventory.rates.childCharge;
@@ -230,6 +256,7 @@ const RoomSlider = ({
                                                     if (Array.isArray(childRates[period]) && childRates[period].length > 0) {
                                                       const foundRate = childRates[period].find(rate => {
                                                         const rateDate = new Date(rate.date);
+                                                        if (isNaN(rateDate.getTime())) return false;
                                                         const rateDateStr = rateDate.toISOString().split('T')[0];
                                                         const actualDateStr = actualDate.toISOString().split('T')[0];
                                                         return rateDateStr === actualDateStr;
@@ -244,9 +271,14 @@ const RoomSlider = ({
                                               const extraAdultCharge = roomInventory?.rates?.extraBed ? 
                                                 (() => {
                                                   const travelDate = selectedLead?.travelDate;
+                                                  if (!travelDate) return room.extraAdultCharge || 0;
+                                                  
                                                   const dayOffset = (selectedDayForHotelSlider?.day || 1) - 1;
                                                   const baseDate = new Date(travelDate);
+                                                  if (isNaN(baseDate.getTime())) return room.extraAdultCharge || 0;
+                                                  
                                                   const actualDate = new Date(baseDate.getTime() + (dayOffset * 24 * 60 * 60 * 1000));
+                                                  if (isNaN(actualDate.getTime())) return room.extraAdultCharge || 0;
                                                   
                                                   // Look for matching rate in extraBed data
                                                   const extraBedRates = roomInventory.rates.extraBed;
@@ -254,6 +286,7 @@ const RoomSlider = ({
                                                     if (Array.isArray(extraBedRates[period]) && extraBedRates[period].length > 0) {
                                                       const foundRate = extraBedRates[period].find(rate => {
                                                         const rateDate = new Date(rate.date);
+                                                        if (isNaN(rateDate.getTime())) return false;
                                                         const rateDateStr = rateDate.toISOString().split('T')[0];
                                                         const actualDateStr = actualDate.toISOString().split('T')[0];
                                                         return rateDateStr === actualDateStr;

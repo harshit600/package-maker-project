@@ -1,0 +1,3125 @@
+import { useEffect, useState } from "react";
+import { Icons, pdfStyles } from "./newFile";
+
+import {
+  Document,
+  Page,
+  View,
+  Text,
+} from "@react-pdf/renderer";
+import { Image } from "@react-pdf/renderer";
+
+
+
+// Add this helper function at the top of the component
+const decodeHtmlEntities = (text) => {
+  if (!text) return "";
+  return text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/<[^>]*>/g, "") // Remove HTML tags
+    .trim();
+};
+
+// Update the PackagePDF component
+const PlutoToursPDF = ({
+  packageSummary,
+  showMargin,
+  showDiscount,
+  discountAmount,
+  activeDiscountPercentage,
+  finalTotal,
+  getCurrentMarginPercentage,
+  companyName = "PTW Holidays",
+  selectedLead,
+  colorTheme,
+}) => {
+  const [destinationImages, setDestinationImages] = useState([]);
+
+  useEffect(() => {
+    const fetchDestinationImages = async () => {
+      try {
+        // Extract location from package name and create a better search query
+        const packageName = packageSummary.package?.packageName || "";
+
+        // Extract main destination keywords
+        let searchTerm = packageName
+          .toLowerCase()
+          .replace(/tour package|tour|package|heaven/gi, "")
+          .trim();
+
+        // Add "tourism" or "landscape" to get better travel-related images
+        searchTerm = `${searchTerm} tourism landscape`;
+
+        const response = await fetch(
+          `https://api.pexels.com/v1/search?query=${searchTerm}&per_page=3&orientation=landscape`,
+          {
+            headers: {
+              Authorization: `s7bpT61DC6XnYdLXzNIb9VOeh3HJUifJ1SDaypfNL5X361wMLohDXVhu`,
+            },
+          }
+        );
+        const data = await response.json();
+
+        if (data.photos && data.photos.length >= 3) {
+          setDestinationImages(data.photos.map((photo) => photo.src.large));
+        } else {
+          // If not enough relevant images, try a more generic search
+          const fallbackResponse = await fetch(
+            `https://api.pexels.com/v1/search?query=${searchTerm} mountains nature&per_page=3&orientation=landscape`,
+            {
+              headers: {
+                Authorization: `s7bpT61DC6XnYdLXzNIb9VOeh3HJUifJ1SDaypfNL5X361wMLohDXVhu`,
+              },
+            }
+          );
+          const fallbackData = await fallbackResponse.json();
+          setDestinationImages(
+            fallbackData.photos.map((photo) => photo.src.large)
+          );
+        }
+      } catch (error) {
+        console.error("Error fetching images:", error);
+        // Fallback to default images
+        setDestinationImages([
+          "https://res.cloudinary.com/dcp1ev1uk/image/upload/v1724223741/himaclahimg2_cs0qvm.jpg",
+          "https://res.cloudinary.com/dcp1ev1uk/image/upload/v1724223742/himaclahimg3_klatkm.jpg",
+          "https://res.cloudinary.com/dcp1ev1uk/image/upload/v1724223742/himaclahimg4_ujs3z9.jpg",
+        ]);
+      }
+    };
+
+    fetchDestinationImages();
+  }, [packageSummary.package?.packageName]);
+
+  // Define color schemes
+  const colors = {
+    default: {
+      primary: "#2d2d44",
+      secondary: "#1E293B",
+      accent: "#3B82F6",
+      light: "#E2E8F0",
+      background: "#F8FAFC",
+    },
+    orange: {
+      primary: "#EA580C", // Orange-600
+      secondary: "#C2410C", // Orange-700
+      accent: "#F97316", // Orange-500
+      light: "#FFEDD5", // Orange-100
+      background: "#FFF7ED", // Orange-50
+    },
+  };
+
+  // Use the selected color scheme
+  const theme = colorTheme === "orange" ? colors.orange : colors.default;
+
+  // Update styles to use the theme colors
+  const styles = {
+    header: {
+      backgroundColor: theme.primary,
+      // ... other styles
+    },
+    title: {
+      color: theme.secondary,
+      // ... other styles
+    },
+    // ... update other style objects to use theme colors
+  };
+
+  return (
+    <Document>
+      {/* First Page - Main Content */}
+      <Page
+        size="A4"
+        style={{
+          ...pdfStyles.page,
+          paddingTop: 20,
+          paddingBottom: 40,
+          paddingLeft: 20,
+          paddingRight: 20,
+          backgroundColor: "#ffffff",
+          position: "relative",
+        }}
+        wrap={true}
+        break={true}
+      >
+        {/* Main Content Container */}
+        <View
+          style={{
+            flex: 1,
+            marginBottom: 20,
+          }}
+        >
+          {/* Modern Professional Header */}
+          <View
+            style={{
+              padding: 20,
+              borderBottomLeftRadius: 16,
+              borderBottomRightRadius: 16,
+              marginBottom: 16,
+              position: "relative",
+              overflow: "hidden",
+              backgroundColor: "#2b6887",
+            }}
+          >
+            {/* Background Pattern */}
+            <View
+              style={{
+                position: "absolute",
+                top: -50,
+                right: -50,
+                width: 200,
+                height: 200,
+                backgroundColor: "#2b6887",
+                borderRadius: 100,
+                opacity: 0.3,
+              }}
+            />
+            <View
+              style={{
+                position: "absolute",
+                bottom: -30,
+                left: -30,
+                width: 150,
+                height: 150,
+                backgroundColor: "rgba(255, 255, 255, 0.05)",
+                borderRadius: 75,
+                opacity: 0.2,
+              }}
+            />
+
+            {/* Top Brand Section */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+                paddingBottom: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: "rgba(255, 255, 255, 0.2)",
+              }}
+            >
+              {/* Company Info */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <View
+                  style={{
+                    width: 50,
+                    height: 50,
+                    backgroundColor: "rgba(255, 255, 255, 0.2)",
+                    borderRadius: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backdropFilter: "blur(10px)",
+                  }}
+                >
+                  <Image
+                    style={{
+                      width: 35,
+                      height: 35,
+                      objectFit: "contain",
+                    }}
+                    source="https://res.cloudinary.com/dcp1ev1uk/image/upload/v1749216057/jhjhgjhgjg_i8ti9h.png"
+                  />
+                </View>
+                <View>
+                  <Text
+                    style={{
+                      fontSize: 18,
+                      fontWeight: "bold",
+                      color: "#FFFFFF",
+                      marginBottom: 2,
+                    }}
+                  >
+                    PTW Holidays Pvt. Ltd.
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      color: "rgba(255, 255, 255, 0.8)",
+                      fontWeight: "500",
+                    }}
+                  >
+                    Your Trusted Travel Partner
+                  </Text>
+                </View>
+              </View>
+
+              {/* Contact Info */}
+              <View
+                style={{
+                  alignItems: "flex-end",
+                  gap: 6,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    backgroundColor: "rgba(255, 255, 255, 0.1)",
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 20,
+                    backdropFilter: "blur(10px)",
+                  }}
+                >
+                  <View style={{ width: 12, height: 12 }}>
+                    <Icons.Email width={12} height={12} color="#FFFFFF" />
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: "#FFFFFF",
+                      fontWeight: "500",
+                    }}
+                  >
+                    info@ptwholidays.com
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    backgroundColor: "rgba(255, 255, 255, 0.1)",
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 20,
+                    backdropFilter: "blur(10px)",
+                  }}
+                >
+                  <View style={{ width: 12, height: 12 }}>
+                    <Icons.Phone width={12} height={12} color="#FFFFFF" />
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: "#FFFFFF",
+                      fontWeight: "500",
+                    }}
+                  >
+                    +91-8353056000
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Main Header Content */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "flex-end",
+              }}
+            >
+              {/* Left Section - Customer & Package Info */}
+              <View style={{ flex: 0.65 }}>
+                {/* Customer Welcome */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: 8,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 24,
+                      height: 24,
+                      backgroundColor: "rgba(255, 255, 255, 0.2)",
+                      borderRadius: 12,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <View style={{ width: 14, height: 14 }}>
+                      <Icons.User width={14} height={14} color="#FFFFFF" />
+                    </View>
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: "rgba(255, 255, 255, 0.9)",
+                      fontWeight: "500",
+                    }}
+                  >
+                    Personalized for
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "bold",
+                      color: "#FFFFFF",
+                    }}
+                  >
+                    {selectedLead?.name || "Valued Customer"}
+                  </Text>
+                </View>
+
+                {/* Package Name */}
+                <Text
+                  style={{
+                    fontSize: 28,
+                    fontWeight: "bold",
+                    color: "#FFFFFF",
+                    marginBottom: 12,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {packageSummary.package?.packageName ||
+                    "Exclusive Travel Package"}
+                </Text>
+
+                {/* Package Details Row */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {/* Duration Badge */}
+                  <View
+                    style={{
+                      backgroundColor: "rgba(255, 255, 255, 0.2)",
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 20,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <View style={{ width: 12, height: 12 }}>
+                      <Icons.Calendar width={12} height={12} color="#FFFFFF" />
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "600",
+                        color: "#FFFFFF",
+                      }}
+                    >
+                      {packageSummary.package?.duration || "5N/6D"}
+                    </Text>
+                  </View>
+
+                  {/* Package Type Badge */}
+                  <View
+                    style={{
+                      backgroundColor: "rgba(255, 255, 255, 0.15)",
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 20,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <View style={{ width: 12, height: 12 }}>
+                      <Icons.Star width={12} height={12} color="#FFFFFF" />
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "600",
+                        color: "#FFFFFF",
+                      }}
+                    >
+                      {packageSummary.package?.packageType || "Premium Package"}
+                    </Text>
+                  </View>
+
+                  {/* Customizable Badge */}
+                  <View
+                    style={{
+                      backgroundColor: packageSummary.package
+                        ?.customizablePackage
+                        ? "rgba(34, 197, 94, 0.3)"
+                        : "rgba(239, 68, 68, 0.3)",
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 20,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <View style={{ width: 12, height: 12 }}>
+                      <Icons.Check width={12} height={12} color="#FFFFFF" />
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "600",
+                        color: "#FFFFFF",
+                      }}
+                    >
+                      {packageSummary.package?.customizablePackage
+                        ? "Customizable"
+                        : "Fixed"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Right Section - Pricing */}
+              <View
+                style={{
+                  flex: 0.3,
+                  alignItems: "flex-end",
+                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  padding: 16,
+                  borderRadius: 16,
+                  backdropFilter: "blur(10px)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255, 255, 255, 0.2)",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: "rgba(255, 255, 255, 0.8)",
+                    marginBottom: 4,
+                    fontWeight: "500",
+                  }}
+                >
+                  Total Package Cost
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 10,
+                    color: "rgba(255, 255, 255, 0.8)",
+                    marginBottom: 4,
+                    fontWeight: "500",
+                  }}
+                >
+                  With 5% GST included
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 32,
+                    fontWeight: "bold",
+                    color: "#FFFFFF",
+                    marginBottom: 4,
+                  }}
+                >
+                  Rs.
+                  {showMargin
+                    ? finalTotal.toFixed(0)
+                    : packageSummary.totals.grandTotal}
+                </Text>
+
+                {activeDiscountPercentage > 0 && (
+                  <View
+                    style={{
+                      backgroundColor: "rgba(34, 197, 94, 0.3)",
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 12,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        color: "#FFFFFF",
+                        fontWeight: "600",
+                      }}
+                    >
+                      {activeDiscountPercentage}% OFF Applied
+                    </Text>
+                  </View>
+                )}
+
+                <View
+                  style={{
+                    flexDirection: "row",
+                    gap: 8,
+                    marginTop: 8,
+                    paddingTop: 8,
+                    borderTopWidth: 1,
+                    borderTopColor: "rgba(255, 255, 255, 0.2)",
+                  }}
+                >
+                  <View
+                    style={{
+                      backgroundColor: "rgba(255, 255, 255, 0.2)",
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 8,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 9,
+                        color: "#FFFFFF",
+                        fontWeight: "500",
+                      }}
+                    >
+                      Adults: {selectedLead?.adults || "0"}
+                    </Text>
+                  </View>
+                  <View
+                    style={{
+                      backgroundColor: "rgba(255, 255, 255, 0.2)",
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 8,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 9,
+                        color: "#FFFFFF",
+                        fontWeight: "500",
+                      }}
+                    >
+                      Children: {selectedLead?.kids || "0"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Image Gallery Section */}
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              marginVertical: 16,
+              marginHorizontal: 0,
+            }}
+          >
+            {destinationImages.map((imageUrl, index) => (
+              <View
+                key={index}
+                style={{
+                  flex: 1,
+                  height: 150,
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  borderWidth: 1,
+                  borderColor: "#E2E8F0",
+                }}
+              >
+                <Image
+                  source={imageUrl}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                />
+              </View>
+            ))}
+          </View>
+
+          {/* Lead Details Section */}
+          <View style={{
+            marginBottom: 16,
+            padding: 12,
+            backgroundColor: "#F8FAFC",
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: "#E2E8F0",
+          }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 12,
+                gap: 8,
+              }}
+            >
+              <View style={{ width: 14, height: 14 }}>
+                <Icons.User width={14} height={14} color="#2d2d44" />
+              </View>
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "bold",
+                  color: "#1E293B",
+                }}
+              >
+                Your Details
+              </Text>
+            </View>
+
+            {/* Combined Info Grid */}
+            <View
+              style={{
+                backgroundColor: "#F8FAFC",
+                padding: 12,
+                borderRadius: 6,
+                borderWidth: 1,
+                borderColor: "#E2E8F0",
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: 16,
+                }}
+              >
+                {/* Personal Info */}
+                <View style={{ flex: 1, minWidth: 200 }}>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: "#000",
+                      marginBottom: 8,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Personal Information
+                  </Text>
+                  <View style={{ gap: 4 }}>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Text
+                        style={{ fontSize: 9, color: "#64748B", width: 60 }}
+                      >
+                        Name:
+                      </Text>
+                      <Text style={{ fontSize: 9, color: "#1E293B", flex: 1 }}>
+                        {selectedLead?.name || "N/A"}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Text
+                        style={{ fontSize: 9, color: "#64748B", width: 60 }}
+                      >
+                        Contact:
+                      </Text>
+                      <Text style={{ fontSize: 9, color: "#1E293B", flex: 1 }}>
+                        {selectedLead?.mobile || "N/A"}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Text
+                        style={{ fontSize: 9, color: "#64748B", width: 60 }}
+                      >
+                        Email:
+                      </Text>
+                      <Text style={{ fontSize: 9, color: "#1E293B", flex: 1 }}>
+                        {selectedLead?.email || "N/A"}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Travel Info */}
+                <View style={{ flex: 1, minWidth: 200 }}>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: "#000",
+                      marginBottom: 8,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Travel Information
+                  </Text>
+                  <View style={{ gap: 4 }}>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Text
+                        style={{ fontSize: 9, color: "#64748B", width: 60 }}
+                      >
+                        Date:
+                      </Text>
+                      <Text style={{ fontSize: 9, color: "#1E293B", flex: 1 }}>
+                        {selectedLead?.travelDate
+                          ? new Date(
+                              selectedLead.travelDate
+                            ).toLocaleDateString()
+                          : "N/A"}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Text
+                        style={{ fontSize: 9, color: "#64748B", width: 60 }}
+                      >
+                        Duration:
+                      </Text>
+                      <Text style={{ fontSize: 9, color: "#1E293B", flex: 1 }}>
+                        {selectedLead?.nights || "0"} Nights /{" "}
+                        {selectedLead?.days || "0"} Days
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Text
+                        style={{ fontSize: 9, color: "#64748B", width: 60 }}
+                      >
+                        Package:
+                      </Text>
+                      <Text style={{ fontSize: 9, color: "#1E293B", flex: 1 }}>
+                        {selectedLead?.packageType || "N/A"}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Guest Info */}
+                <View style={{ flex: 1, minWidth: 200 }}>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: "#64748B",
+                      marginBottom: 8,
+                      fontWeight: "500",
+                    }}
+                  >
+                    Guest Information
+                  </Text>
+                  <View
+                    style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}
+                  >
+                    <View
+                      style={{ flexDirection: "row", gap: 4, minWidth: 80 }}
+                    >
+                      <Text style={{ fontSize: 9, color: "#64748B" }}>
+                        Adults:
+                      </Text>
+                      <Text style={{ fontSize: 9, color: "#1E293B" }}>
+                        {selectedLead?.adults || "0"}
+                      </Text>
+                    </View>
+                    <View
+                      style={{ flexDirection: "row", gap: 4, minWidth: 80 }}
+                    >
+                      <Text style={{ fontSize: 9, color: "#64748B" }}>
+                        Children:
+                      </Text>
+                      <Text style={{ fontSize: 9, color: "#1E293B" }}>
+                        {selectedLead?.kids || "0"}
+                      </Text>
+                    </View>
+                    <View
+                      style={{ flexDirection: "row", gap: 4, minWidth: 80 }}
+                    >
+                      <Text style={{ fontSize: 9, color: "#64748B" }}>
+                        Rooms:
+                      </Text>
+                      <Text style={{ fontSize: 9, color: "#1E293B" }}>
+                        {selectedLead?.noOfRooms || "0"}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+          <View style={{
+            marginBottom: 16,
+            padding: 12,
+            backgroundColor: "#F8FAFC",
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: "#E2E8F0",
+          }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 12,
+                gap: 8,
+              }}
+            >
+              <View style={{ width: 14, height: 14 }}>
+                <Icons.User width={14} height={14} color="#2d2d44" />
+              </View>
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "bold",
+                  color: "#1E293B",
+                }}
+              >
+                Package Description
+              </Text>
+            </View>
+            {packageSummary?.package?.packageDescription && (
+              <View
+                style={{
+                  marginBottom: 16,
+                  padding: 12,
+                  backgroundColor: "#F8FAFC",
+                  borderRadius: 8,
+                  borderLeftWidth: 3,
+                  borderLeftColor: "#2d2d44",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: "#374151",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {decodeHtmlEntities(
+                    packageSummary.package.packageDescription
+                  )}
+                </Text>
+              </View>
+            )}
+          </View>
+          {/* Enhanced Itinerary Overview with hotels and cab info */}
+          <View
+            style={{
+              marginTop: 8,
+              marginBottom: 12,
+              padding: 10,
+              backgroundColor: "#F8FAFC",
+              borderRadius: 6,
+              borderWidth: 1,
+              borderColor: "#E2E8F0",
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 8,
+                gap: 6,
+              }}
+            >
+              <View style={{ width: 14, height: 14 }}>
+                <Icons.Map width={14} height={14} color="#000000" />
+              </View>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "bold",
+                  color: "#1E293B",
+                }}
+              >
+                Journey Overview
+              </Text>
+            </View>
+
+            {/* Cities Timeline */}
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 12,
+                marginBottom: 12,
+                borderBottom: "1px solid #E2E8F0",
+                paddingBottom: 12,
+              }}
+            >
+              {packageSummary.package?.itineraryDays?.map((day, index) => {
+                const cityInfo = day.selectedItinerary;
+                const nextDay =
+                  packageSummary.package?.itineraryDays[index + 1];
+                const isLastDayInCity =
+                  !nextDay ||
+                  nextDay.selectedItinerary?.cityName !== cityInfo?.cityName;
+
+                if (
+                  index === 0 ||
+                  cityInfo?.cityName !==
+                    packageSummary.package?.itineraryDays[index - 1]
+                      .selectedItinerary?.cityName
+                ) {
+                  const daysInCity = packageSummary.package?.itineraryDays
+                    .slice(index)
+                    .filter((d, i, arr) => {
+                      if (i === 0) return true;
+                      return d.selectedItinerary?.cityName === cityInfo?.cityName;
+                    }).length;
+
+                  return (
+                    <View
+                      key={index}
+                      style={{
+                        backgroundColor: "#FFFFFF",
+                        borderRadius: 4,
+                        padding: 8,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        borderWidth: 1,
+                        borderColor: "#E2E8F0",
+                        minWidth: 120,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 22,
+                          height: 22,
+                          backgroundColor: "#EFF6FF",
+                          borderRadius: 11,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {/* <Text
+                          style={{
+                            fontSize: 10,
+                            fontWeight: "bold",
+                            color: "#2d2d44",
+                          }}
+                        >
+                          {daysInCity}
+                        </Text> */}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            fontSize: 10,
+                            fontWeight: "bold",
+                            color: "#1E293B",
+                          }}
+                        >
+                          {cityInfo?.cityName}
+                        </Text>
+                        {/* <Text
+                          style={{
+                            fontSize: 9,
+                            color: "#64748B",
+                          }}
+                        >
+                          {daysInCity} {daysInCity > 1 ? "Days" : "Day"}
+                        </Text> */}
+                      </View>
+                      {!isLastDayInCity && (
+                        <View
+                          style={{
+                            position: "absolute",
+                            right: -8,
+                            top: "50%",
+                            marginTop: -4,
+                            width: 6,
+                            height: 6,
+                            borderWidth: 1.5,
+                            borderColor: "#2d2d44",
+                            borderRadius: 3,
+                            backgroundColor: "#FFFFFF",
+                            zIndex: 1,
+                          }}
+                        />
+                      )}
+                    </View>
+                  );
+                }
+                return null;
+              })}
+            </View>
+
+            {/* Hotels and Transport Info with Costs */}
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+              {/* Hotels Summary */}
+              <View style={{ flex: 1 }}>
+                <View
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 8,
+                    padding: 8,
+                    borderWidth: 1,
+                    borderColor: "#E2E8F0",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 2,
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 6,
+                      borderBottom: "1px solid #E2E8F0",
+                      paddingBottom: 5,
+                    }}
+                  >
+                    <View
+                      style={{ flexDirection: "row", alignItems: "center" }}
+                    >
+                      <View style={{ width: 14, height: 14 }}>
+                        <Icons.Hotel width={14} height={14} color="#2d2d44" />
+                      </View>
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: "bold",
+                          color: "#1E293B",
+                          marginLeft: 5,
+                        }}
+                      >
+                        Your Hotels
+                      </Text>
+                    </View>
+                  </View>
+
+                  {packageSummary.hotels?.map((hotel, index) => (
+                    <View
+                      key={index}
+                      style={{
+                        marginBottom:
+                          index === packageSummary.hotels.length - 1 ? 0 : 6,
+                        backgroundColor: "#F8FAFC",
+                        borderRadius: 6,
+                        padding: 5,
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "flex-start",
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 10,
+                            color: "#1E293B",
+                            fontWeight: "600",
+                            marginBottom: 1,
+                            flex: 1,
+                          }}
+                        >
+                          {hotel.propertyName}
+                        </Text>
+                      </View>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 5,
+                        }}
+                      >
+                        <View
+                          style={{
+                            backgroundColor: "#EFF6FF",
+                            paddingHorizontal: 4,
+                            paddingVertical: 1,
+                            borderRadius: 3,
+                            flexDirection: "row",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 8,
+                              color: "#2d2d44",
+                              fontWeight: "500",
+                            }}
+                          >
+                            {hotel.basicInfo?.hotelStarRating}★
+                          </Text>
+                        </View>
+                        <Text
+                          style={{
+                            fontSize: 8,
+                            color: "#64748B",
+                            fontWeight: "500",
+                          }}
+                        >
+                          {hotel.mealPlan}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              {/* Transport Summary */}
+              <View style={{ flex: 1 }}>
+                <View
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 8,
+                    padding: 8,
+                    borderWidth: 1,
+                    borderColor: "#E2E8F0",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 2,
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 6,
+                      borderBottom: "1px solid #E2E8F0",
+                      paddingBottom: 5,
+                    }}
+                  >
+                    <View
+                      style={{ flexDirection: "row", alignItems: "center" }}
+                    >
+                      <View style={{ width: 14, height: 14 }}>
+                        <Icons.Car width={14} height={14} color="#2d2d44" />
+                      </View>
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: "bold",
+                          color: "#1E293B",
+                          marginLeft: 5,
+                        }}
+                      >
+                        Your Transport
+                      </Text>
+                    </View>
+                  </View>
+
+                  {packageSummary.transfer?.details?.length > 0 ? (
+  packageSummary?.transfer?.details?.map((cab, index) => (
+    <View
+      key={cab?._id || index}
+      style={{
+        backgroundColor: "#F8FAFC",
+        borderRadius: 6,
+        padding: 5,
+        marginBottom: 6, // Optional spacing between multiple cabs
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 10,
+            color: "#1E293B",
+            fontWeight: "600",
+            marginBottom: 1,
+          }}
+        >
+          {cab?.cabName || "Standard Vehicle"}
+        </Text>
+      </View>
+
+      <Text
+        style={{
+          fontSize: 9,
+          color: "#1E293B",
+          marginBottom: 2,
+        }}
+      >
+        {cab?.cabType || "Sedan"}
+      </Text>
+
+      <View style={{ flexDirection: "row", gap: 5, marginTop: 2 }}>
+        <View
+          style={{
+            backgroundColor: "#EFF6FF",
+            paddingHorizontal: 4,
+            paddingVertical: 1,
+            borderRadius: 3,
+            flexDirection: "row",
+            alignItems: "center",
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 8,
+              color: "#2d2d44",
+              fontWeight: "500",
+            }}
+          >
+            {cab?.vehicleCategory || ""}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            backgroundColor: "#EFF6FF",
+            paddingHorizontal: 4,
+            paddingVertical: 1,
+            borderRadius: 3,
+            flexDirection: "row",
+            alignItems: "center",
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 8,
+              color: "#2d2d44",
+              fontWeight: "500",
+            }}
+          >
+            {cab?.cabSeatingCapacity || "4"} Seater
+          </Text>
+        </View>
+      </View>
+    </View>
+  ))
+) : (
+  <View
+    style={{
+      backgroundColor: "#F8FAFC",
+      borderRadius: 6,
+      padding: 5,
+    }}
+  >
+    <Text
+      style={{
+        fontSize: 10,
+        color: "#1E293B",
+        fontWeight: "600",
+        marginBottom: 1,
+      }}
+    >
+      Standard Vehicle
+    </Text>
+    <Text
+      style={{
+        fontSize: 9,
+        color: "#1E293B",
+        marginBottom: 2,
+      }}
+    >
+      Sedan
+    </Text>
+    <View style={{ flexDirection: "row", gap: 5, marginTop: 2 }}>
+      <View
+        style={{
+          backgroundColor: "#EFF6FF",
+          paddingHorizontal: 4,
+          paddingVertical: 1,
+          borderRadius: 3,
+          flexDirection: "row",
+          alignItems: "center",
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 8,
+            color: "#2d2d44",
+            fontWeight: "500",
+          }}
+        >
+          {" "}
+        </Text>
+      </View>
+      <View
+        style={{
+          backgroundColor: "#EFF6FF",
+          paddingHorizontal: 4,
+          paddingVertical: 1,
+          borderRadius: 3,
+          flexDirection: "row",
+          alignItems: "center",
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 8,
+            color: "#2d2d44",
+            fontWeight: "500",
+          }}
+        >
+          4 Seater
+        </Text>
+      </View>
+    </View>
+  </View>
+)}
+
+                </View>
+              </View>
+            </View>
+
+            {/* Journey Stats */}
+            <View
+              style={{
+                marginTop: 12,
+                flexDirection: "row",
+                justifyContent: "space-around",
+                paddingTop: 12,
+                borderTopWidth: 1,
+                borderTopColor: "#E2E8F0",
+              }}
+            >
+              <View
+                style={{
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 9,
+                    color: "#64748B",
+                  }}
+                >
+                  Total Cities
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "bold",
+                    color: "#1E293B",
+                  }}
+                >
+                  {
+                    new Set(
+                      packageSummary.package?.itineraryDays?.map(
+                        (day) => day.selectedItinerary?.cityName
+                      )
+                    ).size
+                  }
+                </Text>
+              </View>
+              <View
+                style={{
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 9,
+                    color: "#64748B",
+                  }}
+                >
+                  Total Days
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "bold",
+                    color: "#1E293B",
+                  }}
+                >
+                  {packageSummary.package?.itineraryDays?.length}
+                </Text>
+              </View>
+              <View
+                style={{
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 9,
+                    color: "#64748B",
+                  }}
+                >
+                  Total Distance
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "bold",
+                    color: "#1E293B",
+                  }}
+                >
+                  {packageSummary.package?.itineraryDays?.reduce(
+                    (acc, day) => acc + (day.selectedItinerary.distance || 0),
+                    0
+                  )}{" "}
+                  km
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Main Content Section */}
+          <View style={{
+            flex: 1,
+            marginBottom: 16,
+          }}>
+            {/* Modern Journey Itinerary Section */}
+            <View
+              style={{
+                marginTop: 12,
+                marginBottom: 16,
+                backgroundColor: "#FFFFFF",
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "#E2E8F0",
+                overflow: "hidden",
+              }}
+            >
+              {/* Modern Gradient Header */}
+              <View
+                style={{
+                 
+                  padding: 16,
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+              >
+                {/* Decorative Elements */}
+                <View
+                  style={{
+                    position: "absolute",
+                    top: -20,
+                    right: -20,
+                    width: 80,
+                    height: 80,
+                    backgroundColor: "rgba(255, 255, 255, 0.1)",
+                    borderRadius: 40,
+                  }}
+                />
+                <View
+                  style={{
+                    position: "absolute",
+                    bottom: -15,
+                    left: -15,
+                    width: 60,
+                    height: 60,
+                    backgroundColor: "rgba(255, 255, 255, 0.05)",
+                    borderRadius: 30,
+                  }}
+                />
+
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    position: "relative",
+                    zIndex: 2,
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <View
+                      style={{
+                        backgroundColor: "rgba(255, 255, 255, 0.2)",
+                        padding: 10,
+                        borderRadius: 12,
+                        backdropFilter: "blur(10px)",
+                      }}
+                    >
+                      <View style={{ width: 28, height: 28 }}>
+                        <Icons.Map width={28} height={28} color="#1E293B" />
+                      </View>
+                    </View>
+                    <View>
+                      <Text
+                        style={{
+                          fontSize: 26,
+                          fontWeight: "bold",
+                          color: "#1E293B",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Your Journey Itinerary
+                      </Text>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <View
+                          style={{
+                            backgroundColor: "rgba(255, 255, 255, 0.2)",
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: 12,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: "#1E293B",
+                              fontWeight: "600",
+                            }}
+                          >
+                            {packageSummary?.package?.itineraryDays?.length}{" "}
+                            Days
+                          </Text>
+                        </View>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: "#1E293B",
+                          }}
+                        >
+                          of Adventure & Discovery
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Journey Stats */}
+                  <View
+                    style={{
+                      backgroundColor: "rgba(255, 255, 255, 0.15)",
+                      padding: 12,
+                      borderRadius: 12,
+                      backdropFilter: "blur(10px)",
+                      borderWidth: 1,
+                      borderColor: "rgba(255, 255, 255, 0.2)",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        color: "#1E293B",
+                        marginBottom: 4,
+                      }}
+                    >
+                      JOURNEY HIGHLIGHTS
+                    </Text>
+                    <View style={{ flexDirection: "row", gap: 12 }}>
+                      <View style={{ alignItems: "center" }}>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "bold",
+                            color: "#1E293B",
+                          }}
+                        >
+                          {
+                            new Set(
+                              packageSummary?.package?.itineraryDays?.map(
+                                (day) => day.selectedItinerary?.cityName
+                              )
+                            ).size
+                          }
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 8,
+                            color: "#1E293B",
+                          }}
+                        >
+                          Cities
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: "center" }}>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "bold",
+                            color: "#1E293B",
+                          }}
+                        >
+                          {packageSummary.hotels?.length || 0}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 8,
+                            color: "#1E293B",
+                          }}
+                        >
+                          Hotels
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: "center" }}>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "bold",
+                            color: "#1E293B",
+                          }}
+                        >
+                          {packageSummary?.package?.itineraryDays?.reduce(
+                            (acc, day) =>
+                              acc + (day.selectedItinerary.distance || 0),
+                            0
+                          )}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 8,
+                            color: "#1E293B",
+                          }}
+                        >
+                          Km
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* Compact City Route Overview */}
+              <View
+                style={{
+                  backgroundColor: "#F8FAFC",
+                  padding: 16,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#E2E8F0",
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 12,
+                  }}
+                >
+                  <View style={{ width: 16, height: 16, marginRight: 8 }}>
+                    <Icons.Location width={16} height={16} color="#2d2d44" />
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "600",
+                      color: "#1E293B",
+                    }}
+                  >
+                    Route Overview
+                  </Text>
+                </View>
+
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 8,
+                  }}
+                >
+                  {Array.from(
+                    new Set(
+                      packageSummary?.package?.itineraryDays?.map(
+                        (day) => day.selectedItinerary?.cityName
+                      )
+                    )
+                  ).map((cityName, index, cities) => (
+                    <View
+                      key={index}
+                      style={{ flexDirection: "row", alignItems: "center" }}
+                    >
+                      <View
+                        style={{
+                          backgroundColor: "#EFF6FF",
+                          paddingVertical: 6,
+                          paddingHorizontal: 12,
+                          borderRadius: 20,
+                          borderWidth: 1,
+                          borderColor: "#BFDBFE",
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            backgroundColor: "#2d2d44",
+                            borderRadius: 4,
+                          }}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: "#2d2d44",
+                            fontWeight: "500",
+                          }}
+                        >
+                          {cityName}
+                        </Text>
+                      </View>
+                      {index < cities.length - 1 && (
+                        <View
+                          style={{
+                            width: 16,
+                            height: 2,
+                            backgroundColor: "#CBD5E1",
+                            marginHorizontal: 4,
+                          }}
+                        />
+                      )}
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              {/* Compact Day-by-Day Timeline */}
+              <View style={{ padding: 12, gap: 12 }}>
+                {packageSummary?.package?.itineraryDays?.map((day, index) => {
+                  const dayData = day.selectedItinerary;
+                  const dayHotel = packageSummary.hotels.find(
+                    (hotel) => hotel.day === day.day
+                  );
+
+                  // Calculate date
+                  const startDate = selectedLead?.travelDate
+                    ? new Date(selectedLead.travelDate)
+                    : new Date();
+                  const currentDate = new Date(startDate);
+                  currentDate.setDate(startDate.getDate() + index);
+                  const formattedDate = currentDate.toLocaleDateString(
+                    "en-US",
+                    {
+                      weekday: "short",
+                      day: "2-digit",
+                      month: "short",
+                    }
+                  );
+
+                  return (
+                    <View key={index} style={{ position: "relative" }}>
+                      {/* Timeline Connector */}
+                      {index !==
+                        packageSummary.package.itineraryDays.length - 1 && (
+                        <View
+                          style={{
+                            position: "absolute",
+                            left: 20,
+                            top: 40,
+                            bottom: -16,
+                            width: 2,
+                            backgroundColor: "#E2E8F0",
+                            zIndex: 1,
+                          }}
+                        />
+                      )}
+
+                      {/* Day Card */}
+                      <View
+                        style={{
+                          backgroundColor: "#FFFFFF",
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: "#E2E8F0",
+                          overflow: "hidden",
+                          position: "relative",
+                        }}
+                      >
+                        {/* Day Header */}
+                        <View
+                          style={{
+                            backgroundColor: "#F8FAFC",
+                            padding: 12,
+                            borderBottomWidth: 1,
+                            borderBottomColor: "#E2E8F0",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 12,
+                          }}
+                        >
+                          {/* Day Badge */}
+                          <View
+                            style={{
+                              width: 40,
+                              height: 40,
+                              backgroundColor: "#2d2d44",
+                              borderRadius: 20,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              position: "relative",
+                              zIndex: 2,
+                              marginRight: 12,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 14,
+                                fontWeight: "bold",
+                                color: "#FFFFFF",
+                              }}
+                            >
+                              {String(index + 1).padStart(2, "0")}
+                            </Text>
+                          </View>
+
+                          {/* Date and Title in a vertical stack, but allow title to use flex space */}
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text
+                              style={{
+                                fontSize: 10,
+                                color: "#64748B",
+                                marginBottom: 2,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {formattedDate}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 16,
+                                fontWeight: "bold",
+                                color: "#1E293B",
+                                marginBottom: 4,
+                                lineHeight: 1.2,
+                                flexShrink: 1,
+                                minWidth: 0,
+                              }}
+                              wrap={false}
+                            >
+                              {dayData.itineraryTitle}
+                            </Text>
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 6,
+                              }}
+                            >
+                              <View style={{ width: 12, height: 12 }}>
+                                <Icons.Location
+                                  width={12}
+                                  height={12}
+                                  color="#64748B"
+                                />
+                              </View>
+                              <Text style={{ fontSize: 12, color: "#64748B" }}>
+                                {dayData?.cityName}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Quick Info Badges */}
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              gap: 6,
+                              marginLeft: 8,
+                            }}
+                          >
+                            {dayData.meals && (
+                              <View
+                                style={{
+                                  backgroundColor: "#ECFDF5",
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 4,
+                                  borderRadius: 12,
+                                  borderWidth: 1,
+                                  borderColor: "#A7F3D0",
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    fontSize: 9,
+                                    color: "#059669",
+                                    fontWeight: "600",
+                                  }}
+                                >
+                                  {dayData.meals}
+                                </Text>
+                              </View>
+                            )}
+                            {dayData.activities &&
+                              dayData.activities.length > 0 && (
+                                <View
+                                  style={{
+                                    backgroundColor: "#EFF6FF",
+                                    paddingHorizontal: 8,
+                                    paddingVertical: 4,
+                                    borderRadius: 12,
+                                    borderWidth: 1,
+                                    borderColor: "#BFDBFE",
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      fontSize: 9,
+                                      color: "#2d2d44",
+                                      fontWeight: "600",
+                                    }}
+                                  >
+                                    {dayData.activities.length} Activities
+                                  </Text>
+                                </View>
+                              )}
+                          </View>
+                        </View>
+
+                        {/* Day Content */}
+                        <View style={{ padding: 12, gap: 8 }}>
+                          {/* Description */}
+                          {dayData.itineraryDescription && (
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: "#475569",
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              {decodeHtmlEntities(dayData.itineraryDescription)}
+                            </Text>
+                          )}
+
+                          {/* Compact City Areas */}
+                          {day.selectedItinerary?.cityArea &&
+                            day.selectedItinerary.cityArea.length > 0 && (
+                              <View style={{ gap: 8 }}>
+                                <Text
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: "600",
+                                    color: "#1E293B",
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  Places to Visit:
+                                </Text>
+                                <View
+                                  style={{
+                                    flexDirection: "row",
+                                    flexWrap: "wrap",
+                                    gap: 6,
+                                  }}
+                                >
+                                  {day.selectedItinerary.cityArea.map(
+                                    (area, areaIndex) => {
+                                      const areaText =
+                                        typeof area === "string"
+                                          ? area
+                                          : area.placeName || area.city || "";
+                                      return (
+                                        <View
+                                          key={areaIndex}
+                                          style={{
+                                            backgroundColor: "#F1F5F9",
+                                            paddingHorizontal: 8,
+                                            paddingVertical: 4,
+                                            borderRadius: 8,
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                            gap: 4,
+                                          }}
+                                        >
+                                          <View style={{ width: 8, height: 8 }}>
+                                            <Icons.Location
+                                              width={8}
+                                              height={8}
+                                              color="#64748B"
+                                            />
+                                          </View>
+                                          <Text
+                                            style={{
+                                              fontSize: 10,
+                                              color: "#475569",
+                                            }}
+                                          >
+                                            {decodeHtmlEntities(areaText)}
+                                          </Text>
+                                        </View>
+                                      );
+                                    }
+                                  )}
+                                </View>
+                              </View>
+                            )}
+
+                          {/* Compact Hotel Info */}
+                          {dayHotel && (
+                            <View
+                              style={{
+                                backgroundColor: "#F8FAFC",
+                                borderRadius: 8,
+                                padding: 12,
+                                borderWidth: 1,
+                                borderColor: "#E2E8F0",
+                              }}
+                            >
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  marginBottom: 6,
+                                }}
+                              >
+                                <View style={{ width: 14, height: 14 }}>
+                                  <Icons.Hotel
+                                    width={14}
+                                    height={14}
+                                    color="#2d2d44"
+                                  />
+                                </View>
+                                <Text
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: "600",
+                                    color: "#1E293B",
+                                  }}
+                                >
+                                  Accommodation
+                                </Text>
+                              </View>
+                              <Text
+                                style={{
+                                  fontSize: 11,
+                                  color: "#1E293B",
+                                  marginBottom: 4,
+                                }}
+                              >
+                                {dayHotel.propertyName}
+                              </Text>
+                              <View style={{ flexDirection: "row", gap: 8 }}>
+                                <View
+                                  style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 4,
+                                  }}
+                                >
+                                  <View style={{ width: 10, height: 10 }}>
+                                    <Icons.Room
+                                      width={10}
+                                      height={10}
+                                      color="#64748B"
+                                    />
+                                  </View>
+                                  <Text
+                                    style={{ fontSize: 9, color: "#64748B" }}
+                                  >
+                                    {dayHotel.roomName}
+                                  </Text>
+                                </View>
+                                <View
+                                  style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 4,
+                                  }}
+                                >
+                                  <View style={{ width: 10, height: 10 }}>
+                                    <Icons.Food
+                                      width={10}
+                                      height={10}
+                                      color="#64748B"
+                                    />
+                                  </View>
+                                  <Text
+                                    style={{ fontSize: 9, color: "#64748B" }}
+                                  >
+                                    {dayHotel.mealPlan}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+                          )}
+
+                          {/* Compact Activities */}
+                          {dayData.activities &&
+                            dayData.activities.length > 0 && (
+                              <View style={{ gap: 6 }}>
+                                <View
+                                  style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 6,
+                                  }}
+                                >
+                                  <View style={{ width: 12, height: 12 }}>
+                                    <Icons.Activity
+                                      width={12}
+                                      height={12}
+                                      color="#2d2d44"
+                                    />
+                                  </View>
+                                  <Text
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: "600",
+                                      color: "#1E293B",
+                                    }}
+                                  >
+                                    Activities
+                                  </Text>
+                                </View>
+                                <View style={{ gap: 4 }}>
+                                  {dayData.activities
+                                    .slice(0, 3)
+                                    .map((activity, actIndex) => (
+                                      <View
+                                        key={actIndex}
+                                        style={{
+                                          flexDirection: "row",
+                                          alignItems: "center",
+                                          gap: 6,
+                                        }}
+                                      >
+                                        <View
+                                          style={{
+                                            width: 4,
+                                            height: 4,
+                                            backgroundColor: "#2d2d44",
+                                            borderRadius: 2,
+                                          }}
+                                        />
+                                        <Text
+                                          style={{
+                                            fontSize: 10,
+                                            color: "#475569",
+                                            flex: 1,
+                                          }}
+                                        >
+                                          {decodeHtmlEntities(activity)}
+                                        </Text>
+                                      </View>
+                                    ))}
+                                  {dayData.activities.length > 3 && (
+                                    <Text
+                                      style={{
+                                        fontSize: 9,
+                                        color: "#64748B",
+                                        fontStyle: "italic",
+                                      }}
+                                    >
+                                      +{dayData.activities.length - 3} more
+                                      activities
+                                    </Text>
+                                  )}
+                                </View>
+                              </View>
+                            )}
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Modern Inclusions Section */}
+            <View
+              style={{
+                marginTop: 12,
+                marginBottom: 12,
+                backgroundColor: "#FFFFFF",
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: "#E2E8F0",
+                overflow: "hidden",
+              }}
+            >
+              {/* Header */}
+              <View
+                style={{
+                  backgroundColor: "#F8FAFC",
+                  padding: 10,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#E2E8F0",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <View style={{ width: 16, height: 16 }}>
+                  <Icons.Check width={16} height={16} color="#16A34A" />
+                </View>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "bold",
+                    color: "#1E293B",
+                  }}
+                >
+                  Package Inclusions
+                </Text>
+              </View>
+
+              {/* Package Summary Stats */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  padding: 12,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#E2E8F0",
+                  backgroundColor: "#FAFAFA",
+                  gap: 12,
+                }}
+              >
+                {/* Total Hotels Card */}
+                <View
+                  style={{
+                    flex: 1,
+                    backgroundColor: "#EFF6FF",
+                    borderRadius: 6,
+                    padding: 10,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <View style={{ width: 20, height: 20 }}>
+                    <Icons.Hotel width={20} height={20} color="#2d2d44" />
+                  </View>
+                  <View>
+                    <Text
+                      style={{ fontSize: 8, color: "#64748B", marginBottom: 2 }}
+                    >
+                      TOTAL HOTELS
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "bold",
+                        color: "#1E293B",
+                      }}
+                    >
+                      {packageSummary.hotels?.length || 0} Hotels
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Total Days Card */}
+                <View
+                  style={{
+                    flex: 1,
+                    backgroundColor: "#F0FDF4",
+                    borderRadius: 6,
+                    padding: 10,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <View style={{ width: 20, height: 20 }}>
+                    <Icons.Calendar width={20} height={20} color="#16A34A" />
+                  </View>
+                  <View>
+                    <Text
+                      style={{ fontSize: 8, color: "#64748B", marginBottom: 2 }}
+                    >
+                      TOTAL DAYS
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "bold",
+                        color: "#1E293B",
+                      }}
+                    >
+                      {packageSummary.package?.itineraryDays?.length || 0} Days
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Inclusions List */}
+              <View style={{ padding: 12, gap: 8 }}>
+                {/* Hotels */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "flex-start",
+                    gap: 10,
+                  }}
+                >
+                  <View style={{ width: 14, height: 14 }}>
+                    <Icons.Hotel width={14} height={14} color="#2d2d44" />
+                  </View>
+                  <Text style={{ flex: 1, fontSize: 11, color: "#1E293B" }}>
+                    {packageSummary.hotels?.length || 0} Hotels accommodation
+                    with {packageSummary.package?.itineraryDays?.length || 0}{" "}
+                    days itinerary
+                  </Text>
+                </View>
+
+                {/* Main Inclusions - Fixed HTML parsing */}
+                {packageSummary?.package?.packageInclusions && (
+                  <View style={pdfStyles.exclusionsList}>
+                    {packageSummary.package.packageInclusions
+                      .split("</p>")
+                      .map((item) => decodeHtmlEntities(item))
+                      .filter(Boolean) // Remove empty strings
+                      .map((inclusion, index) => (
+                        <View key={index} style={pdfStyles.exclusionItem}>
+                          <View style={pdfStyles.bulletPoint} />
+                          <Text style={pdfStyles.exclusionText}>
+                            {inclusion}
+                          </Text>
+                        </View>
+                      ))}
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* Package Exclusions Section */}
+            <View style={{
+              marginBottom: 12,
+              padding: 12,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: "#E2E8F0",
+            }}>
+              {/* Header */}
+              <View style={pdfStyles.exclusionsHeader}>
+                <Icons.Close />
+                <Text style={pdfStyles.exclusionsTitle}>
+                  Package Exclusions
+                </Text>
+              </View>
+
+              {/* Main Exclusions - Fixed HTML parsing */}
+              {packageSummary?.package?.packageExclusions && (
+                <View style={pdfStyles.exclusionsList}>
+                  {packageSummary.package.packageExclusions
+                    .split("</p>")
+                    .map((item) => decodeHtmlEntities(item))
+                    .filter(Boolean) // Remove empty strings
+                    .map((exclusion, index) => (
+                      <View key={index} style={pdfStyles.exclusionItem}>
+                        <View style={pdfStyles.bulletPoint} />
+                        <Text style={pdfStyles.exclusionText}>{exclusion}</Text>
+                      </View>
+                    ))}
+                </View>
+              )}
+              {/* Custom Exclusions - Fixed HTML parsing and bullet points */}
+              {packageSummary?.package?.customExclusions?.map(
+                (section, index) => (
+                  <View key={index} style={pdfStyles.customExclusion}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        gap: 8,
+                        marginBottom: 16,
+                        backgroundColor: "#FEF2F2",
+                        padding: 12,
+                        borderRadius: 8,
+                      }}
+                    >
+                      <Icons.Close />
+                      <Text style={pdfStyles.customExclusionTitle}>
+                        {section.name}
+                      </Text>
+                    </View>
+                    {/* Parse HTML content properly with entity decoding */}
+                    {section.description
+                      ?.replace(/<p>/g, "") // Remove opening p tags
+                      .split("</p>") // Split by closing p tags
+                      .map((item) => decodeHtmlEntities(item))
+                      .filter((item) => item && item.length > 0) // Remove empty items
+                      .map((item, idx) => (
+                        <View key={idx} style={pdfStyles.exclusionItem}>
+                          <View style={pdfStyles.bulletPoint} />
+                          <Text style={pdfStyles.exclusionText}>{item}</Text>
+                        </View>
+                      ))}
+                  </View>
+                )
+              )}
+            </View>
+            {/* Account Details Section */}
+            <AccountDetailsSection />
+
+            {/* Package Cost Section */}
+            <View style={{
+              marginBottom: 12,
+              padding: 12,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: "#E2E8F0",
+            }}>
+              {/* Package Cost Card */}
+              <View
+                style={{
+                  backgroundColor: "rgb(45 45 68)",
+                  borderRadius: 10,
+                  padding: 20,
+                }}
+              >
+                <View style={pdfStyles.rowBetween}>
+                  <View>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "bold",
+                        color: "#FFFFFF",
+                      }}
+                    >
+                      Pay Now
+                    </Text>
+                    <Text
+                      style={{ fontSize: 10, color: "#E2E8F0", marginTop: 4 }}
+                    >
+                      Pay 40% of the total amount to confirm the booking
+                    </Text>
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 24,
+                      fontWeight: "bold",
+                      color: "#FFFFFF",
+                      fontFamily: "Helvetica-Bold",
+                    }}
+                  >
+                    Rs.
+                    {showMargin
+                      ? finalTotal.toFixed(0)
+                      : packageSummary.totals.grandTotal}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Payment Terms Card */}
+              <View
+                style={{
+                  marginTop: 16,
+                  padding: 12,
+                  backgroundColor: "#FFFBEB",
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: "#FEF3C7",
+                }}
+              >
+                <View
+                  style={{ flexDirection: "row", gap: 8, alignItems: "center" }}
+                >
+                  <View style={{ width: 14, height: 14 }}>
+                    <Icons.Info width={14} height={14} color="rgb(45 45 68)" />
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      color: "#92400E",
+                      fontWeight: "500",
+                    }}
+                  >
+                    Important Payment Information
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    fontSize: 10,
+                    color: "#92400E",
+                    lineHeight: 1.5,
+                    marginTop: 8,
+                  }}
+                >
+                  • 40% advance payment required to confirm booking{"\n"}•
+                  Balance payment due 15 days before travel date{"\n"}• Prices
+                  are subject to availability and may change
+                </Text>
+              </View>
+            </View>
+
+            {/* Enhanced Agent Info Box */}
+            <View
+              style={{
+                marginBottom: 16,
+                padding: 12,
+                backgroundColor: "#F8FAFC",
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: "#E2E8F0",
+                position: "relative",
+                marginTop: 12,
+              }}
+            >
+              {/* Decorative Element */}
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  width: 60,
+                  height: 60,
+                  backgroundColor: "#EFF6FF",
+                  borderBottomLeftRadius: 60,
+                  opacity: 0.5,
+                }}
+              />
+
+              {/* Agent Profile Section */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 12,
+                  gap: 12,
+                }}
+              >
+                {/* Agent Avatar Circle */}
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    backgroundColor: "#BFDBFE",
+                    borderRadius: 20,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "bold",
+                      color: "#2d2d44",
+                    }}
+                  >
+                    {(packageSummary.package?.agentName ||
+                      "P")[0].toUpperCase()}
+                  </Text>
+                </View>
+                {/* Agent Details */}
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 8,
+                      color: "#64748B",
+                      marginBottom: 2,
+                    }}
+                  >
+                    TRAVEL EXPERT
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "bold",
+                      color: "#1E293B",
+                      marginBottom: 2,
+                    }}
+                  >
+                    {packageSummary.package?.agentName || "Our Travel Agent"}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Contact Information */}
+              <View
+                style={{
+                  marginLeft: 52,
+                  gap: 6,
+                }}
+              >
+                {/* Phone */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <View style={{ width: 12, height: 12 }}>
+                    <Icons.Phone width={12} height={12} color="#2d2d44" />
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: "#64748B",
+                    }}
+                  >
+                    {packageSummary.package?.agentPhone || "+91-8353056000"}
+                  </Text>
+                </View>
+
+                {/* Email */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <View style={{ width: 12, height: 12 }}>
+                    <Icons.Email width={12} height={12} color="#2d2d44" />
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: "#64748B",
+                    }}
+                  >
+                    info@ptwholidays.com
+                  </Text>
+                </View>
+              </View>
+
+              {/* Quotation Timestamp */}
+              <View
+                style={{
+                  marginTop: 12,
+                  paddingTop: 12,
+                  borderTopWidth: 1,
+                  borderTopColor: "#E2E8F0",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <View style={{ width: 12, height: 12 }}>
+                  <Icons.Calendar width={12} height={12} color="#64748B" />
+                </View>
+                <Text
+                  style={{
+                    fontSize: 9,
+                    color: "#64748B",
+                    fontStyle: "italic",
+                  }}
+                >
+                  Quotation Created on {new Date().toLocaleDateString()}{" "}
+                  {new Date().toLocaleTimeString()}
+                </Text>
+              </View>
+
+              {/* Experience Badge */}
+              <View
+                style={{
+                  position: "absolute",
+                  top: 12,
+                  right: 12,
+                  backgroundColor: "#EFF6FF",
+                  paddingVertical: 4,
+                  paddingHorizontal: 8,
+                  borderRadius: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <View style={{ width: 10, height: 10 }}>
+                  <Icons.Star width={10} height={10} color="#2d2d44" />
+                </View>
+                <Text
+                  style={{
+                    fontSize: 8,
+                    color: "#2d2d44",
+                    fontWeight: "bold",
+                  }}
+                >
+                  5+ Years Experience
+                </Text>
+              </View>
+            </View>
+
+            {/* Environmental Note */}
+            <View style={{
+              marginBottom: 12,
+              padding: 8,
+              backgroundColor: "#F0FDF4",
+              borderRadius: 6,
+              borderWidth: 1,
+              borderColor: "#BBF7D0",
+            }}>
+              <Text style={{
+                fontSize: 9,
+                color: "#166534",
+                textAlign: "center",
+                fontStyle: "italic",
+              }}>
+                Please think twice before printing this mail. Save paper, it's good for the environment.
+              </Text>
+            </View>
+
+            {/* Date Change Policy Section */}
+            <View style={{
+              marginBottom: 16,
+              padding: 12,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: "#E2E8F0",
+            }}>
+              <Text style={pdfStyles.policyTitle}>Date Change Policy</Text>
+
+              <View style={pdfStyles.policyContainer}>
+                <View style={pdfStyles.currentPolicyHeader}>
+                  <Text style={pdfStyles.currentPolicyText}>
+                    Your Current Policy
+                  </Text>
+                </View>
+
+                {/* Policy Timeline Bar */}
+                <View style={pdfStyles.policyTimelineContainer}>
+                  <View style={pdfStyles.policyTimeline}>
+                    <View style={pdfStyles.timelineGradient} />
+                    <View style={pdfStyles.cancelIcon}>
+                      <Text style={pdfStyles.cancelX}>✕</Text>
+                    </View>
+                  </View>
+                  <Text style={pdfStyles.afterBookingText}>AFTER BOOKING</Text>
+                  <Text style={pdfStyles.nonRefundableText}>
+                    Non Refundable
+                  </Text>
+                  <Text style={pdfStyles.noChangeText}>
+                    Date Change is not allowed
+                  </Text>
+                </View>
+
+                {/* Policy Points */}
+                <View style={pdfStyles.policyPoints}>
+                  <View style={pdfStyles.policyPoint}>
+                    <View style={pdfStyles.bulletPoint} />
+                    <Text style={pdfStyles.policyText}>
+                      These are non-refundable amounts as per the current
+                      components attached. In the case of component
+                      change/modifications, the policy will change accordingly.
+                    </Text>
+                  </View>
+
+                  <View style={pdfStyles.policyPoint}>
+                    <View style={pdfStyles.bulletPoint} />
+                    <Text style={pdfStyles.policyText}>
+                      Date Change fees don't include any fare change in the
+                      components on the new date. Fare difference as applicable
+                      will be charged separately.
+                    </Text>
+                  </View>
+
+                  <View style={pdfStyles.policyPoint}>
+                    <View style={pdfStyles.bulletPoint} />
+                    <Text style={pdfStyles.policyText}>
+                      Date Change will depend on the availability of the
+                      components on the new requested date.
+                    </Text>
+                  </View>
+
+                  <View style={pdfStyles.policyPoint}>
+                    <View style={pdfStyles.bulletPoint} />
+                    <Text style={pdfStyles.policyText}>
+                      Please note, TCS once collected cannot be refunded in case
+                      of any cancellation / modification. You can claim the TCS
+                      amount as adjustment against Income Tax payable at the
+                      time of filing the return of income.
+                    </Text>
+                  </View>
+
+                  <View style={pdfStyles.policyPoint}>
+                    <View style={pdfStyles.bulletPoint} />
+                    <Text style={pdfStyles.policyText}>
+                      Cancellation charges shown is exclusive of all taxes and
+                      taxes will be added as per applicable.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Page>
+
+      {/* Second Page - Footer and Additional Info */}
+      <Page
+        size="A4"
+        style={{
+          ...pdfStyles.page,
+          paddingTop: 20,
+          paddingBottom: 20,
+          paddingLeft: 20,
+          paddingRight: 20,
+          backgroundColor: "#ffffff",
+        }}
+        wrap={true}
+      >
+        {/* Footer Content */}
+        <CompanyFooter />
+      </Page>
+    </Document>
+  );
+};
+
+const AccountDetailsSection = () => (
+  <View style={pdfStyles.accountDetailsSection}>
+    <Text style={pdfStyles.accountDetailsHeader}>
+      ACCOUNT DETAILS AND UPI ID
+    </Text>
+
+    {/* Bank Grid Section */}
+    <View style={pdfStyles.bankGrid}>
+      {/* SBI Section */}
+      <View style={pdfStyles.bankCard}>
+        <Text style={pdfStyles.bankName}>STATE BANK OF INDIA A/C</Text>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>A/C No:</Text>
+          <Text style={pdfStyles.bankValue}>38207849663</Text>
+        </View>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>A/C Name:</Text>
+          <Text style={pdfStyles.bankValue}>PT HOLIDAYS PVT. LTD.</Text>
+        </View>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>Branch:</Text>
+          <Text style={pdfStyles.bankValue}>PANTHAGHATI-SHIMLA</Text>
+        </View>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>IFSC Code:</Text>
+          <Text style={pdfStyles.bankValue}>SBIN0021763</Text>
+        </View>
+      </View>
+
+      {/* HDFC Section */}
+      <View style={pdfStyles.bankCard}>
+        <Text style={pdfStyles.bankName}>HDFC BANK</Text>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>A/C No:</Text>
+          <Text style={pdfStyles.bankValue}>50200044011800</Text>
+        </View>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>A/C Name:</Text>
+          <Text style={pdfStyles.bankValue}>PT HOLIDAYS PVT LTD</Text>
+        </View>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>Branch:</Text>
+          <Text style={pdfStyles.bankValue}>MAHELI-SHIMLA</Text>
+        </View>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>IFSC Code:</Text>
+          <Text style={pdfStyles.bankValue}>HDFC0003612</Text>
+        </View>
+      </View>
+
+      {/* ICICI Section */}
+      <View style={pdfStyles.bankCard}>
+        <Text style={pdfStyles.bankName}>ICICI BANK</Text>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>A/C No:</Text>
+          <Text style={pdfStyles.bankValue}>36680550120</Text>
+        </View>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>A/C Name:</Text>
+          <Text style={pdfStyles.bankValue}>PT HOLIDAYS PVT LTD</Text>
+        </View>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>Branch:</Text>
+          <Text style={pdfStyles.bankValue}>KASUMPATI-SHIMLA</Text>
+        </View>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>IFSC Code:</Text>
+          <Text style={pdfStyles.bankValue}>ICIC0003368</Text>
+        </View>
+      </View>
+
+      {/* Bank of Baroda Section */}
+      <View style={pdfStyles.bankCard}>
+        <Text style={pdfStyles.bankName}>BANK OF BARODA</Text>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>A/C No:</Text>
+          <Text style={pdfStyles.bankValue}>54140200000060</Text>
+        </View>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>A/C Name:</Text>
+          <Text style={pdfStyles.bankValue}>PT HOLIDAYS PVT LTD</Text>
+        </View>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>Branch:</Text>
+          <Text style={pdfStyles.bankValue}>BCS-SHIMLA</Text>
+        </View>
+        <View style={pdfStyles.bankDetail}>
+          <Text style={pdfStyles.bankLabel}>IFSC Code:</Text>
+          <Text style={pdfStyles.bankValue}>BARB0NEWSIM</Text>
+        </View>
+      </View>
+    </View>
+
+    {/* UPI Section */}
+    <View style={pdfStyles.upiSection}>
+      <View style={pdfStyles.upiCard}>
+        <Text style={pdfStyles.upiTitle}>GOOGLE PAY @ PHONE PAY</Text>
+        <Text style={pdfStyles.upiValue}>80917-53823</Text>
+      </View>
+      <View style={pdfStyles.upiCard}>
+        <Text style={pdfStyles.upiTitle}>UPI ID</Text>
+        <Text style={pdfStyles.upiValue}>UpId: mdplutotours-2@okhdfcbank</Text>
+        <Text style={pdfStyles.upiValue}>UpId: 981666196@sbi</Text>
+      </View>
+    </View>
+  </View>
+);
+
+// Add this component for the footer
+const CompanyFooter = () => (
+  <View
+    style={{
+      flex: 1,
+      padding: 20,
+      backgroundColor: "rgb(45 45 68)",
+      borderRadius: 16,
+      marginTop: 20,
+    }}
+  >
+    {/* Company Logo and Name Section */}
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 15,
+        borderBottom: "2px solid rgba(255, 255, 255, 0.1)",
+        paddingBottom: 15,
+      }}
+    >
+      <Image
+        style={{
+          width: 80,
+          height: 100,
+          marginRight: 12,
+        }}
+        source="https://res.cloudinary.com/dcp1ev1uk/image/upload/v1749122411/PTW_Holidays_Logo_1_mgi4uu.png"
+      />
+
+      <View>
+        <Text
+          style={{
+            color: "#FFFFFF",
+            fontSize: 20,
+            fontWeight: "bold",
+            fontFamily: "Helvetica-Bold",
+          }}
+        >
+          PTW Holidays Pvt. Ltd.
+        </Text>
+        <Text
+          style={{
+            color: "#E2E8F0",
+            fontSize: 10,
+            marginTop: 4,
+          }}
+        >Your Trusted Travel Partner</Text>
+      </View>
+    </View>
+
+    {/* Contact Information Grid */}
+    <View
+      style={{
+        flexDirection: "row",
+        justifyContent: "space-around",
+        marginBottom: 15,
+      }}
+    >
+      {/* Address */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          flex: 1,
+        }}
+      >
+        <View style={{ width: 16, height: 16, marginRight: 8 }}>
+          <Icons.Location width={16} height={16} color="#FFFFFF" />
+        </View>
+        <Text
+          style={{
+            color: "#FFFFFF",
+            fontSize: 9,
+          }}
+        >
+          Sheryl Villa 2nd Floor, near Taste buds restaurant, Panthaghati,
+          Shimla, Himachal Pradesh 171009
+        </Text>
+      </View>
+
+      {/* Phone */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          flex: 1,
+          justifyContent: "center",
+        }}
+      >
+        <View style={{ width: 16, height: 16, marginRight: 8 }}>
+          <Icons.Phone width={16} height={16} color="#FFFFFF" />
+        </View>
+        <Text
+          style={{
+            color: "#FFFFFF",
+            fontSize: 9,
+          }}
+        >
+          +91-8353056000
+        </Text>
+      </View>
+
+      {/* Website */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          flex: 1,
+          justifyContent: "flex-end",
+        }}
+      >
+        <View style={{ width: 16, height: 16, marginRight: 8 }}>
+          <Icons.Globe width={16} height={16} color="#FFFFFF" />
+        </View>
+        <Text
+          style={{
+            color: "#FFFFFF",
+            fontSize: 9,
+          }}
+        >
+          www.ptwholidays.com
+        </Text>
+      </View>
+    </View>
+
+    {/* Social Media Links */}
+    <View
+      style={{
+        flexDirection: "row",
+        justifyContent: "center",
+        gap: 20,
+        marginBottom: 15,
+      }}
+    >
+      <View
+        style={{
+          backgroundColor: "rgba(255, 255, 255, 0.1)",
+          padding: 8,
+          borderRadius: 20,
+        }}
+      >
+        <View style={{ width: 14, height: 14 }}>
+          <Icons.Facebook width={14} height={14} color="#FFFFFF" />
+        </View>
+      </View>
+      <View
+        style={{
+          backgroundColor: "rgba(255, 255, 255, 0.1)",
+          padding: 8,
+          borderRadius: 20,
+        }}
+      >
+        <View style={{ width: 14, height: 14 }}>
+          <Icons.Instagram width={14} height={14} color="#FFFFFF" />
+        </View>
+      </View>
+      <View
+        style={{
+          backgroundColor: "rgba(255, 255, 255, 0.1)",
+          padding: 8,
+          borderRadius: 20,
+        }}
+      >
+        <View style={{ width: 14, height: 14 }}>
+          <Icons.Twitter width={14} height={14} color="#FFFFFF" />
+        </View>
+      </View>
+    </View>
+
+    {/* Copyright Text */}
+    <Text
+      style={{
+        color: "#CBD5E1",
+        fontSize: 7,
+        textAlign: "center",
+        marginTop: 8,
+      }}
+    >
+      © {new Date().getFullYear()} PTW Holidays. All rights reserved.
+    </Text>
+  </View>
+);
+
+export default PlutoToursPDF;

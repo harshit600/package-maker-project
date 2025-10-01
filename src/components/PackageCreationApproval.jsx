@@ -58,6 +58,8 @@ const PackageCreationApproval = ({ initialData, isEditing, editId }) => {
     initialData || {
       packageType: "",
       packageCategory: "",
+      teamLeader: currentUser?.data?.teamLeaderName || "",
+      teamLeaderId: currentUser?.data?.teamLeaderId      || "",
       packageName: "",
       packageImages: [],
       priceTag: "",
@@ -813,6 +815,8 @@ const PackageCreationApproval = ({ initialData, isEditing, editId }) => {
       const packageData = {
         packageType: formData.packageType,
         packageCategory: formData.packageCategory,
+        teamLeader: formData.teamLeader,
+        teamLeaderId: formData.teamLeaderId,
         packageName: formData.packageName,
         packageImages: formData.packageImages,
         priceTag: formData.priceTag,
@@ -839,6 +843,8 @@ const PackageCreationApproval = ({ initialData, isEditing, editId }) => {
         tags: formData.tags || [],
         amenities: formData.amenities || [],
         initialAmount: formData.initialAmount,
+        teamLeader: formData.teamLeader,
+        teamLeaderId: formData.teamLeaderId,
         defaultHotelPackage: formData.defaultHotelPackage,
         defaultVehicle: formData.defaultVehicle,
         packageDescription: formData.packageDescription || "",

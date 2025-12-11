@@ -122,7 +122,7 @@ const getImageUrl = (imagePath) => {
 // Add this helper function for activity images
 const getActivityImageUrl = (imagePath) => {
   if (!imagePath) return "/fallback-image.jpg";
-  return `https://backendactivity.plutotours.in/storage/images/${imagePath}`;
+  return `https://backendactivity.ptwhotels.com/storage/images/${imagePath}`;
 };
 
 // New RoomCategories component
@@ -1119,7 +1119,7 @@ const DayActivities = ({
     const fetchActivities = async () => {
       try {
         const response = await fetch(
-          "https://backendactivity.plutotours.in/api/products"
+          "https://backendactivity.ptwhotels.com/api/products"
         );
         const data = await response.json();
 
@@ -1553,6 +1553,7 @@ function HotelCalculation({
   const [currentDay, setCurrentDay] = useState(null);
   const [propertyData, setPropertyData] = useState(null);
   const [selectedActivities, setSelectedActivities] = useState([]);
+  console.log(selectedActivities,"selectedActivities")
   const [activeTab, setActiveTab] = useState("hotels");
   const [images, setImages] = useState([]);
   const [isActivitiesModalOpen, setIsActivitiesModalOpen] = useState(false);
@@ -1796,7 +1797,7 @@ function HotelCalculation({
     const fetchImages = async () => {
       try {
         const response = await fetch(
-          "https://backendactivity.plutotours.in/api/images"
+          "https://backendactivity.ptwhotels.com/api/images"
         );
         const data = await response.json();
         if (data.Status === "The Request Was Successful") {
@@ -1879,6 +1880,9 @@ function HotelCalculation({
         id: activity.id,
         title: activity.title,
         location: activity.location_site,
+        description: activity?.description,
+        thing_to_carry: activity?.
+        things_to_carry,
         price: activity.price,
         discount_price: activity.discount_price,
         duration: activity.duration,

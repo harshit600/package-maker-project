@@ -3,13 +3,11 @@ import React, { useState, useEffect } from 'react';
 // Add this function before the ChangeHotel component
 const calculateHotelPriceDifference = (currentHotel, newHotel, requiredRooms = 1, extraBeds = 0) => {
   // Get current hotel's price
-  console.log(requiredRooms,extraBeds)
   
   const getCurrentPrice = (hotel) => {
     if (!hotel) return 0;
     
     const baseRate = hotel?.selectedRoom?.baseRate || hotel?.rooms?.data?.[0]?.baseRate || hotel?.price || 0;
-    console.log("baserate",baseRate)
     const extraAdultCharge = hotel?.selectedRoom?.extraAdultCharge || 0;
     
     return (baseRate * requiredRooms) + (extraAdultCharge * extraBeds);
@@ -36,22 +34,49 @@ const ChangeHotel = ({
   setShowHotelSlider, 
   selectedPackage,
   handleSelectHotel,
+  handleAddSimilarHotel,
   hotelsByCity,
   setHotelsByCity,
   fetchHotelRooms
 }) => {
   const [loadingHotels, setLoadingHotels] = useState({});
   const [activeFilter, setActiveFilter] = useState('all');
+console.log(hotelsByCity,"hotelsByCity")
+  
+  // Get available star ratings from hotels
+  const getAvailableStarRatings = () => {
+    const hotels = hotelsByCity[selectedCity?.toLowerCase()] || [];
+    const starRatings = new Set();
+    hotels.forEach(hotel => {
+      const rating = hotel.basicInfo?.hotelStarRating;
+      if (rating) {
+        const starNum = parseInt(rating);
+        if (!isNaN(starNum) && starNum > 0) {
+          starRatings.add(starNum);
+        }
+      }
+    });
+    return Array.from(starRatings).sort((a, b) => b - a); // Sort descending
+  };
 
   // Add this filter function
   const getFilteredHotels = () => {
     const hotels = hotelsByCity[selectedCity?.toLowerCase()] || [];
     if (activeFilter === 'all') return hotels;
+    if (activeFilter === 'preferred') {
+      return hotels.filter(hotel => hotel.basicInfo?.prefered === true);
+    }
     
     return hotels.filter(hotel => {
       const starRating = parseInt(hotel.basicInfo?.hotelStarRating) || 0;
       return starRating === parseInt(activeFilter);
     });
+  };
+
+  // Get count of preferred hotels
+  const getPreferredHotelsCount = () => {
+    const hotels = hotelsByCity[selectedCity?.toLowerCase()] || [];
+    return hotels.filter(hotel => hotel.basicInfo?.prefered === true).length;
   };
 
   useEffect(() => {
@@ -65,11 +90,9 @@ const ChangeHotel = ({
       
       // If all hotels already have room data, don't fetch again
       if (allHotelsHaveRooms) {
-        console.log('Using cached room data');
         return;
       }
 
-      console.log('Fetching room data');
       
       // Set loading state for hotels that need rooms
       const hotelsNeedingRooms = hotelsForCity.filter(hotel => !hotel.rooms?.data);
@@ -144,7 +167,6 @@ const ChangeHotel = ({
           
           if (matchingRate) {
             defaultRate = matchingRate.value;
-            console.log(`Found rate for ${formattedDate}: ₹${defaultRate}`);
             break;
           }
         }
@@ -165,7 +187,6 @@ const ChangeHotel = ({
       
       const room = hotel?.selectedRoom || hotel?.rooms?.data?.[0];
       const roomRate = getRoomRate(hotel, room);
-      console.log(roomRate)
       const extraAdultCharge = room?.extraAdultCharge || 0;
       
       return roomRate;
@@ -256,7 +277,7 @@ const ChangeHotel = ({
               </div>
 
               {/* Room details and select button */}
-              <div className="mt-4 flex items-center justify-between border-t pt-4">
+              <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between border-t pt-4 gap-3">
                 <div className="text-sm text-gray-600">
                   <p>Extra Adult Charge: ₹{room.extraAdultCharge}</p>
                   <p>Child Charge: ₹{room.childCharge}</p>
@@ -264,22 +285,35 @@ const ChangeHotel = ({
                   <p>Total requiredRooms: {requiredRooms}</p>
                   <p>Total Extra Beds: {extrabed}</p>
                 </div>
-                <button
-                  onClick={() => {
-                    handleSelectHotel(
-                      {
-                        ...hotel,
-                        selectedRoom: room,
-                        rooms: hotel.rooms,
-                      },
-                      selectedDayForHotelSlider?.day
-                    );
-                    setShowHotelSlider(false);
-                  }}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Select Room
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <button
+                    onClick={() => {
+                      handleSelectHotel(
+                        {
+                          ...hotel,
+                          selectedRoom: room,
+                          rooms: hotel.rooms,
+                        },
+                        selectedDayForHotelSlider?.day
+                      );
+                      setShowHotelSlider(false);
+                    }}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Select Room
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleAddSimilarHotel(
+                        hotel,
+                        selectedDayForHotelSlider?.day
+                      );
+                    }}
+                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Add in Similar Hotel
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -325,40 +359,77 @@ const ChangeHotel = ({
         </div>
 
         <div className="p-3 sm:p-6">
-          {/* Update Hotel Filters */}
-          <div className="mb-4 sm:mb-6 flex flex-wrap items-center gap-2 sm:gap-4 border-b pb-3 sm:pb-4">
-            <button 
-              className={`px-2 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-medium ${
-                activeFilter === 'all' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
-              }`}
-              onClick={() => setActiveFilter('all')}
-            >
-              All Hotels
-            </button>
-            <button 
-              className={`px-2 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm ${
-                activeFilter === '5' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
-              }`}
-              onClick={() => setActiveFilter('5')}
-            >
-              5 Star
-            </button>
-            <button 
-              className={`px-2 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm ${
-                activeFilter === '4' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
-              }`}
-              onClick={() => setActiveFilter('4')}
-            >
-              4 Star
-            </button>
-            <button 
-              className={`px-2 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm ${
-                activeFilter === '3' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
-              }`}
-              onClick={() => setActiveFilter('3')}
-            >
-              3 Star
-            </button>
+          {/* Hotel Filter Tabs */}
+          <div className="mb-4 sm:mb-6 border-b border-gray-200">
+            <div className="flex flex-wrap -mb-px">
+              {/* All Hotels Tab */}
+              <button 
+                className={`px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base font-medium border-b-2 transition-colors ${
+                  activeFilter === 'all' 
+                    ? 'border-blue-600 text-blue-600 bg-blue-50' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+                onClick={() => setActiveFilter('all')}
+              >
+                All Hotels
+                <span className="ml-2 text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+                  {hotelsByCity[selectedCity?.toLowerCase()]?.length || 0}
+                </span>
+              </button>
+              
+              {/* Preferred Hotels Tab */}
+              {getPreferredHotelsCount() > 0 && (
+                <button 
+                  className={`px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                    activeFilter === 'preferred' 
+                      ? 'border-blue-600 text-blue-600 bg-blue-50' 
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                  onClick={() => setActiveFilter('preferred')}
+                >
+                  <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                  Preferred
+                  <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+                    {getPreferredHotelsCount()}
+                  </span>
+                </button>
+              )}
+              
+              {/* Star Rating Tabs - Dynamically generated */}
+              {getAvailableStarRatings().map((starRating) => (
+                <button
+                  key={starRating}
+                  className={`px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                    activeFilter === starRating.toString()
+                      ? 'border-blue-600 text-blue-600 bg-blue-50' 
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                  onClick={() => setActiveFilter(starRating.toString())}
+                >
+                  <div className="flex items-center gap-1">
+                    {[...Array(starRating)].map((_, i) => (
+                      <svg
+                        key={i}
+                        className="w-4 h-4 text-yellow-400"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    ))}
+                  </div>
+                  <span>{starRating} Star</span>
+                  <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+                    {hotelsByCity[selectedCity?.toLowerCase()]?.filter(hotel => {
+                      const rating = parseInt(hotel.basicInfo?.hotelStarRating) || 0;
+                      return rating === starRating;
+                    }).length || 0}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Update Hotel List to use filtered hotels */}
@@ -366,22 +437,30 @@ const ChangeHotel = ({
             {getFilteredHotels().map((hotel) => {
               const defaultRoom = hotel?.rooms?.data?.[0];
               const roomRate = getRoomRate(hotel, defaultRoom);
-              console.log(roomRate)
               const priceDiff = calculateHotelPriceDifference(
                 currentHotel,
                 { ...hotel, selectedRoom: defaultRoom },
                 parseInt(selectedLead?.noOfRooms) || 1,
                 parseInt(selectedLead?.extraBeds) || 0
               );
+              
+              // Check if hotel is preferred
+              const isPreferred = hotel.basicInfo?.prefered === true;
 
               return (
                 <div
                   key={hotel._id}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+                  className={`bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow ${
+                    isPreferred ? 'border-2 border-yellow-400 shadow-lg' : 'border-gray-200'
+                  }`}
                 >
                   <div className="flex flex-col sm:flex-row p-3 sm:p-4">
-                    {/* Hotel Image */}
-                    <div className="w-full sm:w-64 h-48 flex-shrink-0 mb-3 sm:mb-0">
+                    {/* Hotel Image - Larger for preferred hotels */}
+                    <div className={`relative flex-shrink-0 mb-3 sm:mb-0 ${
+                      isPreferred 
+                        ? 'w-full sm:w-96 h-64' 
+                        : 'w-full sm:w-64 h-48'
+                    }`}>
                       <img
                         src={hotel.photosAndVideos?.images?.[0]}
                         alt={hotel.basicInfo?.propertyName}
@@ -391,6 +470,15 @@ const ChangeHotel = ({
                           e.target.src = "https://placehold.co/300x200?text=Hotel+Image";
                         }}
                       />
+                      {/* Preferred Badge */}
+                      {isPreferred && (
+                        <div className="absolute top-2 right-2 bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-xl font-semibold shadow-lg flex items-center gap-1">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          Preferred
+                        </div>
+                      )}
                     </div>
 
                     {/* Hotel Details */}
@@ -480,19 +568,32 @@ const ChangeHotel = ({
                         </span>
                       </div>
 
-                      {/* Select Button */}
-                      <button
-                        onClick={() => {
-                          handleSelectHotel(
-                            hotel,
-                            selectedDayForHotelSlider?.day
-                          );
-                          setShowHotelSlider(false);
-                        }}
-                        className="mt-3 sm:mt-4 w-full sm:w-auto px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base"
-                      >
-                        Select Hotel
-                      </button>
+                      {/* Select Buttons */}
+                      <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row gap-2 sm:gap-3">
+                        <button
+                          onClick={() => {
+                            handleSelectHotel(
+                              hotel,
+                              selectedDayForHotelSlider?.day
+                            );
+                            setShowHotelSlider(false);
+                          }}
+                          className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base"
+                        >
+                          Select Hotel
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleAddSimilarHotel(
+                              hotel,
+                              selectedDayForHotelSlider?.day
+                            );
+                          }}
+                          className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base"
+                        >
+                          Add in Similar Hotel
+                        </button>
+                      </div>
                     </div>
                   </div>
 

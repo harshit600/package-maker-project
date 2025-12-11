@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { toast } from 'react-toastify'
 import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { storage } from "../../firebase";
 
 const config = {
 	API_HOST: "https://pluto-hotel-server-15c83810c41c.herokuapp.com",
@@ -36,7 +38,9 @@ function HotelLedger() {
     transactionAmount: "",
     transactionId: "",
     transactionDate: "",
-    description: ""
+    description: "",
+    utrNumber: "",
+    image: ""
   })
   const [addPaymentData, setAddPaymentData] = useState({
     bank: "",
@@ -50,20 +54,23 @@ function HotelLedger() {
     transactionAmount: "",
     transactionId: "",
     transactionDate: "",
-    description: ""
+    description: "",
+    utrNumber: "",
+    image: ""
   })
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
   const [viewModal, setViewModal] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState(null)
   const [propertyBank, setPropertyBank] = useState([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [loadingPropertyBank, setLoadingPropertyBank] = useState(true);
   const [propertyBankSearchTerm, setPropertyBankSearchTerm] = useState('');
   const [showPropertyBankDropdown, setShowPropertyBankDropdown] = useState(false);
 
 
   useEffect(() => {
-    fetchHotelLedger()
+    fetchAllHotelData()
     fetchpropertybank()
   }, [])
 
@@ -95,24 +102,34 @@ function HotelLedger() {
     }
   }
 
-  // Filter property banks based on search term
-  const filteredPropertyBanks = propertyBank.filter(bank =>
-    bank.bankName?.toLowerCase().includes(propertyBankSearchTerm.toLowerCase()) ||
-    bank.accountNumber?.toLowerCase().includes(propertyBankSearchTerm.toLowerCase())
-  )
-  const fetchHotelLedger = async () => {
+  // Merged function to fetch data from both APIs
+  const fetchAllHotelData = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${config.API_HOST}/api/banktransactions/dual-bank`)
-      const data = await response.json()
-      console.log('Hotel ledger:', data)
       
-      // Filter data to show only accepted transactions or those without accept field
-      const filteredData = (data?.data.reverse() || []).filter(item => 
+      // Fetch dual-bank transactions
+      const dualBankResponse = await fetch(`${config.API_HOST}/api/banktransactions/dual-bank`)
+      const dualBankData = await dualBankResponse.json()
+      console.log('Dual bank data:', dualBankData)
+      
+      // Filter dual bank data to show only accepted transactions
+      const filteredDualBankData = (dualBankData?.data?.reverse() || []).filter(item => 
         item.accept === true 
       )
       
-      setHotelLedger(filteredData)
+      // Fetch automatic hotel transactions
+      const automaticHotelResponse = await fetch(`${config.API_HOST}/api/banktransactions/automatic-hotel`)
+      const automaticHotelData = await automaticHotelResponse.json()
+      console.log('Automatic hotel data:', automaticHotelData)
+      
+      // Merge both datasets
+      const mergedData = [
+        ...filteredDualBankData,
+        ...(automaticHotelData?.data || [])
+      ]
+      
+      console.log('Merged hotel ledger data:', mergedData)
+      setHotelLedger(mergedData)
     }
     catch (error) {
       console.error('Error fetching hotel ledger:', error)
@@ -122,6 +139,12 @@ function HotelLedger() {
       setLoading(false)
     }
   }
+
+  // Filter property banks based on search term
+  const filteredPropertyBanks = propertyBank.filter(bank =>
+    bank.bankName?.toLowerCase().includes(propertyBankSearchTerm.toLowerCase()) ||
+    bank.accountNumber?.toLowerCase().includes(propertyBankSearchTerm.toLowerCase())
+  )
 
   const fetchManualBanks = async () => {
     try {
@@ -141,7 +164,10 @@ function HotelLedger() {
 
   // Get unique banks for filter dropdowns
   const getUniqueBanks = () => {
-    const toBanks = [...new Set(hotelLedger.map(item => item.toBankName).filter(Boolean))]
+    // Extract toBankName from both direct field and nested toBank.bankName
+    const toBanks = [...new Set(hotelLedger.map(item => {
+      return item.toBankName || item.toBank?.bankName
+    }).filter(Boolean))]
     return { toBanks }
   }
 
@@ -154,7 +180,9 @@ function HotelLedger() {
       item.transactionId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.description?.toLowerCase().includes(searchTerm.toLowerCase())
     
-    const matchesToBank = !toBankFilter || item.toBankName === toBankFilter
+    // Check both toBankName and toBank.bankName for compatibility with both data structures
+    const itemToBankName = item.toBankName || item.toBank?.bankName
+    const matchesToBank = !toBankFilter || itemToBankName === toBankFilter
     const matchesStatus = !statusFilter || 
       (statusFilter === 'pending' && item.accept === undefined) ||
       (statusFilter === 'accepted' && item.accept === true) ||
@@ -167,14 +195,28 @@ function HotelLedger() {
       (!toDate || new Date(itemDate) <= new Date(toDate))
 
     return matchesSearch && matchesToBank && matchesStatus && matchesDate
+  }).sort((a, b) => {
+    // First sort by hotel name
+    const aHotelName = (a.toBankName || a.toBank?.bankName || '').toLowerCase()
+    const bHotelName = (b.toBankName || b.toBank?.bankName || '').toLowerCase()
+    
+    if (aHotelName !== bHotelName) {
+      return aHotelName.localeCompare(bHotelName)
+    }
+    
+    // Then sort by date (oldest first for correct running balance)
+    const aDate = new Date(a.clearDate || a.transactionDate || 0)
+    const bDate = new Date(b.clearDate || b.transactionDate || 0)
+    return aDate - bDate
   })
 
   // Helper function to get unique credit amount for operationId + toBank.bankName combination
   const getUniqueCreditAmount = (item, allItems) => {
-    const sameOperationItems = allItems.filter(otherItem => 
-      otherItem.operationId === item.operationId && 
-      otherItem.toBank?.bankName === item.toBank?.bankName
-    )
+    const itemBankName = (item.toBankName || item.toBank?.bankName || '').trim().toLowerCase()
+    const sameOperationItems = allItems.filter(otherItem => {
+      const otherItemBankName = (otherItem.toBankName || otherItem.toBank?.bankName || '').trim().toLowerCase()
+      return otherItem.operationId === item.operationId && otherItemBankName === itemBankName
+    })
     
     // If this is the first occurrence of this operationId + toBank.bankName combination, return credit amount
     // Otherwise, return 0 for credit (but still show debit)
@@ -234,9 +276,12 @@ function HotelLedger() {
   // Payment modal handlers
   const handleOpenPaymentModal = (transaction) => {
     setSelectedTransactionForPayment(transaction)
+    // Handle toBank - it can be an object with _id (automatic-hotel data) or a string ID (dual-bank data)
+    const toBankValue = typeof transaction.toBank === 'object' ? transaction.toBank?._id : transaction.toBank || ""
+    
     setPaymentData({
       bank: "",
-      toBank: transaction.toBank?._id || "",
+      toBank: toBankValue,
       isDualBankTransaction: true,
       operationId: transaction.operationId || "",
       leadName: transaction.leadName || "",
@@ -247,7 +292,9 @@ function HotelLedger() {
       transactionAmount: "",
       transactionId: "",
       transactionDate: new Date().toISOString().split('T')[0],
-      description: ""
+      description: "",
+      utrNumber: "",
+      image: ""
     })
     // Fetch manual banks when opening the modal
     fetchManualBanks()
@@ -267,6 +314,48 @@ function HotelLedger() {
       [field]: value
     }))
   }
+
+  // Function to handle image upload to Firebase
+  const handleImageUpload = async (file) => {
+    if (!file) return null;
+
+    try {
+      setUploadingImage(true);
+      const fileName = new Date().getTime() + file.name;
+      const storageRef = ref(storage, `payment-receipts/${fileName}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      return new Promise((resolve, reject) => {
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log("Upload is " + progress + "% done");
+          },
+          (error) => {
+            setUploadingImage(false);
+            console.error("Upload failed:", error);
+            reject(error);
+          },
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              setUploadingImage(false);
+              resolve(downloadURL);
+            } catch (error) {
+              setUploadingImage(false);
+              console.error("Error getting download URL:", error);
+              reject(error);
+            }
+          }
+        );
+      });
+    } catch (error) {
+      setUploadingImage(false);
+      console.error("Upload error:", error);
+      return null;
+    }
+  };
 
   const handlePropertyBankSearch = (searchTerm) => {
     setPropertyBankSearchTerm(searchTerm)
@@ -295,7 +384,9 @@ function HotelLedger() {
       transactionAmount: "",
       transactionId: "",
       transactionDate: new Date().toISOString().split('T')[0],
-      description: ""
+      description: "",
+      utrNumber: "",
+      image: ""
     })
     setPropertyBankSearchTerm('')
     setShowPropertyBankDropdown(false)
@@ -307,7 +398,7 @@ function HotelLedger() {
   const handleSubmitAddPayment = async () => {
     try {
       // Validate required fields
-      if (!addPaymentData.bank || !addPaymentData.toBank || !addPaymentData.transactionAmount) {
+      if ( !addPaymentData.toBank || !addPaymentData.transactionAmount) {
         alert('Please fill in all required fields (From Bank, To Bank, and Transaction Amount)')
         return
       }
@@ -316,7 +407,7 @@ function HotelLedger() {
       
       // Prepare the payment request data
       const paymentRequestData = {
-        bank: addPaymentData.bank,
+        // bank: addPaymentData.bank,
         toBank: addPaymentData.toBank,
         operationId: addPaymentData.operationId,
         leadName: addPaymentData.leadName,
@@ -327,7 +418,9 @@ function HotelLedger() {
         transactionId: addPaymentData.transactionId,
         transactionDate: addPaymentData.transactionDate,
         description: addPaymentData.description,
-        isDualBankTransaction: addPaymentData.isDualBankTransaction
+        isDualBankTransaction: addPaymentData.isDualBankTransaction,
+        utrNumber: addPaymentData.utrNumber,
+        image: addPaymentData.image
       }
 
       console.log("Sending add payment request:", paymentRequestData)
@@ -364,7 +457,7 @@ function HotelLedger() {
         // Close modal after successful submission
         setShowAddPaymentModal(false)
         setAddPaymentData({
-          bank: "",
+          // bank: "",
           toBank: "",
           isDualBankTransaction: true,
           operationId: "",
@@ -375,10 +468,12 @@ function HotelLedger() {
           transactionAmount: "",
           transactionId: "",
           transactionDate: "",
-          description: ""
+          description: "",
+          utrNumber: "",
+          image: ""
         })
         // Refresh the data
-        fetchHotelLedger()
+        fetchAllHotelData()
       } else {
         alert('Failed to add payment. Please try again.')
       }
@@ -391,7 +486,7 @@ function HotelLedger() {
   const handleSubmitPayment = async () => {
     try {
       // Validate required fields
-      if (!paymentData.bank || !paymentData.toBank || !paymentData.transactionAmount) {
+      if ( !paymentData.toBank || !paymentData.transactionAmount) {
         alert('Please fill in all required fields (From Bank, To Bank, and Transaction Amount)')
         return
       }
@@ -400,7 +495,7 @@ function HotelLedger() {
       
       // Prepare the payment request data
       const paymentRequestData = {
-        bank: paymentData.bank,
+        // bank: paymentData.bank,
         toBank: paymentData.toBank,
         operationId: paymentData.operationId,
         leadName: paymentData.leadName,
@@ -412,7 +507,9 @@ function HotelLedger() {
         transactionDate: paymentData.transactionDate,
         description: paymentData.description,
         isDualBankTransaction: paymentData.isDualBankTransaction,
-        totalHotelamount: paymentData.leadData
+        totalHotelamount: paymentData.leadData,
+        utrNumber: paymentData.utrNumber,
+        image: paymentData.image
       }
 
       console.log("Sending payment request:", paymentRequestData)
@@ -461,10 +558,12 @@ function HotelLedger() {
           transactionAmount: "",
           transactionId: "",
           transactionDate: "",
-          description: ""
+          description: "",
+          utrNumber: "",
+          image: ""
         })
         // Refresh the data
-        fetchHotelLedger()
+        fetchAllHotelData()
       } else {
         alert('Failed to submit payment request. Please try again.')
       }
@@ -548,8 +647,11 @@ function HotelLedger() {
         const debitAmount = item.transactionAmount || 0
         
         // Calculate running balance for this specific hotel (toBankName)
-        const currentHotel = item.toBankName
-        const hotelItems = filteredData.filter(hotelItem => hotelItem.toBankName === currentHotel)
+        const currentHotel = (item.toBankName || item.toBank?.bankName || '').trim().toLowerCase()
+        const hotelItems = filteredData.filter(hotelItem => {
+          const hotelItemName = (hotelItem.toBankName || hotelItem.toBank?.bankName || '').trim().toLowerCase()
+          return hotelItemName === currentHotel
+        })
         const currentItemIndex = hotelItems.findIndex(hotelItem => hotelItem._id === item._id)
         const itemsUpToCurrent = hotelItems.slice(0, currentItemIndex + 1)
         const totalCredit = itemsUpToCurrent.reduce((sum, hotelItem) => sum + getUniqueCreditAmount(hotelItem, filteredData), 0)
@@ -558,7 +660,7 @@ function HotelLedger() {
 
         return {
           'Sr.No.': srNo,
-          'Hotel Name': item.toBankName || 'N/A',
+          'Hotel Name': item.toBankName || item.toBank?.bankName || 'N/A',
           'Remarks': item.description || '-',
           'Date': displayDate,
           'Payment Mode': item.paymentMode || '-',
@@ -739,7 +841,7 @@ function HotelLedger() {
                 Export to Excel
               </button>
               <button
-                onClick={fetchHotelLedger}
+                onClick={fetchAllHotelData}
                 className="inline-flex items-center px-6 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 shadow-sm"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -831,13 +933,37 @@ function HotelLedger() {
                     const debitAmount = item.transactionAmount || 0
                     
                     // Calculate running balance for this specific hotel (toBankName)
-                    const currentHotel = item.toBankName
-                    const hotelItems = filteredData.filter(hotelItem => hotelItem.toBankName === currentHotel)
+                    const currentHotel = (item.toBankName || item.toBank?.bankName || '').trim().toLowerCase()
+                    const hotelItems = filteredData.filter(hotelItem => {
+                      const hotelItemName = (hotelItem.toBankName || hotelItem.toBank?.bankName || '').trim().toLowerCase()
+                      return hotelItemName === currentHotel
+                    })
                     const currentItemIndex = hotelItems.findIndex(hotelItem => hotelItem._id === item._id)
                     const itemsUpToCurrent = hotelItems.slice(0, currentItemIndex + 1)
-                    const totalCredit = itemsUpToCurrent.reduce((sum, hotelItem) => sum + getUniqueCreditAmount(hotelItem, filteredData), 0)
-                    const totalDebit = itemsUpToCurrent.reduce((sum, hotelItem) => sum + (hotelItem.transactionAmount || 0), 0)
+                    
+                    // Calculate total credit and debit up to current item
+                    const totalCredit = itemsUpToCurrent.reduce((sum, hotelItem) => {
+                      const credit = getUniqueCreditAmount(hotelItem, filteredData)
+                      return sum + credit
+                    }, 0)
+                    const totalDebit = itemsUpToCurrent.reduce((sum, hotelItem) => {
+                      const debit = hotelItem.transactionAmount || 0
+                      return sum + debit
+                    }, 0)
                     const balance = totalCredit - totalDebit
+                    
+                    // Debug logging for first few items
+                    if (index < 3) {
+                      console.log(`Row ${srNo}:`, {
+                        hotel: item.toBankName || item.toBank?.bankName,
+                        operationId: item.operationId,
+                        credit: getUniqueCreditAmount(item, filteredData),
+                        debit: item.transactionAmount || 0,
+                        totalCredit,
+                        totalDebit,
+                        balance
+                      })
+                    }
                     
                     return (
                       <tr key={item._id} className="border-b border-gray-300 hover:bg-gray-50">
@@ -846,7 +972,7 @@ function HotelLedger() {
                         </td>
                         
                         <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300">
-                          {item.toBankName || 'N/A'}
+                          {item.toBankName || item.toBank?.bankName || 'N/A'}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300">
                           {item.description || '-'}
@@ -1155,13 +1281,13 @@ function HotelLedger() {
                   <h4 className="font-semibold text-blue-800 mb-2">Lead Information</h4>
                   <p><span className="font-medium">Operation ID:</span> {paymentData.operationId}</p>
                   <p><span className="font-medium">Lead Name:</span> {paymentData.leadName}</p>
-                  <p><span className="font-medium">Hotel Name:</span> {selectedTransactionForPayment.toBankName}</p>
+                  <p><span className="font-medium">Hotel Name:</span> {selectedTransactionForPayment.toBankName || selectedTransactionForPayment.toBank?.bankName}</p>
                   <p><span className="font-medium">Hotel Amount:</span> ₹{selectedTransactionForPayment.totalHotelamount?.totalamount?.toLocaleString() || '0'}</p>
                 </div>
 
                 {/* Bank Information */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
+                  {/* <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       From Bank ID
                     </label>
@@ -1180,14 +1306,14 @@ function HotelLedger() {
                         </option>
                       ))}
                     </select>
-                  </div>
+                  </div> */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       To Bank ID (Property Bank)
                     </label>
                     <input
                       type="text"
-                      value={selectedTransactionForPayment.toBankName || ''}
+                      value={selectedTransactionForPayment.toBankName || selectedTransactionForPayment.toBank?.bankName || ''}
                       disabled
                       className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600"
                     />
@@ -1228,7 +1354,7 @@ function HotelLedger() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
+                  {/* <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Payment Type
                     </label>
@@ -1240,7 +1366,7 @@ function HotelLedger() {
                       <option value="out">Out</option>
                       <option value="in">In</option>
                     </select>
-                  </div>
+                  </div> */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       To Bank Payment Type
@@ -1256,7 +1382,7 @@ function HotelLedger() {
                   </div>
                 </div>
 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Transaction ID
                   </label>
@@ -1267,7 +1393,7 @@ function HotelLedger() {
                     placeholder="Enter transaction ID"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                </div>
+                </div> */}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1292,6 +1418,53 @@ function HotelLedger() {
                     rows="3"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    UTR Number
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentData.utrNumber}
+                    onChange={(e) => handlePaymentDataChange('utrNumber', e.target.value.trim())}
+                    placeholder="Enter UTR number"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Receipt Image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const imageUrl = await handleImageUpload(file);
+                        if (imageUrl) {
+                          handlePaymentDataChange('image', imageUrl);
+                          toast.success("Image uploaded successfully!");
+                        }
+                      }
+                    }}
+                    disabled={uploadingImage}
+                  />
+                  {uploadingImage && (
+                    <p className="text-sm text-blue-600 mt-1">Uploading image...</p>
+                  )}
+                  {paymentData.image && (
+                    <div className="mt-2">
+                      <img 
+                        src={paymentData.image} 
+                        alt="Payment receipt" 
+                        className="w-32 h-32 object-cover rounded border border-gray-300"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1340,7 +1513,7 @@ function HotelLedger() {
               <div className="space-y-4">
                 {/* Bank Information */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
+                  {/* <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       From Bank ID
                     </label>
@@ -1359,7 +1532,7 @@ function HotelLedger() {
                         </option>
                       ))}
                     </select>
-                  </div>
+                  </div> */}
                   <div className="relative property-bank-dropdown">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       To Bank ID
@@ -1439,7 +1612,7 @@ function HotelLedger() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
+                  {/* <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Payment Type
                     </label>
@@ -1451,7 +1624,7 @@ function HotelLedger() {
                       <option value="out">Out</option>
                       <option value="in">In</option>
                     </select>
-                  </div>
+                  </div> */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       To Bank Payment Type
@@ -1467,7 +1640,7 @@ function HotelLedger() {
                   </div>
                 </div>
 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Operation ID
                   </label>
@@ -1478,9 +1651,9 @@ function HotelLedger() {
                     placeholder="Enter operation ID"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                </div>
+                </div> */}
 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Lead Name
                   </label>
@@ -1491,9 +1664,9 @@ function HotelLedger() {
                     placeholder="Enter lead name"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                </div>
+                </div> */}
 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Transaction ID
                   </label>
@@ -1504,7 +1677,7 @@ function HotelLedger() {
                     placeholder="Enter transaction ID"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                </div>
+                </div> */}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1529,6 +1702,53 @@ function HotelLedger() {
                     rows="3"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    UTR Number
+                  </label>
+                  <input
+                    type="text"
+                    value={addPaymentData.utrNumber}
+                    onChange={(e) => handleAddPaymentDataChange('utrNumber', e.target.value.trim())}
+                    placeholder="Enter UTR number"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Receipt Image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const imageUrl = await handleImageUpload(file);
+                        if (imageUrl) {
+                          handleAddPaymentDataChange('image', imageUrl);
+                          toast.success("Image uploaded successfully!");
+                        }
+                      }
+                    }}
+                    disabled={uploadingImage}
+                  />
+                  {uploadingImage && (
+                    <p className="text-sm text-blue-600 mt-1">Uploading image...</p>
+                  )}
+                  {addPaymentData.image && (
+                    <div className="mt-2">
+                      <img 
+                        src={addPaymentData.image} 
+                        alt="Payment receipt" 
+                        className="w-32 h-32 object-cover rounded border border-gray-300"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 

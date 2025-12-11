@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import About from "./pages/About";
@@ -63,6 +63,47 @@ import TransportLedger from "./components/bankManagement/transportLedger";
 import TeamLeaderApproval from "./components/teamLeaderApproval";
 import SaleDashboard from "./components/SaleDashboard";
 import GlobalNotification from "./components/GlobalNotification";
+import PlutoLink from "./components/PlutoLink";
+import DemandLink from "./components/DemandLink";
+// Component to conditionally render Header and SideBar
+function AppLayout({ children }) {
+  const location = useLocation();
+  const isPackageLink = location.pathname === "/package-link";
+  const isDemandLink = location.pathname === "/demand-link";
+  const isPublicLink = isPackageLink || isDemandLink;
+
+  if (isPublicLink) {
+    // For package-link and demand-link routes, don't show Header and SideBar
+    return (
+      <>
+        <GlobalNotification />
+        <ToastContainer />
+        <div className="w-full">
+          {children}
+        </div>
+      </>
+    );
+  }
+
+  // For all other routes, show Header and SideBar
+  return (
+    <>
+      <Header />
+      <GlobalNotification />
+      <ToastContainer />
+      <div
+        className="flex"
+        style={{ height: "calc(100vh - 70px)", overflow: "scroll" }}
+      >
+        <SideBar />
+        <div className="flex-1 rounded  border-red-100 bottom-2">
+          {children}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function App() {
   return (
     <Provider store={store}>
@@ -75,96 +116,88 @@ export default function App() {
             <CabProvider>
               <BrowserRouter>
                 <AuthProvider>
-                  <Header />
-                  <GlobalNotification />
-                  <ToastContainer />
-                  <div
-                    className="flex"
-                    style={{ height: "calc(100vh - 70px)", overflow: "scroll" }}
-                  >
-                    <SideBar />
-                    <div className="flex-1 rounded  border-red-100 bottom-2">
-                      {" "}
-                      {/* Main content area */}
-                      <PackageProvider>
-                        <Routes>
-                          <Route path="/crm-leads" element={<CrmLeads />} />
-                          <Route path="/" element={<Navigate to="/signin" replace />} />
-                          <Route path="/signin" element={<SignIn />} />
-                          <Route path="/signup" element={<SignUp />} />
-                          <Route element={<PrivateRoutes />}>
-                            <Route path="/destinations" element={<Destinations />} />
-                            <Route
-                              path="/destinations/:country"
-                              element={<CountryStates />}
-                            />
-                            <Route
-                              path="/destinations/:country/:state"
-                              element={<StatesCities />}
-                            />
-                            <Route
-                              path="/destinations/:country/:state/:city"
-                              element={<CitiesPlaces />}
-                            />
-                            <Route path="/dashboard" element={<Dashboard />} />
-                            <Route path="/create-itenary" element={<CreateItenary />} />
-                            <Route path="/global-master" element={<GlobalMaster />} />
-                            <Route path="/global-master-data" element={<GlobalMasterData />} />
-                            <Route path="/profile" element={<Profile />} />
-                            <Route path="/create-listing" element={<CreateListing />} />
-                            <Route path="/create-package" element={<CreatePackage />} />
-                            <Route path="/create-package/:packageId" element={<CreatePackage />} />
-                            <Route path="/packages" element={<Packages />} />
-                            <Route path="/cabmanager" element={<Cabmanager />} />
-                            <Route
-                              path="/property/:hotelName/:hotelId"
-                              element={<InventoryUpdate />}
-                            />
-                            <Route
-                              path="/update/:hotelName/:hotelId"
-                              element={<StepperForm />}
-                            />{" "}
-                            <Route path="/property" element={<Property />} />
-                            <Route
-                              path="/onboarding/:hotelType"
-                              element={<StepperForm />}
-                            />
-                            <Route
-                              path="/bulkupdate/:hotelName/:hotelId"
-                              element={<BulkUpdate />}
-                            />
-                            <Route
-                              path="/createActivities"
-                              element={<CreateActivities />}
-                            />
-                            <Route path="/hotel-manager" element={<Homee />} />
-                            <Route path="/add-user" element={<AddUser />} />
-                            <Route path="/user-list" element={<UserList />} />
-                            <Route path="/user-profile" element={<UserProfile />} />
-                            <Route path="/leads" element={<Leads />} />
-                            <Route path="/all-leads" element={<AllLeads />} />
-                            <Route path="/all-leads-admin" element={<AllLeadmanagement />} />
-                            <Route path="/package-approval" element={<PackageApproval />} />
-                            <Route path="//package-approve" element={<TeamLeaderApproval />} />
-                            <Route path="/margin-master" element={<MarginMaster />} />
-                            <Route path="/cab-vendor-details" element={<CabVendorDetails />} />
-                            <Route path="/package-download-tracker" element={<PackageDownloadTracker />} />
-                            <Route path="/add-bank" element={<AddBank />} />
-                            <Route path="/bank-list" element={<BankList />} />
-                            <Route path="/bank-report" element={<BankReport />} />
-                            <Route path="/transaction-list" element={<TransactionList />} />
-                            <Route path="/Service-report" element={<ServiceReport />} />
-                            <Route path="/profit-loss-report" element={<ProfitLoss />} />
-                            <Route path="/operation-profit-loss" element={<OperationProfitLoss />} />
-                            <Route path="/hotel-ledger" element={<HotelLedger />} />
-                            <Route path="/transport-ledger" element={<TransportLedger />} />
-                            <Route path="/sale-dashboard" element={<SaleDashboard />} />
-                          </Route>
-                          <Route path="/about" element={<About />} />
-                        </Routes>
-                      </PackageProvider>
-                    </div>
-                  </div>
+                  <AppLayout>
+                    <PackageProvider>
+                      <Routes>
+                        <Route path="/crm-leads" element={<CrmLeads />} />
+                        <Route path="/" element={<Navigate to="/signin" replace />} />
+                        <Route path="/signin" element={<SignIn />} />
+                        <Route path="/signup" element={<SignUp />} />
+                        {/* Public routes - no authentication required */}
+                        <Route path="/package-link" element={<PlutoLink />} />
+                        <Route path="/demand-link" element={<DemandLink />} />
+                        <Route element={<PrivateRoutes />}>
+                          <Route path="/destinations" element={<Destinations />} />
+                          <Route
+                            path="/destinations/:country"
+                            element={<CountryStates />}
+                          />
+                          <Route
+                            path="/destinations/:country/:state"
+                            element={<StatesCities />}
+                          />
+                          <Route
+                            path="/destinations/:country/:state/:city"
+                            element={<CitiesPlaces />}
+                          />
+                          <Route path="/dashboard" element={<Dashboard />} />
+                          <Route path="/create-itenary" element={<CreateItenary />} />
+                          <Route path="/global-master" element={<GlobalMaster />} />
+                          <Route path="/global-master-data" element={<GlobalMasterData />} />
+                          <Route path="/profile" element={<Profile />} />
+                          <Route path="/create-listing" element={<CreateListing />} />
+                          <Route path="/create-package" element={<CreatePackage />} />
+                          <Route path="/create-package/:packageId" element={<CreatePackage />} />
+                          <Route path="/packages" element={<Packages />} />
+                          <Route path="/cabmanager" element={<Cabmanager />} />
+                          <Route
+                            path="/property/:hotelName/:hotelId"
+                            element={<InventoryUpdate />}
+                          />
+                          <Route
+                            path="/update/:hotelName/:hotelId"
+                            element={<StepperForm />}
+                          />{" "}
+                          <Route path="/property" element={<Property />} />
+                          <Route
+                            path="/onboarding/:hotelType"
+                            element={<StepperForm />}
+                          />
+                          <Route
+                            path="/bulkupdate/:hotelName/:hotelId"
+                            element={<BulkUpdate />}
+                          />
+                          <Route
+                            path="/createActivities"
+                            element={<CreateActivities />}
+                          />
+                          <Route path="/hotel-manager" element={<Homee />} />
+                          <Route path="/add-user" element={<AddUser />} />
+                          <Route path="/user-list" element={<UserList />} />
+                          <Route path="/user-profile" element={<UserProfile />} />
+                          <Route path="/leads" element={<Leads />} />
+                          <Route path="/all-leads" element={<AllLeads />} />
+                          <Route path="/all-leads-admin" element={<AllLeadmanagement />} />
+                          <Route path="/package-approval" element={<PackageApproval />} />
+                          <Route path="//package-approve" element={<TeamLeaderApproval />} />
+                          <Route path="/margin-master" element={<MarginMaster />} />
+                          <Route path="/cab-vendor-details" element={<CabVendorDetails />} />
+                          <Route path="/package-download-tracker" element={<PackageDownloadTracker />} />
+                          <Route path="/add-bank" element={<AddBank />} />
+                          <Route path="/bank-list" element={<BankList />} />
+                          <Route path="/bank-report" element={<BankReport />} />
+                          <Route path="/transaction-list" element={<TransactionList />} />
+                          <Route path="/Service-report" element={<ServiceReport />} />
+                          <Route path="/profit-loss-report" element={<ProfitLoss />} />
+                          <Route path="/operation-profit-loss" element={<OperationProfitLoss />} />
+                          <Route path="/hotel-ledger" element={<HotelLedger />} />
+                          <Route path="/transport-ledger" element={<TransportLedger />} />
+                          <Route path="/sale-dashboard" element={<SaleDashboard />} />
+                        </Route>
+                        <Route path="/about" element={<About />} />
+                      </Routes>
+                    </PackageProvider>
+                  </AppLayout>
                 </AuthProvider>
               </BrowserRouter>
             </CabProvider>

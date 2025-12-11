@@ -211,6 +211,7 @@ function ListedProperites({
 
   return (
     <div className="relative">
+      
       <div className="p-2 max-w-7xl mx-auto bg-gray-50">
         {getFilteredProperties().map((property, index) => (
           <div

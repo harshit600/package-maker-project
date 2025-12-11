@@ -21,7 +21,8 @@ import ListedProperites from "./ListedPoperties";
 import config from "../../../config";
 import { useHotelManager } from "../../context/HotelManagerContext";
 export function Homee() {
-  const { properties, isLoading, totalHotels } = useHotelManager();
+  const { properties, isLoading, totalHotels, propertiesbasicinfo, isLoadingbasicinfo, totalHotelsbasicinfo } = useHotelManager();
+ console.log(totalHotelsbasicinfo);
   const [selectedSort, setSelectedSort] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPrice, setSelectedPrice] = useState("All Prices");
@@ -37,7 +38,7 @@ export function Homee() {
 
   // Derive location options from properties
   const locationOptions = useMemo(() => {
-    const addresses = properties
+    const addresses = propertiesbasicinfo
       .map(property => property?.location?.address)
       .filter(Boolean);
     const uniqueAddresses = [...new Set(addresses)];
@@ -52,7 +53,7 @@ export function Homee() {
         };
       })
     ];
-  }, [properties]);
+  }, [propertiesbasicinfo]);
 
   const handleSortChange = (option) => {
     setSelectedSort(option.label);
@@ -83,7 +84,7 @@ export function Homee() {
             <span>Properties</span>
           </div>
           <div className="space-y-1">
-            {isLoading ? (
+            {isLoadingbasicinfo ? (
               <div className="animate-pulse">
                 <div className="h-8 bg-gray-200 rounded w-64 mb-2"></div>
                 <div className="h-4 bg-gray-200 rounded w-32"></div>
@@ -94,7 +95,7 @@ export function Homee() {
                   variant="h1"
                   className="text-4xl font-bold text-gray-900"
                 >
-                  {totalHotels.toLocaleString()} {totalHotels === 1 ? "Property" : "Properties"}
+                  {totalHotelsbasicinfo} {totalHotelsbasicinfo === 1 ? "Property" : "Properties"}
                 </Typography>
                 <p className="text-sm text-gray-500">
                   Loading all properties automatically for better filtering experience
@@ -164,9 +165,9 @@ export function Homee() {
       {/* Properties List Component */}
       <div className="max-w-7xl mx-auto mt-6">
         <ListedProperites
-          properties={properties}
-          isLoading={isLoading}
-          totalHotels={totalHotels}
+          properties={propertiesbasicinfo}
+          isLoading={isLoadingbasicinfo}
+          totalHotels={totalHotelsbasicinfo}
           sortBy={selectedSort.toLowerCase()}
           searchQuery={searchQuery}
           priceFilter={selectedPrice}

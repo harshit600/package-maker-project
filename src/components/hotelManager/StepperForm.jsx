@@ -94,6 +94,7 @@ export default function PropertyForm() {
       mobile: "",
       useWhatsApp: false,
       landline: "",
+      prefered: false,
       step: 0,
     },
     location: {
@@ -672,6 +673,26 @@ export default function PropertyForm() {
             onChange={handleChange}
             labelProps={{ className: "!text-gray-400" }}
             containerProps={{ className: "min-w-[100px]" }}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 border-b gap-4 items-center">
+        <div className="col-span-1">
+          <Typography variant="h6" color="blue-gray" className="mb-1">
+            Preferred
+          </Typography>
+          <Typography variant="small" color="gray" className="font-normal">
+            Mark this property as preferred
+          </Typography>
+        </div>
+        <div className="col-span-2">
+          <Checkbox
+            id="prefered"
+            name="prefered"
+            label="Mark as Preferred"
+            checked={formData["basicInfo"].prefered}
+            onChange={handleChange}
+            labelProps={{ className: "text-sm font-medium" }}
           />
         </div>
       </div>

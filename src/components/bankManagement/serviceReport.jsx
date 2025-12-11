@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useBankManagement } from './bankManagementContext'
 import { useFinalcosting } from '../../context/FinalcostingContext'
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { storage } from "../../firebase";
 function ServiceReport() {
   const {createBankTransaction, serviceReport, serviceReportLoading, serviceReportList, updateCabVerification, updateHotelVerification } = useBankManagement()
   const [expandedRows, setExpandedRows] = useState({})
@@ -17,9 +19,247 @@ function ServiceReport() {
     transactionAmount: '',
     transactionId: '',
     transactionDate: '',
-    transactionDescription: ''
+    transactionDescription: '',
+    utrNumber: '',
+    image: ''
+  })
+
+  // New payment modal states
+  const [showHotelPaymentModal, setShowHotelPaymentModal] = useState(false)
+  const [showCabPaymentModal, setShowCabPaymentModal] = useState(false)
+  const [manualBanks, setManualBanks] = useState([])
+  const [loadingManualBanks, setLoadingManualBanks] = useState(false)
+  const [hotelBank, setHotelBank] = useState([])
+  const [loadingHotelBank, setLoadingHotelBank] = useState(true)
+  const [cabBank, setCabBank] = useState([])
+  const [loadingCabBank, setLoadingCabBank] = useState(true)
+  const [propertyBankSearchTerm, setPropertyBankSearchTerm] = useState('')
+  const [showPropertyBankDropdown, setShowPropertyBankDropdown] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [showTransactionHistoryModal, setShowTransactionHistoryModal] = useState(false)
+  const [transactionHistory, setTransactionHistory] = useState([])
+  const [loadingTransactionHistory, setLoadingTransactionHistory] = useState(false)
+  const [selectedLeadForHistory, setSelectedLeadForHistory] = useState(null)
+
+  // Hotel payment form data
+  const [hotelPaymentData, setHotelPaymentData] = useState({
+    bank: "",
+    toBank: "",
+    isDualBankTransaction: true,
+    paymentMode: "RTGS",
+    paymentType: "out",
+    toBankPaymentType: "in",
+    transactionAmount: "",
+    transactionId: "",
+    transactionDate: "",
+    description: "",
+    utrNumber: "",
+    image: ""
+  })
+
+  // Cab payment form data
+  const [cabPaymentData, setCabPaymentData] = useState({
+    bank: "",
+    toBank: "",
+    isDualBankTransaction: true,
+    paymentMode: "RTGS",
+    paymentType: "out",
+    toBankPaymentType: "in",
+    transactionAmount: "",
+    transactionId: "",
+    transactionDate: "",
+    description: "",
+    utrNumber: "",
+    image: ""
   })
   const { banks,banksLoading} = useFinalcosting()
+
+  // API configuration
+  const config = {
+    API_HOST: "https://pluto-hotel-server-15c83810c41c.herokuapp.com",
+  }
+
+  useEffect(() => {
+    fetchHotelBank()
+    fetchCabBank()
+  }, [])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showPropertyBankDropdown && !event.target.closest('.property-bank-dropdown')) {
+        setShowPropertyBankDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showPropertyBankDropdown])
+
+  const fetchHotelBank = async () => {
+    setLoadingHotelBank(true);
+    try {
+      const response = await fetch(`${config.API_HOST}/api/bankaccountdetail/get-auto-created`);
+      const data = await response.json();
+      console.log("Hotel banks data:", data?.data);
+      setHotelBank(data?.data || []);
+    } catch (error) {
+      console.error(error.message);
+    } finally {
+      setLoadingHotelBank(false);
+    }
+  }
+
+  const fetchCabBank = async () => {
+    setLoadingCabBank(true);
+    try {
+      const response = await fetch(`${config.API_HOST}/api/bankaccountdetail/auto-create-from-cabusers`);
+      const data = await response.json();
+      console.log("Cab banks data:", data?.data?.results);
+      setCabBank(data?.data?.results || []);
+    } catch (error) {
+      console.error(error.message);
+    } finally {
+      setLoadingCabBank(false);
+    }
+  }
+
+  const fetchManualBanks = async () => {
+    try {
+      setLoadingManualBanks(true)
+      const response = await fetch(`${config.API_HOST}/api/bankaccountdetail/get-manual`)
+      const data = await response.json()
+      console.log('Manual banks:', data)
+      if (data.success) {
+        setManualBanks(data.data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching manual banks:', error)
+    } finally {
+      setLoadingManualBanks(false)
+    }
+  }
+
+  // Function to fetch transaction history for a lead
+  const fetchTransactionHistory = async (customerLeadId) => {
+    try {
+      setLoadingTransactionHistory(true)
+      const response = await fetch(`${config.API_HOST}/api/banktransactions/lead/${customerLeadId}`)
+      const data = await response.json()
+      console.log('Transaction history data:', data)
+      
+      if (data.success && data.data) {
+        // Filter to only show accepted transactions
+        const acceptedTransactions = data.data.filter(transaction => transaction.accept === true)
+        setTransactionHistory(acceptedTransactions)
+      } else {
+        setTransactionHistory([])
+      }
+    } catch (error) {
+      console.error('Error fetching transaction history:', error)
+      setTransactionHistory([])
+    } finally {
+      setLoadingTransactionHistory(false)
+    }
+  }
+
+  // Function to handle opening transaction history modal
+  const handleOpenTransactionHistory = (item) => {
+    console.log('Item:', item)
+    setSelectedLeadForHistory(item)
+    if (item?.leadata?._id) {
+      fetchTransactionHistory(item?.leadata?._id)
+      setShowTransactionHistoryModal(true)
+    } else {
+      alert('Customer Lead ID not found for this lead')
+    }
+  }
+
+  // Function to close transaction history modal
+  const handleCloseTransactionHistory = () => {
+    setShowTransactionHistoryModal(false)
+    setSelectedLeadForHistory(null)
+    setTransactionHistory([])
+  }
+
+  // Function to handle image upload to Firebase
+  const handleImageUpload = async (file) => {
+    if (!file) return null;
+
+    try {
+      setUploadingImage(true);
+      const fileName = new Date().getTime() + file.name;
+      const storageRef = ref(storage, `payment-receipts/${fileName}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      return new Promise((resolve, reject) => {
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log("Upload is " + progress + "% done");
+          },
+          (error) => {
+            setUploadingImage(false);
+            console.error("Upload failed:", error);
+            reject(error);
+          },
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              setUploadingImage(false);
+              resolve(downloadURL);
+            } catch (error) {
+              setUploadingImage(false);
+              console.error("Error getting download URL:", error);
+              reject(error);
+            }
+          }
+        );
+      });
+    } catch (error) {
+      setUploadingImage(false);
+      console.error("Upload error:", error);
+      return null;
+    }
+  };
+
+  // Filter hotel banks based on search term
+  const filteredHotelBanks = hotelBank?.filter(bank =>
+    bank.bankName?.toLowerCase().includes(propertyBankSearchTerm.toLowerCase()) ||
+    bank.accountNumber?.toLowerCase().includes(propertyBankSearchTerm.toLowerCase())
+  )
+
+  // Filter cab banks based on search term
+  const filteredCabBanks = cabBank?.filter(bank =>
+    bank.userName?.toLowerCase().includes(propertyBankSearchTerm.toLowerCase()) ||
+    bank.bankId?.toLowerCase().includes(propertyBankSearchTerm.toLowerCase())
+  )
+
+  const handlePropertyBankSearch = (searchTerm) => {
+    setPropertyBankSearchTerm(searchTerm)
+    setShowPropertyBankDropdown(true)
+  }
+
+  const handlePropertyBankSelect = (bank, type) => {
+    if (type === 'hotel') {
+      setHotelPaymentData(prev => ({
+        ...prev,
+        toBank: bank._id
+      }))
+      setPropertyBankSearchTerm(`${bank.bankName} - ${bank.accountNumber}`)
+    } else {
+      setCabPaymentData(prev => ({
+        ...prev,
+        toBank: bank.bankId
+      }))
+      setPropertyBankSearchTerm(`${bank.userName} - ${bank.bankId}`)
+    }
+    setShowPropertyBankDropdown(false)
+  }
+
   // Refresh data function
   const handleRefresh = () => {
     serviceReportList();
@@ -36,7 +276,9 @@ function ServiceReport() {
       transactionAmount: item.leadata?.remainingAmount || 0,
       transactionId: '',
       transactionDate: new Date().toISOString().slice(0, 16), // Format for datetime-local input
-      transactionDescription: ''
+      transactionDescription: '',
+      utrNumber: '',
+      image: ''
     });
     setShowPaymentModal(true);
   };
@@ -52,7 +294,9 @@ function ServiceReport() {
       transactionAmount: '',
       transactionId: '',
       transactionDate: '',
-      transactionDescription: ''
+      transactionDescription: '',
+      utrNumber: '',
+      image: ''
     });
   };
 
@@ -62,6 +306,74 @@ function ServiceReport() {
       [field]: value
     }));
   };
+
+  // Hotel payment modal handlers
+  const handleOpenHotelPaymentModal = () => {
+    setHotelPaymentData({
+      bank: "",
+      toBank: "",
+      isDualBankTransaction: true,
+      paymentMode: "RTGS",
+      paymentType: "out",
+      toBankPaymentType: "in",
+      transactionAmount: "",
+      transactionId: "",
+      transactionDate: new Date().toISOString().split('T')[0],
+      description: "",
+      utrNumber: "",
+      image: ""
+    })
+    setPropertyBankSearchTerm('')
+    setShowPropertyBankDropdown(false)
+    fetchManualBanks()
+    setShowHotelPaymentModal(true)
+  }
+
+  const handleCloseHotelPaymentModal = () => {
+    setShowHotelPaymentModal(false)
+    setPropertyBankSearchTerm('')
+  }
+
+  const handleHotelPaymentDataChange = (field, value) => {
+    setHotelPaymentData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  // Cab payment modal handlers
+  const handleOpenCabPaymentModal = () => {
+    setCabPaymentData({
+      bank: "",
+      toBank: "",
+      isDualBankTransaction: true,
+      paymentMode: "RTGS",
+      paymentType: "out",
+      toBankPaymentType: "in",
+      transactionAmount: "",
+      transactionId: "",
+      transactionDate: new Date().toISOString().split('T')[0],
+      description: "",
+      utrNumber: "",
+      image: ""
+    })
+    setPropertyBankSearchTerm('')
+    setShowPropertyBankDropdown(false)
+    fetchManualBanks()
+    setShowCabPaymentModal(true)
+  }
+
+  const handleCloseCabPaymentModal = () => {
+    setShowCabPaymentModal(false)
+    setPropertyBankSearchTerm('')
+  }
+
+  const handleCabPaymentDataChange = (field, value) => {
+    setCabPaymentData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
 
     const handleSubmitPayment = async () => {
     try {
@@ -79,6 +391,8 @@ function ServiceReport() {
         transactionDate: paymentFormData.transactionDate ? new Date(paymentFormData.transactionDate).toISOString().split('T')[0] : '',
         toAccount: selectedBank ? `${selectedBank.bankName} (${selectedBank.accountNumber})` : paymentFormData.toAccount,
         description: paymentFormData.transactionDescription,
+        utrNumber: paymentFormData.utrNumber,
+        image: paymentFormData.image,
         bank: selectedBank
           ? {
               id: selectedBank._id,
@@ -106,6 +420,120 @@ function ServiceReport() {
       alert('Failed to create bank transaction: ' + error.message);
     }
   };
+
+  // Hotel payment submission
+  const handleSubmitHotelPayment = async () => {
+    try {
+      if (!hotelPaymentData.bank || !hotelPaymentData.toBank || !hotelPaymentData.transactionAmount) {
+        alert('Please fill in all required fields (From Bank, To Bank, and Transaction Amount)')
+        return
+      }
+
+      const paymentRequestData = {
+        bank: hotelPaymentData.bank,
+        toBank: hotelPaymentData.toBank,
+        paymentMode: hotelPaymentData.paymentMode,
+        paymentType: hotelPaymentData.paymentType,
+        toBankPaymentType: hotelPaymentData.toBankPaymentType,
+        transactionAmount: parseFloat(hotelPaymentData.transactionAmount),
+        transactionId: hotelPaymentData.transactionId,
+        transactionDate: hotelPaymentData.transactionDate,
+        description: hotelPaymentData.description,
+        isDualBankTransaction: hotelPaymentData.isDualBankTransaction,
+        utrNumber: hotelPaymentData.utrNumber,
+        image: hotelPaymentData.image
+      }
+
+      const response = await fetch(
+        `${config.API_HOST}/api/banktransactions/create`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(paymentRequestData)
+        }
+      )
+
+      if (!response.ok) {
+        const errorResult = await response.json()
+        if (errorResult.message === "Insufficient balance") {
+          alert(`Warning: your bank has ${errorResult.message}`)
+          return
+        }
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+
+      if (result.success || result.message) {
+        alert('Hotel payment added successfully!')
+        setShowHotelPaymentModal(false)
+        setPropertyBankSearchTerm('')
+        handleRefresh()
+      } else {
+        alert('Failed to add hotel payment. Please try again.')
+      }
+    } catch (error) {
+      console.error("Error adding hotel payment:", error)
+      alert(`Failed to add hotel payment: ${error.message}`)
+    }
+  }
+
+  // Cab payment submission
+  const handleSubmitCabPayment = async () => {
+    try {
+      if (!cabPaymentData.bank || !cabPaymentData.toBank || !cabPaymentData.transactionAmount) {
+        alert('Please fill in all required fields (From Bank, To Bank, and Transaction Amount)')
+        return
+      }
+
+      const paymentRequestData = {
+        bank: cabPaymentData.bank,
+        toBank: cabPaymentData.toBank,
+        paymentMode: cabPaymentData.paymentMode,
+        paymentType: cabPaymentData.paymentType,
+        toBankPaymentType: cabPaymentData.toBankPaymentType,
+        transactionAmount: parseFloat(cabPaymentData.transactionAmount),
+        transactionId: cabPaymentData.transactionId,
+        transactionDate: cabPaymentData.transactionDate,
+        description: cabPaymentData.description,
+        isDualBankTransaction: cabPaymentData.isDualBankTransaction,
+        utrNumber: cabPaymentData.utrNumber,
+        image: cabPaymentData.image
+      }
+
+      const response = await fetch(
+        `${config.API_HOST}/api/banktransactions/create`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(paymentRequestData)
+        }
+      )
+
+      if (!response.ok) {
+        const errorResult = await response.json()
+        if (errorResult.message === "Insufficient balance") {
+          alert(`Warning: your bank has ${errorResult.message}`)
+          return
+        }
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+
+      if (result.success || result.message) {
+        alert('Cab payment added successfully!')
+        setShowCabPaymentModal(false)
+        setPropertyBankSearchTerm('')
+        handleRefresh()
+      } else {
+        alert('Failed to add cab payment. Please try again.')
+      }
+    } catch (error) {
+      console.error("Error adding cab payment:", error)
+      alert(`Failed to add cab payment: ${error.message}`)
+    }
+  }
 
   // Format date
   const formatDate = (dateString) => {
@@ -681,6 +1109,33 @@ function ServiceReport() {
           </button>
         </div>
         
+        {/* Payment Buttons Section */}
+        <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Payment Management</h3>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={handleOpenHotelPaymentModal}
+                className="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200 shadow-sm"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                Add Payment to Hotel
+              </button>
+              <button
+                onClick={handleOpenCabPaymentModal}
+                className="inline-flex items-center px-6 py-3 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors duration-200 shadow-sm"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                Add Payment to Cab
+              </button>
+            </div>
+          </div>
+        </div>
+        
         {/* Enhanced Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mt-8">
           <div className="bg-white rounded-2xl p-2 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
@@ -1014,8 +1469,8 @@ function ServiceReport() {
                             </div>
                           </td>
                           {activeMainTab === 'nonReceiptPayment' && (
-                          <td className="px-6 py-6" style={{width:"300px"}}>
-                            <div className="text-sm text-gray-900">
+                          <td className="px-6 py-6" style={{width:"400px"}}>
+                            <div className="text-sm text-gray-900 flex flex-col gap-2">
                               <button 
                                 onClick={() => handleOpenPaymentModal(item)}
                                 className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center gap-2"
@@ -1024,6 +1479,15 @@ function ServiceReport() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                 </svg>
                                 Add Payment Request
+                              </button>
+                              <button 
+                                onClick={() => handleOpenTransactionHistory(item)}
+                                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center gap-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                </svg>
+                                Check Previous Transactions
                               </button>
                             </div>
                           </td>
@@ -1346,6 +1810,490 @@ function ServiceReport() {
         </div>
       )}
 
+      {/* Hotel Payment Modal */}
+      {showHotelPaymentModal && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setShowHotelPaymentModal(false)}
+          />
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl z-50 w-[600px] max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold text-gray-800">
+                  🏨 Add Payment to Hotel
+                </h3>
+                <button 
+                  onClick={() => setShowHotelPaymentModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Bank Information */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      From Bank ID
+                    </label>
+                    <select
+                      value={hotelPaymentData.bank}
+                      onChange={(e) => handleHotelPaymentDataChange('bank', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={loadingManualBanks}
+                    >
+                      <option value="">
+                        {loadingManualBanks ? 'Loading banks...' : 'Select Bank'}
+                      </option>
+                      {manualBanks.map((bank) => (
+                        <option key={bank._id} value={bank._id}>
+                          {bank.bankName} - {bank.accountNumber}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="relative property-bank-dropdown">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      To Bank ID
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={propertyBankSearchTerm}
+                        onChange={(e) => handlePropertyBankSearch(e.target.value)}
+                        onFocus={() => setShowPropertyBankDropdown(true)}
+                        placeholder={loadingHotelBank ? 'Loading banks...' : 'Search and select hotel bank...'}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={loadingHotelBank}
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                    
+                    {/* Dropdown */}
+                    {showPropertyBankDropdown && !loadingHotelBank && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                        {filteredHotelBanks.length > 0 ? (
+                          filteredHotelBanks.map((bank) => (
+                            <div
+                              key={bank._id}
+                              onClick={() => handlePropertyBankSelect(bank, 'hotel')}
+                              className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="font-medium text-gray-900">{bank.bankName}</div>
+                              <div className="text-sm text-gray-500">Account: {bank.accountNumber}</div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-gray-500 text-sm">
+                            No banks found matching "{propertyBankSearchTerm}"
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Transaction Details */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Payment Mode
+                    </label>
+                    <select
+                      value={hotelPaymentData.paymentMode}
+                      onChange={(e) => handleHotelPaymentDataChange('paymentMode', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select</option>
+                      <option value="gpay">GPay</option>
+                      <option value="credit_card">Credit Card</option>
+                      <option value="cash">Cash</option>
+                      <option value="RTGS">RTGS</option>
+                      <option value="NEFT">NEFT</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Transaction Amount
+                    </label>
+                    <input
+                      type="number"
+                      value={hotelPaymentData.transactionAmount}
+                      onChange={(e) => handleHotelPaymentDataChange('transactionAmount', e.target.value)}
+                      placeholder="Enter amount"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    To Bank Payment Type
+                  </label>
+                  <select
+                    value={hotelPaymentData.toBankPaymentType}
+                    onChange={(e) => handleHotelPaymentDataChange('toBankPaymentType', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="in">In</option>
+                    <option value="out">Out</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Transaction ID
+                  </label>
+                  <input
+                    type="text"
+                    value={hotelPaymentData.transactionId}
+                    onChange={(e) => handleHotelPaymentDataChange('transactionId', e.target.value)}
+                    placeholder="Enter transaction ID"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Transaction Date
+                  </label>
+                  <input
+                    type="date"
+                    value={hotelPaymentData.transactionDate}
+                    onChange={(e) => handleHotelPaymentDataChange('transactionDate', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={hotelPaymentData.description}
+                    onChange={(e) => handleHotelPaymentDataChange('description', e.target.value)}
+                    placeholder="Enter transaction description"
+                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    UTR Number
+                  </label>
+                  <input
+                    type="text"
+                    value={hotelPaymentData.utrNumber}
+                    onChange={(e) => handleHotelPaymentDataChange('utrNumber', e.target.value.trim())}
+                    placeholder="Enter UTR number"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Receipt Image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const imageUrl = await handleImageUpload(file);
+                        if (imageUrl) {
+                          handleHotelPaymentDataChange('image', imageUrl);
+                        }
+                      }
+                    }}
+                    disabled={uploadingImage}
+                  />
+                  {uploadingImage && (
+                    <p className="text-sm text-blue-600 mt-1">Uploading image...</p>
+                  )}
+                  {hotelPaymentData.image && (
+                    <div className="mt-2">
+                      <img 
+                        src={hotelPaymentData.image} 
+                        alt="Payment receipt" 
+                        className="w-32 h-32 object-cover rounded border border-gray-300"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowHotelPaymentModal(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmitHotelPayment}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                >
+                  Add Hotel Payment
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Cab Payment Modal */}
+      {showCabPaymentModal && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setShowCabPaymentModal(false)}
+          />
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl z-50 w-[600px] max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold text-gray-800">
+                  🚗 Add Payment to Cab
+                </h3>
+                <button 
+                  onClick={() => setShowCabPaymentModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Bank Information */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      From Bank ID
+                    </label>
+                    <select
+                      value={cabPaymentData.bank}
+                      onChange={(e) => handleCabPaymentDataChange('bank', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={loadingManualBanks}
+                    >
+                      <option value="">
+                        {loadingManualBanks ? 'Loading banks...' : 'Select Bank'}
+                      </option>
+                      {manualBanks.map((bank) => (
+                        <option key={bank._id} value={bank._id}>
+                          {bank.bankName} - {bank.accountNumber}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="relative property-bank-dropdown">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      To Bank ID
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={propertyBankSearchTerm}
+                        onChange={(e) => handlePropertyBankSearch(e.target.value)}
+                        onFocus={() => setShowPropertyBankDropdown(true)}
+                        placeholder={loadingCabBank ? 'Loading banks...' : 'Search and select cab bank...'}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={loadingCabBank}
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                    
+                    {/* Dropdown */}
+                    {showPropertyBankDropdown && !loadingCabBank && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                        {filteredCabBanks.length > 0 ? (
+                          filteredCabBanks.map((bank) => (
+                            <div
+                              key={bank.bankId}
+                              onClick={() => handlePropertyBankSelect(bank, 'cab')}
+                              className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="font-medium text-gray-900">{bank.userName}</div>
+                              <div className="text-sm text-gray-500">Account: {bank.bankId}</div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-gray-500 text-sm">
+                            No banks found matching "{propertyBankSearchTerm}"
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Transaction Details */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Payment Mode
+                    </label>
+                    <select
+                      value={cabPaymentData.paymentMode}
+                      onChange={(e) => handleCabPaymentDataChange('paymentMode', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select</option>
+                      <option value="gpay">GPay</option>
+                      <option value="credit_card">Credit Card</option>
+                      <option value="cash">Cash</option>
+                      <option value="RTGS">RTGS</option>
+                      <option value="NEFT">NEFT</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Transaction Amount
+                    </label>
+                    <input
+                      type="number"
+                      value={cabPaymentData.transactionAmount}
+                      onChange={(e) => handleCabPaymentDataChange('transactionAmount', e.target.value)}
+                      placeholder="Enter amount"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    To Bank Payment Type
+                  </label>
+                  <select
+                    value={cabPaymentData.toBankPaymentType}
+                    onChange={(e) => handleCabPaymentDataChange('toBankPaymentType', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="in">In</option>
+                    <option value="out">Out</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Transaction ID
+                  </label>
+                  <input
+                    type="text"
+                    value={cabPaymentData.transactionId}
+                    onChange={(e) => handleCabPaymentDataChange('transactionId', e.target.value)}
+                    placeholder="Enter transaction ID"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Transaction Date
+                  </label>
+                  <input
+                    type="date"
+                    value={cabPaymentData.transactionDate}
+                    onChange={(e) => handleCabPaymentDataChange('transactionDate', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={cabPaymentData.description}
+                    onChange={(e) => handleCabPaymentDataChange('description', e.target.value)}
+                    placeholder="Enter transaction description"
+                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    UTR Number
+                  </label>
+                  <input
+                    type="text"
+                    value={cabPaymentData.utrNumber}
+                    onChange={(e) => handleCabPaymentDataChange('utrNumber', e.target.value.trim())}
+                    placeholder="Enter UTR number"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Receipt Image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const imageUrl = await handleImageUpload(file);
+                        if (imageUrl) {
+                          handleCabPaymentDataChange('image', imageUrl);
+                        }
+                      }
+                    }}
+                    disabled={uploadingImage}
+                  />
+                  {uploadingImage && (
+                    <p className="text-sm text-blue-600 mt-1">Uploading image...</p>
+                  )}
+                  {cabPaymentData.image && (
+                    <div className="mt-2">
+                      <img 
+                        src={cabPaymentData.image} 
+                        alt="Payment receipt" 
+                        className="w-32 h-32 object-cover rounded border border-gray-300"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowCabPaymentModal(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmitCabPayment}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+                >
+                  Add Cab Payment
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
              {/* Payment Modal */}
        {showPaymentModal && selectedPaymentData && (
          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1484,6 +2432,48 @@ function ServiceReport() {
                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                      />
                    </div>
+                   
+                   <div>
+                     <label className="block text-sm font-medium text-gray-700 mb-1">UTR Number</label>
+                     <input
+                       type="text"
+                       value={paymentFormData.utrNumber}
+                       onChange={(e) => handleFormInputChange('utrNumber', e.target.value.trim())}
+                       placeholder="Enter UTR number"
+                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                     />
+                   </div>
+                   
+                   <div>
+                     <label className="block text-sm font-medium text-gray-700 mb-1">Payment Receipt Image</label>
+                     <input
+                       type="file"
+                       accept="image/*"
+                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                       onChange={async (e) => {
+                         const file = e.target.files[0];
+                         if (file) {
+                           const imageUrl = await handleImageUpload(file);
+                           if (imageUrl) {
+                             handleFormInputChange('image', imageUrl);
+                           }
+                         }
+                       }}
+                       disabled={uploadingImage}
+                     />
+                     {uploadingImage && (
+                       <p className="text-sm text-blue-600 mt-1">Uploading image...</p>
+                     )}
+                     {paymentFormData.image && (
+                       <div className="mt-2">
+                         <img 
+                           src={paymentFormData.image} 
+                           alt="Payment receipt" 
+                           className="w-32 h-32 object-cover rounded border border-gray-300"
+                         />
+                       </div>
+                     )}
+                   </div>
                  </div>
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
@@ -1526,6 +2516,246 @@ function ServiceReport() {
            </div>
          </div>
        )}
+
+      {/* Transaction History Modal */}
+      {showTransactionHistoryModal && selectedLeadForHistory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 rounded-t-lg">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold text-gray-900">
+                  Transaction History - {selectedLeadForHistory.leadata?.name || 'N/A'}
+                </h3>
+                <button
+                  onClick={handleCloseTransactionHistory}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {loadingTransactionHistory ? (
+                <div className="flex items-center justify-center py-16">
+                  <div className="text-center">
+                    <div className="relative">
+                      <svg className="animate-spin h-16 w-16 text-blue-600 mx-auto mb-6" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                      </svg>
+                    </div>
+                    <p className="text-xl text-gray-600 font-medium">Loading transaction history...</p>
+                  </div>
+                </div>
+              ) : transactionHistory && transactionHistory.length > 0 ? (
+                <div className="space-y-6">
+                  {/* Transaction Summary */}
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <h4 className="text-lg font-semibold text-blue-900 mb-3">Transaction Summary</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="font-semibold text-gray-700">Total Transactions:</span>
+                        <div className="font-bold text-blue-900">{transactionHistory.length}</div>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-gray-700">Total Amount:</span>
+                        <div className="font-bold text-blue-900">
+                          ₹ {transactionHistory.reduce((sum, transaction) => sum + (parseFloat(transaction.transactionAmount) || 0), 0).toFixed(2)}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-gray-700">Lead Name:</span>
+                        <div className="font-bold text-blue-900">{transactionHistory[0]?.leadName || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-gray-700">Lead ID:</span>
+                        <div className="font-bold text-blue-900">{transactionHistory[0]?.leadId || 'N/A'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Transactions Table */}
+                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Payment Transactions ({transactionHistory.length})
+                    </h4>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Transaction ID</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Payment Mode</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Bank</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Type</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-100">
+                          {transactionHistory.map((transaction, index) => (
+                            <tr key={transaction._id || index} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                                  {transaction.transactionId || 'N/A'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className="text-sm font-bold text-green-600">
+                                  ₹ {parseFloat(transaction.transactionAmount || 0).toFixed(2)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className="text-sm font-medium text-gray-700 capitalize">
+                                  {transaction.paymentMode || 'N/A'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <div className="text-sm">
+                                  <div className="font-semibold text-gray-900">{transaction.bankName || 'N/A'}</div>
+                                  <div className="text-gray-500">{transaction.accountNumber || 'N/A'}</div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  transaction.paymentType === 'in' 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {transaction.paymentType === 'in' ? 'Credit' : 'Debit'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className="text-sm text-gray-600">
+                                  {transaction.transactionDate 
+                                    ? new Date(transaction.transactionDate).toLocaleDateString('en-US', {
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric'
+                                      })
+                                    : 'N/A'
+                                  }
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  transaction.accept === true 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : transaction.accept === false
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {transaction.accept === true ? 'Accepted' : transaction.accept === false ? 'Rejected' : 'Pending'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Transaction Details */}
+                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                      </svg>
+                      Detailed Transaction Information
+                    </h4>
+                    <div className="space-y-4">
+                      {transactionHistory.map((transaction, index) => (
+                        <div key={transaction._id || index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <span className="font-semibold text-gray-700">Transaction ID:</span>
+                              <div className="font-bold text-gray-900">{transaction.transactionId || 'N/A'}</div>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700">Amount:</span>
+                              <div className="font-bold text-green-600">₹ {parseFloat(transaction.transactionAmount || 0).toFixed(2)}</div>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700">Payment Mode:</span>
+                              <div className="font-bold text-gray-900 capitalize">{transaction.paymentMode || 'N/A'}</div>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700">Bank Name:</span>
+                              <div className="font-bold text-gray-900">{transaction.bankName || 'N/A'}</div>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700">Account Number:</span>
+                              <div className="font-bold text-gray-900">{transaction.accountNumber || 'N/A'}</div>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700">Payment Type:</span>
+                              <div className="font-bold text-gray-900 capitalize">{transaction.paymentType || 'N/A'}</div>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700">Description:</span>
+                              <div className="font-bold text-gray-900">{transaction.description || 'N/A'}</div>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700">UTR Number:</span>
+                              <div className="font-bold text-gray-900">{transaction.utrNumber || 'N/A'}</div>
+                            </div>
+                           
+                            {transaction.clearDate && (
+                              <div>
+                                <span className="font-semibold text-gray-700">Cleared At:</span>
+                                <div className="font-bold text-gray-900">
+                                  {new Date(transaction.clearDate).toLocaleDateString('en-US', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          
+                          
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-16">
+                  <div className="mx-auto h-24 w-24 text-gray-300 mb-6">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No transaction history found</h3>
+                  <p className="text-gray-500">No transaction data available for this lead.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 rounded-b-lg">
+              <div className="flex justify-end">
+                <button
+                  onClick={handleCloseTransactionHistory}
+                  className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

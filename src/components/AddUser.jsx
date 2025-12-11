@@ -373,6 +373,7 @@ const AddUser = () => {
                   <option value="">Select User Type</option>
                   <option value="For B2B Sale">For B2B Sale</option>
                   <option value="For Internal sale">For Internal sale</option>
+                  <option value="For Account">For Account</option>
                   <option value="For Website package">
                     For Website package
                   </option>
@@ -466,6 +467,7 @@ const AddUser = () => {
                    <option value="executive">Executive</option>
                    <option value="manager">Manager</option>
                    <option value="team leader">Team Leader</option>
+                   <option value="account">Account</option>
                  </select>
                </div>
  

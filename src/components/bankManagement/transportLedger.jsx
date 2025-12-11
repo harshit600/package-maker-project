@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { toast } from 'react-toastify'
 import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { storage } from "../../firebase";
 
 const config = {
 	API_HOST: "https://pluto-hotel-server-15c83810c41c.herokuapp.com",
@@ -24,39 +26,44 @@ function TransportLedger() {
   const [manualBanks, setManualBanks] = useState([])
   const [loadingManualBanks, setLoadingManualBanks] = useState(false)
   const [paymentData, setPaymentData] = useState({
-    bank: "",
+    // bank: "",
     toBank: "",
     isDualBankTransaction: true,
     operationId: "",
     leadName: "",
     leadData: "",
     paymentMode: "RTGS",
-    paymentType: "out",
+    // paymentType: "out",
     toBankPaymentType: "in",
     transactionAmount: "",
     transactionId: "",
     transactionDate: "",
-    description: ""
+    description: "",
+    utrNumber: "",
+    image: ""
   })
   const [addPaymentData, setAddPaymentData] = useState({
-    bank: "",
+    // bank: "",
     toBank: "",
     isDualBankTransaction: true,
     operationId: "",
     leadName: "",
     paymentMode: "RTGS",
-    paymentType: "out",
+    // paymentType: "out",
     toBankPaymentType: "in",
     transactionAmount: "",
     transactionId: "",
     transactionDate: "",
-    description: ""
+    description: "",
+    utrNumber: "",
+    image: ""
   })
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
   const [viewModal, setViewModal] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState(null)
   const [propertyBank, setPropertyBank] = useState([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [loadingPropertyBank, setLoadingPropertyBank] = useState(true);
   const [propertyBankSearchTerm, setPropertyBankSearchTerm] = useState('');
   const [showPropertyBankDropdown, setShowPropertyBankDropdown] = useState(false);
@@ -105,20 +112,34 @@ function TransportLedger() {
   const fetchHotelLedger = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${config.API_HOST}/api/banktransactions/cabuser-bank`)
-      const data = await response.json()
-      console.log('Hotel ledger:', data)
       
-      // Filter data to show only accepted transactions or those without accept field
-      const filteredData = (data?.data.reverse() || []).filter(item => 
+      // Fetch cabuser-bank transactions
+      const cabuserBankResponse = await fetch(`${config.API_HOST}/api/banktransactions/cabuser-bank`)
+      const cabuserBankData = await cabuserBankResponse.json()
+      console.log('Cabuser bank data:', cabuserBankData)
+      
+      // Filter cabuser bank data to show only accepted transactions
+      const filteredCabuserBankData = (cabuserBankData?.data?.reverse() || []).filter(item => 
         item.accept === true 
       )
       
-      setHotelLedger(filteredData)
+      // Fetch automatic cab transactions
+      const automaticCabResponse = await fetch(`${config.API_HOST}/api/banktransactions/automatic-cab`)
+      const automaticCabData = await automaticCabResponse.json()
+      console.log('Automatic cab data:', automaticCabData)
+      
+      // Merge both datasets
+      const mergedData = [
+        ...filteredCabuserBankData,
+        ...(automaticCabData?.data || [])
+      ]
+      
+      console.log('Merged transport ledger data:', mergedData)
+      setHotelLedger(mergedData)
     }
     catch (error) {
-      console.error('Error fetching hotel ledger:', error)
-      toast.error('Failed to fetch hotel ledger')
+      console.error('Error fetching transport ledger:', error)
+      toast.error('Failed to fetch transport ledger')
     }
     finally {
       setLoading(false)
@@ -143,7 +164,10 @@ function TransportLedger() {
 
   // Get unique banks for filter dropdowns
   const getUniqueBanks = () => {
-    const toBanks = [...new Set(hotelLedger.map(item => item.toBankName).filter(Boolean))]
+    // Extract toBankName from both direct field and nested toBank.bankName
+    const toBanks = [...new Set(hotelLedger.map(item => {
+      return item.toBankName || item.toBank?.bankName
+    }).filter(Boolean))]
     return { toBanks }
   }
 
@@ -156,7 +180,9 @@ function TransportLedger() {
       item.transactionId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.description?.toLowerCase().includes(searchTerm.toLowerCase())
     
-    const matchesToBank = !toBankFilter || item.toBankName === toBankFilter
+    // Check both toBankName and toBank.bankName for compatibility with both data structures
+    const itemToBankName = item.toBankName || item.toBank?.bankName
+    const matchesToBank = !toBankFilter || itemToBankName === toBankFilter
     const matchesStatus = !statusFilter || 
       (statusFilter === 'pending' && item.accept === undefined) ||
       (statusFilter === 'accepted' && item.accept === true) ||
@@ -169,14 +195,28 @@ function TransportLedger() {
       (!toDate || new Date(itemDate) <= new Date(toDate))
 
     return matchesSearch && matchesToBank && matchesStatus && matchesDate
+  }).sort((a, b) => {
+    // First sort by transport provider name
+    const aTransportName = (a.toBankName || a.toBank?.bankName || '').toLowerCase()
+    const bTransportName = (b.toBankName || b.toBank?.bankName || '').toLowerCase()
+    
+    if (aTransportName !== bTransportName) {
+      return aTransportName.localeCompare(bTransportName)
+    }
+    
+    // Then sort by date (oldest first for correct running balance)
+    const aDate = new Date(a.clearDate || a.transactionDate || 0)
+    const bDate = new Date(b.clearDate || b.transactionDate || 0)
+    return aDate - bDate
   })
 
   // Helper function to get unique credit amount for operationId + toBank.bankName combination
   const getUniqueCreditAmount = (item, allItems) => {
-    const sameOperationItems = allItems.filter(otherItem => 
-      otherItem.operationId === item.operationId && 
-      otherItem.toBank?.bankName === item.toBank?.bankName
-    )
+    const itemBankName = (item.toBankName || item.toBank?.bankName || '').trim().toLowerCase()
+    const sameOperationItems = allItems.filter(otherItem => {
+      const otherItemBankName = (otherItem.toBankName || otherItem.toBank?.bankName || '').trim().toLowerCase()
+      return otherItem.operationId === item.operationId && otherItemBankName === itemBankName
+    })
     
     // If this is the first occurrence of this operationId + toBank.bankName combination, return credit amount
     // Otherwise, return 0 for credit (but still show debit)
@@ -236,20 +276,25 @@ function TransportLedger() {
   // Payment modal handlers
   const handleOpenPaymentModal = (transaction) => {
     setSelectedTransactionForPayment(transaction)
+    // Handle toBank - it can be an object with _id (automatic-cab data) or a string ID (cabuser-bank data)
+    const toBankValue = typeof transaction.toBank === 'object' ? transaction.toBank?._id : transaction.toBank || ""
+    
     setPaymentData({
       bank: "",
-      toBank: transaction.toBank?._id || "",
+      toBank: toBankValue,
       isDualBankTransaction: true,
       operationId: transaction.operationId || "",
       leadName: transaction.leadName || "",
       leadData: transaction.totalCabamount || {},
       paymentMode: "RTGS",
-      paymentType: "out",
+      // paymentType: "out",
       toBankPaymentType: "in",
       transactionAmount: "",
       transactionId: "",
       transactionDate: new Date().toISOString().split('T')[0],
-      description: ""
+      description: "",
+      utrNumber: "",
+      image: ""
     })
     // Fetch manual banks when opening the modal
     fetchManualBanks()
@@ -270,6 +315,48 @@ function TransportLedger() {
     }))
   }
 
+  // Function to handle image upload to Firebase
+  const handleImageUpload = async (file) => {
+    if (!file) return null;
+
+    try {
+      setUploadingImage(true);
+      const fileName = new Date().getTime() + file.name;
+      const storageRef = ref(storage, `payment-receipts/${fileName}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      return new Promise((resolve, reject) => {
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log("Upload is " + progress + "% done");
+          },
+          (error) => {
+            setUploadingImage(false);
+            console.error("Upload failed:", error);
+            reject(error);
+          },
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              setUploadingImage(false);
+              resolve(downloadURL);
+            } catch (error) {
+              setUploadingImage(false);
+              console.error("Error getting download URL:", error);
+              reject(error);
+            }
+          }
+        );
+      });
+    } catch (error) {
+      setUploadingImage(false);
+      console.error("Upload error:", error);
+      return null;
+    }
+  };
+
   const handlePropertyBankSearch = (searchTerm) => {
     setPropertyBankSearchTerm(searchTerm)
     setShowPropertyBankDropdown(true)
@@ -286,18 +373,20 @@ function TransportLedger() {
 
   const handleOpenAddPaymentModal = () => {
     setAddPaymentData({
-      bank: "",
+      // bank: "",
       toBank: "",
       isDualBankTransaction: true,
       operationId: "",
       leadName: "",
       paymentMode: "RTGS",
-      paymentType: "out",
+      // paymentType: "out",
       toBankPaymentType: "in",
       transactionAmount: "",
       transactionId: "",
       transactionDate: new Date().toISOString().split('T')[0],
-      description: ""
+      description: "",
+      utrNumber: "",
+      image: ""
     })
     setPropertyBankSearchTerm('')
     setShowPropertyBankDropdown(false)
@@ -309,7 +398,7 @@ function TransportLedger() {
   const handleSubmitAddPayment = async () => {
     try {
       // Validate required fields
-      if (!addPaymentData.bank || !addPaymentData.toBank || !addPaymentData.transactionAmount) {
+      if ( !addPaymentData.toBank || !addPaymentData.transactionAmount) {
         alert('Please fill in all required fields (From Bank, To Bank, and Transaction Amount)')
         return
       }
@@ -318,18 +407,20 @@ function TransportLedger() {
       
       // Prepare the payment request data
       const paymentRequestData = {
-        bank: addPaymentData.bank,
+        // bank: addPaymentData.bank,
         toBank: addPaymentData.toBank,
         operationId: addPaymentData.operationId,
         leadName: addPaymentData.leadName,
         paymentMode: addPaymentData.paymentMode,
-        paymentType: addPaymentData.paymentType,
+        // paymentType: addPaymentData.paymentType,
         toBankPaymentType: addPaymentData.toBankPaymentType,
         transactionAmount: parseFloat(addPaymentData.transactionAmount),
         transactionId: addPaymentData.transactionId,
         transactionDate: addPaymentData.transactionDate,
         description: addPaymentData.description,
-        isDualBankTransaction: addPaymentData.isDualBankTransaction
+        isDualBankTransaction: addPaymentData.isDualBankTransaction,
+        utrNumber: addPaymentData.utrNumber,
+        image: addPaymentData.image
       }
 
       console.log("Sending add payment request:", paymentRequestData)
@@ -366,18 +457,20 @@ function TransportLedger() {
         // Close modal after successful submission
         setShowAddPaymentModal(false)
         setAddPaymentData({
-          bank: "",
+          // bank: "",
           toBank: "",
           isDualBankTransaction: true,
           operationId: "",
           leadName: "",
           paymentMode: "RTGS",
-          paymentType: "out",
+          // paymentType: "out",
           toBankPaymentType: "in",
           transactionAmount: "",
           transactionId: "",
           transactionDate: "",
-          description: ""
+          description: "",
+          utrNumber: "",
+          image: ""
         })
         // Refresh the data
         fetchHotelLedger()
@@ -393,7 +486,7 @@ function TransportLedger() {
   const handleSubmitPayment = async () => {
     try {
       // Validate required fields
-      if (!paymentData.bank || !paymentData.toBank || !paymentData.transactionAmount) {
+      if ( !paymentData.toBank || !paymentData.transactionAmount) {
         alert('Please fill in all required fields (From Bank, To Bank, and Transaction Amount)')
         return
       }
@@ -407,14 +500,16 @@ function TransportLedger() {
         operationId: paymentData.operationId,
         leadName: paymentData.leadName,
         paymentMode: paymentData.paymentMode,
-        paymentType: paymentData.paymentType,
+        // paymentType: paymentData.paymentType,
         toBankPaymentType: paymentData.toBankPaymentType,
         transactionAmount: parseFloat(paymentData.transactionAmount),
         transactionId: paymentData.transactionId,
         transactionDate: paymentData.transactionDate,
         description: paymentData.description,
         isDualBankTransaction: paymentData.isDualBankTransaction,
-        totalCabamount: paymentData.leadData
+        totalCabamount: paymentData.leadData,
+        utrNumber: paymentData.utrNumber,
+        image: paymentData.image
       }
 
       console.log("Sending payment request:", paymentRequestData)
@@ -452,18 +547,20 @@ function TransportLedger() {
         setShowPaymentModal(false)
         setPaymentData({
           bank: "",
-          toBank: "",
+          // toBank: "",
           isDualBankTransaction: true,
           operationId: "",
           leadName: "",
           leadData: "",
           paymentMode: "RTGS",
-          paymentType: "out",
+          // paymentType: "out",
           toBankPaymentType: "in",
           transactionAmount: "",
-          transactionId: "",
+          // transactionId: "",
           transactionDate: "",
-          description: ""
+          description: "",
+          utrNumber: "",
+          image: ""
         })
         // Refresh the data
         fetchHotelLedger()
@@ -550,8 +647,11 @@ function TransportLedger() {
         const debitAmount = item.transactionAmount || 0
         
         // Calculate running balance for this specific hotel (toBankName)
-        const currentHotel = item.toBankName
-        const hotelItems = filteredData.filter(hotelItem => hotelItem.toBankName === currentHotel)
+        const currentHotel = (item.toBankName || item.toBank?.bankName || '').trim().toLowerCase()
+        const hotelItems = filteredData.filter(hotelItem => {
+          const hotelItemName = (hotelItem.toBankName || hotelItem.toBank?.bankName || '').trim().toLowerCase()
+          return hotelItemName === currentHotel
+        })
         const currentItemIndex = hotelItems.findIndex(hotelItem => hotelItem._id === item._id)
         const itemsUpToCurrent = hotelItems.slice(0, currentItemIndex + 1)
         const totalCredit = itemsUpToCurrent.reduce((sum, hotelItem) => sum + getUniqueCreditAmount(hotelItem, filteredData), 0)
@@ -560,7 +660,7 @@ function TransportLedger() {
 
         return {
           'Sr.No.': srNo,
-          'Transport Provider': item.toBankName || 'N/A',
+          'Transport Provider': item.toBankName || item.toBank?.bankName || 'N/A',
           'Remarks': item.description || '-',
           'Date': displayDate,
           'Payment Mode': item.paymentMode || '-',
@@ -569,7 +669,7 @@ function TransportLedger() {
           'Balance': balance,
           'Status': item.accept === undefined ? 'Pending' : item.accept === true ? 'Accepted' : 'Rejected',
           'Operation ID': item.operationId || '',
-          'Transaction ID': item.transactionId || '',
+          // 'Transaction ID': item.transactionId || '',
           'Customer Name': item.totalCabamount?.name || 'N/A',
           'Travel Date': item.totalCabamount?.travelDate ? formatDate(item.totalCabamount.travelDate) : 'N/A',
           'From': item.totalCabamount?.from || 'N/A',
@@ -835,8 +935,11 @@ function TransportLedger() {
                     const debitAmount = item.transactionAmount || 0
                     
                     // Calculate running balance for this specific hotel (toBankName)
-                    const currentHotel = item.toBankName
-                    const hotelItems = filteredData.filter(hotelItem => hotelItem.toBankName === currentHotel)
+                    const currentHotel = (item.toBankName || item.toBank?.bankName || '').trim().toLowerCase()
+                    const hotelItems = filteredData.filter(hotelItem => {
+                      const hotelItemName = (hotelItem.toBankName || hotelItem.toBank?.bankName || '').trim().toLowerCase()
+                      return hotelItemName === currentHotel
+                    })
                     const currentItemIndex = hotelItems.findIndex(hotelItem => hotelItem._id === item._id)
                     const itemsUpToCurrent = hotelItems.slice(0, currentItemIndex + 1)
                     const totalCredit = itemsUpToCurrent.reduce((sum, hotelItem) => sum + getUniqueCreditAmount(hotelItem, filteredData), 0)
@@ -850,7 +953,7 @@ function TransportLedger() {
                         </td>
                         
                         <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300">
-                          {item.toBankName || 'N/A'}
+                          {item.toBankName || item.toBank?.bankName || 'N/A'}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300">
                           {item.description || '-'}
@@ -1162,13 +1265,13 @@ function TransportLedger() {
                   <h4 className="font-semibold text-blue-800 mb-2">Lead Information</h4>
                   <p><span className="font-medium">Operation ID:</span> {paymentData.operationId}</p>
                   <p><span className="font-medium">Lead Name:</span> {paymentData.leadName}</p>
-                  <p><span className="font-medium">Transport Provider:</span> {selectedTransactionForPayment.toBankName}</p>
+                  <p><span className="font-medium">Transport Provider:</span> {selectedTransactionForPayment.toBankName || selectedTransactionForPayment.toBank?.bankName}</p>
                   <p><span className="font-medium">Transport Amount:</span> ₹{selectedTransactionForPayment.totalCabamount?.totalamount?.toLocaleString() || '0'}</p>
                 </div>
 
                 {/* Bank Information */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
+                  {/* <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       From Bank ID
                     </label>
@@ -1187,14 +1290,14 @@ function TransportLedger() {
                         </option>
                       ))}
                     </select>
-                  </div>
+                  </div> */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       To Bank ID (Property Bank)
                     </label>
                     <input
                       type="text"
-                      value={selectedTransactionForPayment.toBankName || ''}
+                      value={selectedTransactionForPayment.toBankName || selectedTransactionForPayment.toBank?.bankName || ''}
                       disabled
                       className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600"
                     />
@@ -1235,7 +1338,7 @@ function TransportLedger() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
+                  {/* <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Payment Type
                     </label>
@@ -1247,7 +1350,7 @@ function TransportLedger() {
                       <option value="out">Out</option>
                       <option value="in">In</option>
                     </select>
-                  </div>
+                  </div> */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       To Bank Payment Type
@@ -1263,7 +1366,7 @@ function TransportLedger() {
                   </div>
                 </div>
 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Transaction ID
                   </label>
@@ -1274,7 +1377,7 @@ function TransportLedger() {
                     placeholder="Enter transaction ID"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                </div>
+                </div> */}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1299,6 +1402,53 @@ function TransportLedger() {
                     rows="3"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    UTR Number
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentData.utrNumber}
+                    onChange={(e) => handlePaymentDataChange('utrNumber', e.target.value.trim())}
+                    placeholder="Enter UTR number"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Receipt Image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const imageUrl = await handleImageUpload(file);
+                        if (imageUrl) {
+                          handlePaymentDataChange('image', imageUrl);
+                          toast.success("Image uploaded successfully!");
+                        }
+                      }
+                    }}
+                    disabled={uploadingImage}
+                  />
+                  {uploadingImage && (
+                    <p className="text-sm text-blue-600 mt-1">Uploading image...</p>
+                  )}
+                  {paymentData.image && (
+                    <div className="mt-2">
+                      <img 
+                        src={paymentData.image} 
+                        alt="Payment receipt" 
+                        className="w-32 h-32 object-cover rounded border border-gray-300"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1347,7 +1497,7 @@ function TransportLedger() {
               <div className="space-y-4">
                 {/* Bank Information */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
+                  {/* <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       From Bank ID
                     </label>
@@ -1366,7 +1516,7 @@ function TransportLedger() {
                         </option>
                       ))}
                     </select>
-                  </div>
+                  </div> */}
                   <div className="relative property-bank-dropdown">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       To Bank ID
@@ -1446,7 +1596,7 @@ function TransportLedger() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
+                  {/* <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Payment Type
                     </label>
@@ -1458,7 +1608,7 @@ function TransportLedger() {
                       <option value="out">Out</option>
                       <option value="in">In</option>
                     </select>
-                  </div>
+                  </div> */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       To Bank Payment Type
@@ -1474,7 +1624,7 @@ function TransportLedger() {
                   </div>
                 </div>
 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Operation ID
                   </label>
@@ -1485,9 +1635,9 @@ function TransportLedger() {
                     placeholder="Enter operation ID"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                </div>
+                </div> */}
 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Lead Name
                   </label>
@@ -1498,9 +1648,9 @@ function TransportLedger() {
                     placeholder="Enter lead name"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                </div>
+                </div> */}
 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Transaction ID
                   </label>
@@ -1511,7 +1661,7 @@ function TransportLedger() {
                     placeholder="Enter transaction ID"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                </div>
+                </div> */}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1536,6 +1686,53 @@ function TransportLedger() {
                     rows="3"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    UTR Number
+                  </label>
+                  <input
+                    type="text"
+                    value={addPaymentData.utrNumber}
+                    onChange={(e) => handleAddPaymentDataChange('utrNumber', e.target.value.trim())}
+                    placeholder="Enter UTR number"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Receipt Image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const imageUrl = await handleImageUpload(file);
+                        if (imageUrl) {
+                          handleAddPaymentDataChange('image', imageUrl);
+                          toast.success("Image uploaded successfully!");
+                        }
+                      }
+                    }}
+                    disabled={uploadingImage}
+                  />
+                  {uploadingImage && (
+                    <p className="text-sm text-blue-600 mt-1">Uploading image...</p>
+                  )}
+                  {addPaymentData.image && (
+                    <div className="mt-2">
+                      <img 
+                        src={addPaymentData.image} 
+                        alt="Payment receipt" 
+                        className="w-32 h-32 object-cover rounded border border-gray-300"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 

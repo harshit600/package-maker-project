@@ -129,7 +129,7 @@ const SkeletonLoader = () => {
 };
 
 const Packages = () => {
-  const {loadingss, addData, refreshData, deletePackage, loadings, error, setAddData } = useFinalcosting();
+  const {addDataPackage,addDataPackageLoading, loadingss, addData, refreshData, deletePackage, loadings, error, setAddData } = useFinalcosting();
   const [filteredPackages, setFilteredPackages] = useState([]);
   const [filters, setFilters] = useState({
     packageName: "",
@@ -183,13 +183,13 @@ const Packages = () => {
       console.log('Context addData updated, length:', addData.length);
       const formattedData = addData.map((pkg) => ({
         _id: pkg._id,
-        packageName: pkg.package.packageName,
-        duration: pkg.package.duration,
-        pickupLocation: pkg.package.pickupLocation,
-        packageType: pkg.package.packageType,
-        packageImages: pkg.package.packageImages,
-        baseTotal: pkg.finalCosting.baseTotal,
-        state: pkg.package.state
+        packageName: pkg.package?.packageName,
+        duration: pkg.package?.duration,
+        pickupLocation: pkg.package?.pickupLocation,
+        packageType: pkg.package?.packageType,
+        packageImages: pkg.package?.packageImages,
+        baseTotal: pkg.finalCosting?.baseTotal,
+        state: pkg.package?.state
       }));
 
       setFilteredPackages(formattedData);
@@ -307,13 +307,13 @@ const Packages = () => {
     // Apply filters to the formatted context data
     const formattedData = addData.map((pkg) => ({
       _id: pkg._id,
-      packageName: pkg.package.packageName,
-      duration: pkg.package.duration,
-      pickupLocation: pkg.package.pickupLocation,
-      packageType: pkg.package.packageType,
-      packageImages: pkg.package.packageImages,
-      baseTotal: pkg.finalCosting.baseTotal,
-      state: pkg.package.state
+      packageName: pkg.package?.packageName,
+      duration: pkg.package?.duration,
+      pickupLocation: pkg.package?.pickupLocation,
+      packageType: pkg.package?.packageType,
+      packageImages: pkg.package?.packageImages,
+      baseTotal: pkg.finalCosting?.baseTotal,
+      state: pkg.package?.state
     }));
 
     const filtered = formattedData.filter(pkg => {
@@ -352,11 +352,11 @@ const Packages = () => {
     if (addData && addData.length > 0) {
       const formattedData = addData.map((pkg) => ({
         _id: pkg._id,
-        packageName: pkg.package.packageName,
+        packageName: pkg.package?.packageName,
         duration: pkg.package.duration,
-        pickupLocation: pkg.package.pickupLocation,
-        packageType: pkg.package.packageType,
-        packageImages: pkg.package.packageImages,
+        pickupLocation: pkg.package?.pickupLocation,
+        packageType: pkg.package?.packageType,
+        packageImages: pkg.package?.packageImages,
         baseTotal: pkg.finalCosting.baseTotal,
         state: pkg.package.state
       }));
@@ -1518,8 +1518,33 @@ const Packages = () => {
   return (
     <>
       <ToastContainer />
-      {isLoading ? (
-        <SkeletonLoader />
+      {loadingss ? (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center">
+            {/* Spinning loader */}
+            <div className="relative mx-auto mb-6">
+              <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+              <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-r-purple-400 rounded-full animate-spin" style={{animationDirection: 'reverse', animationDuration: '0.8s'}}></div>
+            </div>
+            
+            {/* Loading text with animation */}
+            <div className="space-y-2">
+              <h3 className="text-xl font-semibold text-gray-700 animate-pulse">
+                Loading Packages
+              </h3>
+              <p className="text-gray-500 text-sm">
+                Please wait while we fetch your data...
+              </p>
+            </div>
+            
+            {/* Progress dots */}
+            <div className="flex justify-center mt-6 space-x-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+            </div>
+          </div>
+        </div>
       ) : (
         <>
           {/* Add Bulk Actions Bar */}

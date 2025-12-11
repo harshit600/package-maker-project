@@ -34,6 +34,7 @@ const Places = () => {
       Sedan: "",
       SUV: "",
       Traveller: "",
+      Hatchback:"",
     },
     time: 0,
     imageUrls: [],
@@ -154,7 +155,7 @@ console.log(params)
         setNewPlace({
           placeName: "",
           enabled: true,
-          cost: { Sedan: "", SUV: "", Traveller: "" },
+          cost: { Sedan: "", SUV: "", Traveller: "", Hatchback: "" },
           time: 0,
           imageUrls: [],
           distance: 0,
@@ -191,6 +192,7 @@ console.log(params)
         Sedan: placeToEdit.cost.Sedan,
         SUV: placeToEdit.cost.SUV,
         Traveller: placeToEdit.cost.Traveller,
+        Hatchback: placeToEdit.cost.Hatchback,
       },
     });
   };
@@ -264,6 +266,7 @@ console.log(params)
       <td className="px-2 py-4">{place.cost.Sedan}</td>
       <td className="px-2 py-4">{place.cost.SUV}</td>
       <td className="px-2 py-4">{place.cost.Traveller}</td>
+      <td className="px-2 py-4">{place.cost.Hatchback}</td>
     </>
   );
 
@@ -290,6 +293,7 @@ console.log(params)
           "Cost (Sedan)",
           "Cost (SUV)",
           "Cost (Traveller)",
+          "Cost (Hatchback)",
           "Actions",
         ]}
         data={places}
@@ -353,6 +357,18 @@ console.log(params)
                 setNewPlace({
                   ...newPlace,
                   cost: { ...newPlace.cost, Traveller: e.target.value },
+                })
+              }
+              required
+            />
+            <label>Cost (Hatchback):</label>
+            <input
+              type="text"
+              value={newPlace.cost.Hatchback}
+              onChange={(e) =>
+                setNewPlace({
+                  ...newPlace,
+                  cost: { ...newPlace.cost, Hatchback: e.target.value },
                 })
               }
               required
@@ -451,7 +467,22 @@ console.log(params)
             className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring focus:ring-blue-400"
           />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Cost (Hatchback):</label>
+          <input
+            type="text"
+            value={selectedPlace.cost.Hatchback}
+            onChange={(e) =>
+              setSelectedPlace({
+                ...selectedPlace,
+                cost: { ...selectedPlace.cost, Hatchback: e.target.value },
+              })
+            }
+            required
+            className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring focus:ring-blue-400"
+          />
         </div>
+          </div>
        
       </div>
     )}

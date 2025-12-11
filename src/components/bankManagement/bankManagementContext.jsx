@@ -76,7 +76,7 @@ export function BankManagementProvider({ children }) {
   
   const transactionLists = async () => {
     setTransactionListLoading(true);
-    const response = await fetch(`${config.API_HOST}/api/banktransactions/get`);
+    const response = await fetch(`${config.API_HOST}/api/banktransactions/pending`);
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
       throw new Error(errorText || `Failed to fetch lead (${response.status})`);
@@ -110,7 +110,6 @@ export function BankManagementProvider({ children }) {
 
     try {
       while (hasMorePages) {
-        console.log(`Fetching page ${currentPage}...`);
         const response = await fetch(
           `${config.API_HOST}/api/finalcosting/get-converted-details?page=${currentPage}&limit=5`
         );
@@ -121,36 +120,29 @@ export function BankManagementProvider({ children }) {
         }
         
         const data = await response.json();
-        console.log(`Page ${currentPage} response:`, data);
 
         // Check if data exists and is an array - handle 'operations' field
         if (data && data.operations && Array.isArray(data.operations)) {
-          console.log(`Page ${currentPage} has ${data.operations.length} items`);
           allServiceReports = [...allServiceReports, ...data.operations];
           setServiceReport([...allServiceReports]); // Update state after each page
           
           // Check for pagination info - use totalPages and currentPage
           if (data.pagination) {
             const { currentPage: apiCurrentPage, totalPages, totalItems } = data.pagination;
-            console.log(`Current page: ${apiCurrentPage}, Total pages: ${totalPages}, Total items: ${totalItems}`);
             
             if (apiCurrentPage < totalPages) {
               hasMorePages = true;
               currentPage = apiCurrentPage + 1;
               total = totalItems;
-              console.log(`More pages available. Next page: ${currentPage}`);
             } else {
               hasMorePages = false;
               total = totalItems;
-              console.log('No more pages available - reached last page');
             }
           } else {
             hasMorePages = false;
-            console.log('No pagination info available');
           }
         } else if (data && data.data && Array.isArray(data.data)) {
           // Handle case where API returns data.data array
-          console.log(`Page ${currentPage} has ${data.data.length} items`);
           allServiceReports = [...allServiceReports, ...data.data];
           setServiceReport([...allServiceReports]);
           
@@ -169,17 +161,14 @@ export function BankManagementProvider({ children }) {
           }
         } else if (data && Array.isArray(data)) {
           // Handle case where API returns array directly
-          console.log(`API returned array directly with ${data.length} items`);
           allServiceReports = [...allServiceReports, ...data];
           setServiceReport([...allServiceReports]);
           hasMorePages = false;
         } else {
-          console.log('Unexpected data structure:', data);
           hasMorePages = false;
         }
       }
       
-      console.log(`Final result: ${allServiceReports.length} total items`);
       setServiceReport(allServiceReports);
       setServiceReportLoading(false);
       return { data: allServiceReports, total: total || allServiceReports.length };

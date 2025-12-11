@@ -1,8 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 
-const ViewPackagePopup = ({ isOpen, onClose, packageData }) => {
-    console.log(packageData,"packageData")
+const ViewPackagePopup = ({ isOpen, onClose, packageData, addDataPackagebyidLoading }) => {
   if (!isOpen || !packageData) return null;
 
   const formatCurrency = (amount) => {

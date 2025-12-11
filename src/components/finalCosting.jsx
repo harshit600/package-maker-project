@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePackage } from "../context/PackageContext";
 import { Icons, pdfStyles } from "./newFile";
+import { getStateImages, stateImages } from "./images";
 import { useFinalcosting } from "../context/FinalcostingContext";
 import {
   PDFDownloadLink,
@@ -22,13 +23,15 @@ import PlutoToursPDF from "./PlutoToursPDF";
 import DemandSetuPDF from "./DemandSetuPDF";
 import { toast } from "react-toastify";
 import QuotePreviewDetails from "./QuotePreviewDetails";
+import QuotePreviewPDF from "./QuotePreviewPDF";
+import PdfDownloadButton from "./PdfDownloadButton";
 
 const config = {
   API_HOST: "https://pluto-hotel-server-15c83810c41c.herokuapp.com",
 };
 
 
-const FinalCosting = ({ selectedLead, setActiveTab }) => {
+const FinalCosting = ({ selectedLead, setActiveTab, packageInfoTab }) => {
   const { 
     loadings,
     loadingsss, 
@@ -42,8 +45,12 @@ const FinalCosting = ({ selectedLead, setActiveTab }) => {
     requestEditDiscount,
     fetchHistoryByPackageId,
     marginData,
+    cabImages,
     setMarginData
   } = useFinalcosting();
+  console.log(cabImages,"cabImages")
+
+  
   const { packageSummary } = usePackage();
   console.log(packageSummary,"packageSummary")
   const [showMargin, setShowMargin] = useState(false);
@@ -65,6 +72,14 @@ const FinalCosting = ({ selectedLead, setActiveTab }) => {
   const [activeDiscountPercentage, setActiveDiscountPercentage] = useState(null);
   // Add new state for tracking downloads
   const [downloadCounts, setDownloadCounts] = useState({});
+  // Add state for success message
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [successMessageType, setSuccessMessageType] = useState(''); // 'create', 'delete', 'convert'
+  const [isProcessing, setIsProcessing] = useState(false); // Prevent multiple rapid clicks
+  const [isGeneratingPTW, setIsGeneratingPTW] = useState(false); // Loading state for PTW PDF
+  const [isGeneratingDemand, setIsGeneratingDemand] = useState(false); // Loading state for Demand PDF
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkToCopy, setLinkToCopy] = useState('');
 
   // Move getCurrentMarginPercentage here, before it's used
   const getCurrentMarginPercentage = () => {
@@ -136,28 +151,17 @@ const FinalCosting = ({ selectedLead, setActiveTab }) => {
 
   const finalTotal = (packageSummary?.totals?.grandTotal || 0) + marginAmount - discountAmount;
 
+  // Auto-fetch history when costing tab is opened (only once)
   useEffect(() => {
-    let isMounted = true;
-    let isFetching = false;
-    
-    const fetchData = async () => {
+    const fetchDataOnTabOpen = async () => {
       try {
-        if (!packageSummary?.id || !userData?._id || !packageSummary?.transfer?.selectedLead?._id) {
-          return;
-        }
-        
-        // Prevent multiple simultaneous fetches
-        if (isFetching) return;
-        isFetching = true;
-        
-        const operations = await fetchHistoryByPackageId(
-          packageSummary.id,
-          userData._id,
-          packageSummary.transfer.selectedLead._id
-        );
-        
-        // Only update state if component is still mounted
-        if (isMounted) {
+        if (packageInfoTab === "costing" && packageSummary?.id && userData?._id && packageSummary?.transfer?.selectedLead?._id) {
+          const operations = await fetchHistoryByPackageId(
+            packageSummary.id,
+            userData._id,
+            packageSummary.transfer.selectedLead._id
+          );
+          
           setHistory(operations);
           if (operations.length > 0) {
             setShowCustomMargin(true);
@@ -165,21 +169,14 @@ const FinalCosting = ({ selectedLead, setActiveTab }) => {
           }
         }
       } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        isFetching = false;
+        console.error("Error fetching data on tab open:", error);
       }
     };
-  
-    if (packageSummary?.id && userData?._id && packageSummary?.transfer?.selectedLead?._id) {
-      fetchData();
-    }
-    
-    // Cleanup function
-    return () => {
-      isMounted = false;
-    };
-  }, [packageSummary?.id, userData?._id, packageSummary?.transfer?.selectedLead?._id]);
+
+    fetchDataOnTabOpen();
+  }, [packageInfoTab, packageSummary?.id, userData?._id, packageSummary?.transfer?.selectedLead?._id, fetchHistoryByPackageId]);
+
+  // Removed automatic history fetching - now only happens when "Get History" button is clicked
 
 
 
@@ -240,9 +237,9 @@ const FinalCosting = ({ selectedLead, setActiveTab }) => {
     };
 
     // Refresh every 30 seconds to check for new approvals
-    const interval = setInterval(refreshMarginData, 30000);
+    const interval = setInterval(refreshMarginData, 70000);
     return () => clearInterval(interval);
-  }, [packageSummary?.package?.state, fetchMarginByState]);
+  }, [packageInfoTab]);
 
  
   // Also add this useEffect to debug the margin calculation
@@ -286,9 +283,20 @@ const[actionMessage,setActionMessage]=useState("")
     };
 
     checkApprovedEditDiscounts();
-  }, [marginData, packageSummary?.id, history]);
+  }, [marginData,  history]);
 
   const handleSendLink = async () => {
+    // Prevent multiple rapid clicks
+    if (isProcessing) {
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    // Clear any existing success message first
+    setShowSuccessMessage(false);
+    setSuccessMessageType('');
+
     const timestamp = new Date().toLocaleString();
     const taxAmount = finalTotal * 0.05; // Calculate 5% tax
     const totalWithTax = finalTotal + taxAmount; // Add tax to final total
@@ -313,6 +321,7 @@ const[actionMessage,setActionMessage]=useState("")
         editprice:"",
         
       },
+      package: packageSummary.package,
       totals: {
         transferCost: packageSummary.totals.transferCost,
         hotelCost: packageSummary.totals.hotelCost,
@@ -324,12 +333,27 @@ const[actionMessage,setActionMessage]=useState("")
 
     try {
       const result = await createFinalcosting(historyItem);
-      setHistory([...history, result]);
+      // Don't update local state - only show success message
       setShowDiscount(true);
+      
+      // Show success message with a small delay to ensure state is properly set
+      setTimeout(() => {
+        setSuccessMessageType('create');
+        setShowSuccessMessage(true);
+        
+        // Hide success message after 5 seconds
+        setTimeout(() => {
+          setShowSuccessMessage(false);
+          setSuccessMessageType('');
+        }, 5000);
+      }, 100);
+      
     } catch (error) {
       console.error("Error saving history:", error);
+    } finally {
+      // Always reset processing state
+      setIsProcessing(false);
     }
- 
   };
 
   const handleCustomMarginSubmit = () => {
@@ -437,16 +461,39 @@ const[actionMessage,setActionMessage]=useState("")
   };
 
   const handleDeleteHistory = async (historyId) => {
+    // Prevent multiple rapid clicks
+    if (isProcessing) {
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    // Clear any existing success message first
+    setShowSuccessMessage(false);
+    setSuccessMessageType('');
+
     try {
       await deleteFinalcosting(historyId);
-      // Remove the item from local history state
-      setHistory(prev => prev.filter(item => item._id !== historyId));
+      // Don't update local state - user needs to click "Get History" to see updated data
+      
+      // Show success message with a small delay to ensure state is properly set
+      setTimeout(() => {
+        setSuccessMessageType('delete');
+        setShowSuccessMessage(true);
+        
+        // Hide success message after 5 seconds
+        setTimeout(() => {
+          setShowSuccessMessage(false);
+          setSuccessMessageType('');
+        }, 5000);
+      }, 100);
+      
     } catch (error) {
       console.error("Error deleting history:", error);
+    } finally {
+      // Always reset processing state
+      setIsProcessing(false);
     }
-    setTimeout(() => {
-      setActiveTab("package")
-    }, 2000);
   };
 
   // Add new function to check if any history item is converted
@@ -458,7 +505,274 @@ const[actionMessage,setActionMessage]=useState("")
     return history[0]._id === itemId;
   };
 
-  // Handle download tracking with context function
+  // Helper function to copy text to clipboard (optimized for speed)
+  const copyToClipboard = async (text) => {
+    // Try modern Clipboard API first (fastest method)
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (err) {
+        // Silently fall through to fallback - don't log here to avoid noise
+      }
+    }
+    
+    // Fallback method for older browsers or when Clipboard API fails
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      
+      // Optimized styling for faster rendering
+      textArea.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none;";
+      textArea.setAttribute("readonly", "");
+      textArea.setAttribute("aria-hidden", "true");
+      
+      document.body.appendChild(textArea);
+      
+      // Select text
+      textArea.select();
+      textArea.setSelectionRange(0, text.length);
+      
+      // Try to copy
+      const successful = document.execCommand("copy");
+      
+      // Clean up immediately
+      document.body.removeChild(textArea);
+      
+      return successful;
+    } catch (err) {
+      return false;
+    }
+  };
+
+  // Handle download tracking with context function - Pluto Link
+  const handleGeneratePlutoLink = async (item) => {
+    const baseUrl = window.location.origin;
+    // Use historyId (item._id) as the id parameter since API now fetches by historyId directly
+    const link = `${baseUrl}/package-link?id=${item._id}`;
+    
+    // Copy to clipboard FIRST (immediate user feedback)
+    const success = await copyToClipboard(link);
+    
+    if (success) {
+      toast.success("Pluto Link copied to clipboard!");
+    } else {
+      // Show modal immediately if copy fails
+      setLinkToCopy(link);
+      setShowLinkModal(true);
+      toast.warning("Please copy the link manually from the popup");
+    }
+    
+    // Track the link click AFTER copying (non-blocking, don't await)
+    if (history && history.length > 0 && history[0]._id === item._id) {
+      trackDownload(item._id, packageSummary.package, 'pluto', history).catch(error => {
+        // Silently handle tracking errors - don't block user experience
+        console.error("Error tracking link click:", error);
+      });
+    }
+  };
+
+  // Handle download tracking with context function - Demand Link
+  const handleGenerateDemandLink = async (item) => {
+    const baseUrl = window.location.origin;
+    // Use historyId (item._id) as the id parameter since API now fetches by historyId directly
+    const link = `${baseUrl}/demand-link?id=${item._id}`;
+    
+    // Copy to clipboard FIRST (immediate user feedback)
+    const success = await copyToClipboard(link);
+    
+    if (success) {
+      toast.success("Demand Link copied to clipboard!");
+    } else {
+      // Show modal immediately if copy fails
+      setLinkToCopy(link);
+      setShowLinkModal(true);
+      toast.warning("Please copy the link manually from the popup");
+    }
+    
+    // Track the link click AFTER copying (non-blocking, don't await)
+    if (history && history.length > 0 && history[0]._id === item._id) {
+      trackDownload(item._id, packageSummary.package, 'demand-setu', history).catch(error => {
+        // Silently handle tracking errors - don't block user experience
+        console.error("Error tracking link click:", error);
+      });
+    }
+  };
+
+  // Handle PDF generation from backend - PTW
+  const handleGeneratePTWPDF = async (item) => {
+    try {
+      if (isGeneratingPTW) return;
+      setIsGeneratingPTW(true);
+      
+      // Use item.id (Operation ID) or fallback to item._id (history item ID)
+      // item.id contains the Operation/package ID from packageSummary.id
+      const operationId = item?._id;
+      
+      if (!operationId) {
+        toast.error("Operation ID not found in history item");
+        setIsGeneratingPTW(false);
+        return;
+      }
+      
+      // Construct the PDF URL following the reference pattern
+      const pdfUrl = `${config.API_HOST}/api/finalcosting/generate-pdf/${operationId}`;
+      console.log("Generating PTW PDF for Operation ID:", operationId);
+      console.log("PDF URL:", pdfUrl);
+      
+      toast.info("Generating PTW PDF... Please wait...");
+      
+      // Fetch the PDF as a blob to force download (following reference pattern)
+      const response = await fetch(pdfUrl, {
+        method: 'GET',
+        headers: {
+          // Add any required headers (e.g., authorization tokens) if needed
+          // 'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`HTTP error! status: ${response.status} ${response.statusText}. ${errorText}`);
+      }
+      
+      // Get the PDF as a blob
+      const blob = await response.blob();
+      
+      // Validate blob
+      if (!blob || blob.size === 0) {
+        throw new Error('Received empty PDF file');
+      }
+      
+      // Get filename from response headers or use default
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = `operation-${operationId}-ptw.pdf`;
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      // Create a URL for the blob
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary anchor element and trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("PTW PDF downloaded successfully!");
+      
+      // Track download if it's the first history item
+      if (history && history.length > 0 && history[0]._id === item._id) {
+        trackDownload(item._id, packageSummary.package, 'pluto', history).catch(error => {
+          console.error("Error tracking PDF download:", error);
+        });
+      }
+    } catch (error) {
+      console.error("Error generating PTW PDF:", error);
+      const errorMessage = error.message || 'Failed to generate PTW PDF';
+      toast.error(errorMessage);
+    } finally {
+      setIsGeneratingPTW(false);
+    }
+  };
+
+  // Handle PDF generation from backend - Demand
+  const handleGenerateDemandPDF = async (item) => {
+    try {
+      if (isGeneratingDemand) return;
+      setIsGeneratingDemand(true);
+      
+      // Use item.id (Operation ID) or fallback to item._id (history item ID)
+      // item.id contains the Operation/package ID from packageSummary.id
+      const operationId = item?._id ;
+      
+      if (!operationId) {
+        toast.error("Operation ID not found in history item");
+        setIsGeneratingDemand(false);
+        return;
+      }
+      
+      // Construct the PDF URL following the reference pattern
+      const pdfUrl = `${config.API_HOST}/api/finalcosting/generate-pdf-demandsetu/${operationId}`;
+      console.log("Generating Demand PDF for Operation ID:", operationId);
+      console.log("PDF URL:", pdfUrl);
+      
+      toast.info("Generating Demand PDF... Please wait...");
+      
+      // Fetch the PDF as a blob to force download (following reference pattern)
+      const response = await fetch(pdfUrl, {
+        method: 'GET',
+        headers: {
+          // Add any required headers (e.g., authorization tokens) if needed
+          // 'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`HTTP error! status: ${response.status} ${response.statusText}. ${errorText}`);
+      }
+      
+      // Get the PDF as a blob
+      const blob = await response.blob();
+      
+      // Validate blob
+      if (!blob || blob.size === 0) {
+        throw new Error('Received empty PDF file');
+      }
+      
+      // Get filename from response headers or use default
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = `operation-${operationId}-demand.pdf`;
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      // Create a URL for the blob
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary anchor element and trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("Demand PDF downloaded successfully!");
+      
+      // Track download if it's the first history item
+      if (history && history.length > 0 && history[0]._id === item._id) {
+        trackDownload(item._id, packageSummary.package, 'demand-setu', history).catch(error => {
+          console.error("Error tracking PDF download:", error);
+        });
+      }
+    } catch (error) {
+      console.error("Error generating Demand PDF:", error);
+      const errorMessage = error.message || 'Failed to generate Demand PDF';
+      toast.error(errorMessage);
+    } finally {
+      setIsGeneratingDemand(false);
+    }
+  };
+
   const handleTrackDownload = async (packageId, packageName, downloadType) => {
     try {
       // Only track downloads for the first history item
@@ -542,6 +856,94 @@ const[actionMessage,setActionMessage]=useState("")
     return discountId === currentId;
   };
 
+  // Function to manually fetch history
+  const handleGetHistory = async () => {
+    try {
+      if (!packageSummary?.id || !userData?._id || !packageSummary?.transfer?.selectedLead?._id) {
+        return;
+      }
+      
+      const operations = await fetchHistoryByPackageId(
+        packageSummary.id,
+        userData._id,
+        packageSummary.transfer.selectedLead._id
+      );
+      
+      setHistory(operations);
+      if (operations.length > 0) {
+        setShowCustomMargin(true);
+        setShowDiscount(true);
+      }
+    } catch (error) {
+      console.error("Error fetching history:", error);
+    }
+  };
+  useEffect(() => {
+    const getDestinationImages = () => {
+      try {
+        // Get the state from package data
+        const packageState = packageSummary.package?.state || "";
+        console.log(packageState,"packageState")
+        // Try to match state with state names from images.jsx
+        const stateName = findMatchingState(packageState);
+        console.log(stateName,"stateName")
+        if (stateName) {
+          // Get images for the matched state
+          const images = getStateImages(stateName);
+          console.log(images,"images")
+        } else {
+          // Fallback to default images if no state match found
+          console.log("Using default images for state:", packageState);
+          const defaultImages = getStateImages("default");
+          console.log(defaultImages,"defaultImages")
+        }
+      } catch (error) {
+        console.error("Error getting images:", error);
+      }
+    };
+
+    getDestinationImages();
+  }, [packageSummary.package?.state]);
+
+  // Helper function to find matching state from package state
+  const findMatchingState = (packageState) => {
+    if (!packageState) return null;
+    
+    const lowerPackageState = packageState.toLowerCase().trim();
+    console.log(lowerPackageState,"lowerPackageState")
+    
+    // Check each state name to see if it matches
+    for (const stateName of Object.keys(stateImages)) {
+      const lowerStateName = stateName.toLowerCase().trim();
+      console.log(lowerStateName,"lowerStateName")      
+      
+      // Check if state name matches exactly or is contained in package state
+      if (lowerPackageState === lowerStateName || 
+          lowerPackageState.includes(lowerStateName) || 
+          lowerStateName.includes(lowerPackageState)) {
+        console.log("Match found:", stateName);
+        return stateName;
+      }
+    }
+    
+    console.log("No match found for:", packageState);
+    return null;
+  };
+
+  // Auto-focus and select link input when modal opens
+  useEffect(() => {
+    if (showLinkModal && linkToCopy) {
+      // Small delay to ensure modal is rendered
+      setTimeout(() => {
+        const input = document.getElementById('link-to-copy-input');
+        if (input) {
+          input.focus();
+          input.select();
+          input.setSelectionRange(0, linkToCopy.length);
+        }
+      }, 100);
+    }
+  }, [showLinkModal, linkToCopy]);
   return (
     <>
       <div className="p-6 flex gap-6 sm:flex-row flex-col">
@@ -624,20 +1026,7 @@ const[actionMessage,setActionMessage]=useState("")
                       <div className="flex items-center gap-2 bg-white/10 p-1.5 rounded-lg backdrop-blur-sm">
                         {/* Toggle between Margin and Discount */}
                         <div className="flex bg-white/5 rounded-md p-1">
-                          {/* <button
-                            onClick={() => {
-                              setShowDiscount(false);
-                              setActiveDiscountPercentage(null);
-                              setCustomDiscountPercentage("");
-                            }}
-                            className={`px-3 py-1.5 rounded-md text-sm transition-all ${
-                              !showDiscount
-                                ? "bg-blue-500 text-white shadow-sm"
-                                : "text-gray-300 hover:text-white hover:bg-white/10"
-                            }`}
-                          >
-                            Margin
-                          </button> */}
+                        
                           <button
                             onClick={() => {
                               setShowDiscount(true);
@@ -809,21 +1198,54 @@ const[actionMessage,setActionMessage]=useState("")
                     {showMargin && !loadings && (
                       <button
                         onClick={handleSendLink}
-                        className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-all flex items-center gap-2"
+                        disabled={isProcessing}
+                        className={`px-4 py-2 text-white rounded-lg transition-all flex items-center gap-2 ${
+                          isProcessing 
+                            ? 'bg-gray-400 cursor-not-allowed' 
+                            : 'bg-green-500 hover:bg-green-600'
+                        }`}
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        Send Link
+                        {isProcessing ? (
+                          <>
+                            <svg
+                              className="animate-spin h-5 w-5"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            Send Link
+                          </>
+                        )}
                       </button>
                     )}
                   </div>
@@ -1122,6 +1544,12 @@ const[actionMessage,setActionMessage]=useState("")
                 <p className="text-sm text-gray-300">
                   Previous quotations sent
                 </p>
+                <button
+                  onClick={handleGetHistory}
+                  className="mt-2 px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm transition-colors"
+                >
+                  Get History
+                </button>
               </div>
             </div>
             
@@ -1163,6 +1591,31 @@ const[actionMessage,setActionMessage]=useState("")
                       Loading...
                     </p>
                    
+                  </div>
+                </div>
+              ) : history.filter((item) => item.id === packageSummary.id).length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="bg-gray-50 rounded-xl p-6">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-12 w-12 mx-auto text-gray-400 mb-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    <p className="text-gray-600 font-medium">
+                      No History
+                    </p>
+                    <p className="text-gray-500 text-sm mt-1">
+                      Click "Get History" to fetch your quotes
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -1270,7 +1723,57 @@ const[actionMessage,setActionMessage]=useState("")
                           </button>
                           <button
                             onClick={() => handleDeleteHistory(item._id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            disabled={isProcessing}
+                            className={`p-2 rounded-lg transition-colors ${
+                              isProcessing 
+                                ? 'text-gray-400 cursor-not-allowed' 
+                                : 'text-red-600 hover:bg-red-50'
+                            }`}
+                          >
+                            {isProcessing ? (
+                              <svg
+                                className="animate-spin h-5 w-5"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                              </svg>
+                            ) : (
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Generate Shareable Links */}
+                        <div className="flex flex-col gap-2 mt-2">
+                          {/* Pluto Link Button */}
+                          <button
+                            onClick={() => handleGeneratePlutoLink(item)}
+                            className="w-full px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
                           >
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
@@ -1278,17 +1781,33 @@ const[actionMessage,setActionMessage]=useState("")
                               viewBox="0 0 20 20"
                               fill="currentColor"
                             >
-                              <path
-                                fillRule="evenodd"
-                                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                                clipRule="evenodd"
-                              />
+                              <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                              <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
                             </svg>
+                            Copy Pluto Link
+                          </button>
+
+                          {/* Demand Link Button */}
+                          <button
+                            onClick={() => handleGenerateDemandLink(item)}
+                            className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                              <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                            </svg>
+                            Copy Demand Link
                           </button>
                         </div>
 
-                        {/* Download Buttons with tracking */}
-                        <div className="grid grid-cols-2 gap-2">
+                        {/* Generate PDF Buttons */}
+                          {/* Download Buttons with tracking */}
+                          <div className="grid grid-cols-2 gap-2">
                           <PDFDownloadLink
                             document={
                               <PlutoToursPDF
@@ -1297,6 +1816,7 @@ const[actionMessage,setActionMessage]=useState("")
                                   package: packageSummary.package,
                                 }}
                                 showMargin={true}
+                                cabImages={cabImages}
                                 marginAmount={item.finalTotal - item.total}
                                 showDiscount={item.discountPercentage > 0}
                                 discountAmount={item.discountPercentage > 0 ? (item.total * item.discountPercentage / 100) : 0}
@@ -1308,14 +1828,14 @@ const[actionMessage,setActionMessage]=useState("")
                                 selectedLead={selectedLead}
                               />
                             }
-                            fileName={`pluto-tours-package-${
+                            fileName={`PTW Holidays-${
                               item.id
                             }-${new Date(item.timestamp).getTime()}.pdf`}
                             onClick={() => handleTrackDownload(item._id,packageSummary.package, 'pluto')}
                           >
                             {({ loading }) => (
                               <button className="w-full px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium relative">
-                                {loading ? "Loading..." : "Pluto Tours PDF"}
+                                {loading ? "Loading..." : "PTW Holidays PDF"}
                                 <DownloadBadge count={downloadCounts[item.id]?.pluto} />
                               </button>
                             )}
@@ -1329,6 +1849,7 @@ const[actionMessage,setActionMessage]=useState("")
                                   package: packageSummary.package,
                                 }}
                                 showMargin={true}
+                                cabImages={cabImages}
                                 showDiscount={item.discountPercentage > 0}
                                 discountAmount={item.discountPercentage > 0 ? (item.total * item.discountPercentage / 100) : 0}
                                 activeDiscountPercentage={item.discountPercentage}
@@ -1359,6 +1880,12 @@ const[actionMessage,setActionMessage]=useState("")
                           <div className="flex flex-col gap-2">
                             <button
                               onClick={async () => {
+                                if (isProcessing) return;
+                                
+                                setIsProcessing(true);
+                                setShowSuccessMessage(false);
+                                setSuccessMessageType('');
+                                
                                 try {
                                   // Compute amounts for lead update
                                   const baseTotal = Number(item.total) || 0;
@@ -1378,13 +1905,7 @@ const[actionMessage,setActionMessage]=useState("")
                                     conversionType: 'ptw'
                                   });
 
-                                  const updatedHistory = history.map(
-                                    (historyItem) =>
-                                      historyItem._id === item._id
-                                        ? { ...historyItem, converted: true, conversionType: 'ptw' }
-                                        : historyItem
-                                  );
-                                  setHistory(updatedHistory);
+                                  // Don't update local state - user needs to click "Get History" to see updated data
 
                                   if (leadId) {
                                     await updateLead(leadId, {
@@ -1398,16 +1919,39 @@ const[actionMessage,setActionMessage]=useState("")
                                       converted: true,
                                     });
                                   }
+                                  
+                                  // Show success message with delay
+                                  setTimeout(() => {
+                                    setSuccessMessageType('convert');
+                                    setShowSuccessMessage(true);
+                                    setTimeout(() => {
+                                      setShowSuccessMessage(false);
+                                      setSuccessMessageType('');
+                                    }, 5000);
+                                  }, 100);
                                 } catch (error) {
                                   console.error("Error converting history:", error);
+                                } finally {
+                                  setIsProcessing(false);
                                 }
                               }}
-                              className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium"
+                              disabled={isProcessing}
+                              className={`w-full px-3 py-2 text-white rounded-lg transition-colors text-sm font-medium ${
+                                isProcessing 
+                                  ? 'bg-gray-400 cursor-not-allowed' 
+                                  : 'bg-green-600 hover:bg-green-700'
+                              }`}
                             >
-                              Convert to PTW
+                              {isProcessing ? 'Converting...' : 'Convert to PTW'}
                             </button>
                             <button
                               onClick={async () => {
+                                if (isProcessing) return;
+                                
+                                setIsProcessing(true);
+                                setShowSuccessMessage(false);
+                                setSuccessMessageType('');
+                                
                                 try {
                                   // Compute amounts for lead update
                                   const baseTotal = Number(item.total) || 0;
@@ -1427,13 +1971,7 @@ const[actionMessage,setActionMessage]=useState("")
                                     conversionType: 'demand setu'
                                   });
 
-                                  const updatedHistory = history.map(
-                                    (historyItem) =>
-                                      historyItem._id === item._id
-                                        ? { ...historyItem, converted: true, conversionType: 'demand setu' }
-                                        : historyItem
-                                  );
-                                  setHistory(updatedHistory);
+                                  // Don't update local state - user needs to click "Get History" to see updated data
 
                                   if (leadId) {
                                     await updateLead(leadId, {
@@ -1447,13 +1985,30 @@ const[actionMessage,setActionMessage]=useState("")
                                       converted: true,
                                     });
                                   }
+                                  
+                                  // Show success message with delay
+                                  setTimeout(() => {
+                                    setSuccessMessageType('convert');
+                                    setShowSuccessMessage(true);
+                                    setTimeout(() => {
+                                      setShowSuccessMessage(false);
+                                      setSuccessMessageType('');
+                                    }, 5000);
+                                  }, 100);
                                 } catch (error) {
                                   console.error("Error converting history:", error);
+                                } finally {
+                                  setIsProcessing(false);
                                 }
                               }}
-                              className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+                              disabled={isProcessing}
+                              className={`w-full px-3 py-2 text-white rounded-lg transition-colors text-sm font-medium ${
+                                isProcessing 
+                                  ? 'bg-gray-400 cursor-not-allowed' 
+                                  : 'bg-blue-600 hover:bg-blue-700'
+                              }`}
                             >
-                              Convert to Demand Setu
+                              {isProcessing ? 'Converting...' : 'Convert to Demand Setu'}
                             </button>
                           </div>
                         ) : (
@@ -1478,33 +2033,92 @@ const[actionMessage,setActionMessage]=useState("")
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-[90%] h-[90%] flex flex-col">
             {/* Modal Header */}
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
               <h3 className="text-xl font-semibold text-gray-800">
                 Package Details -{" "}
                 {new Date(selectedHistoryItem.timestamp).toLocaleDateString()}
               </h3>
-              <button
-                onClick={() => {
-                  setShowPdfPreview(false);
-                  setSelectedHistoryItem(null);
-                }}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
+              <div className="flex items-center gap-3">
+                {/* Download PDF Buttons - Prominent and Always Visible - Using Non-blocking Component */}
+                <div className="flex gap-2">
+                  {/* Pluto PDF Download - Non-blocking */}
+                  <PdfDownloadButton
+                    packageSummary={{
+                      ...selectedHistoryItem,
+                      package: packageSummary.package,
+                    }}
+                    showMargin={true}
+                    marginAmount={
+                      selectedHistoryItem.finalTotal - selectedHistoryItem.total
+                    }
+                    showDiscount={selectedHistoryItem.discountPercentage > 0}
+                    discountAmount={selectedHistoryItem.discountPercentage > 0 ? (selectedHistoryItem.total * selectedHistoryItem.discountPercentage / 100) : 0}
+                    activeDiscountPercentage={selectedHistoryItem.discountPercentage}
+                    finalTotal={selectedHistoryItem.finalTotal}
+                    getCurrentMarginPercentage={() =>
+                      selectedHistoryItem.marginPercentage
+                    }
+                    companyName="Pluto Tours and Travel"
+                    selectedLead={selectedLead}
+                    cabImages={cabImages}
+                    pdfStyle="pluto"
+                    fileName={`${selectedLead?.name || 'Quote'}_${packageSummary?.package?.packageName || 'Package'}_Pluto_${new Date().toISOString().split('T')[0]}.pdf`}
+                    buttonText="Download Pluto PDF"
+                    buttonClassName="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-semibold shadow-md hover:shadow-lg"
                   />
-                </svg>
-              </button>
+
+                  {/* Demand PDF Download - Non-blocking */}
+                  <PdfDownloadButton
+                    packageSummary={{
+                      ...selectedHistoryItem,
+                      package: packageSummary.package,
+                    }}
+                    showMargin={true}
+                    marginAmount={
+                      selectedHistoryItem.finalTotal - selectedHistoryItem.total
+                    }
+                    showDiscount={selectedHistoryItem.discountPercentage > 0}
+                    discountAmount={selectedHistoryItem.discountPercentage > 0 ? (selectedHistoryItem.total * selectedHistoryItem.discountPercentage / 100) : 0}
+                    activeDiscountPercentage={selectedHistoryItem.discountPercentage}
+                    finalTotal={selectedHistoryItem.finalTotal}
+                    getCurrentMarginPercentage={() =>
+                      selectedHistoryItem.marginPercentage
+                    }
+                    companyName="Pluto Tours and Travel"
+                    selectedLead={selectedLead}
+                    cabImages={cabImages}
+                    pdfStyle="demand"
+                    fileName={`${selectedLead?.name || 'Quote'}_${packageSummary?.package?.packageName || 'Package'}_Demand_${new Date().toISOString().split('T')[0]}.pdf`}
+                    buttonText="Download Demand PDF"
+                    buttonClassName="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors text-sm font-semibold shadow-md hover:shadow-lg"
+                  />
+                </div>
+                
+                {/* Close Button */}
+                <button
+                  onClick={() => {
+                    setShowPdfPreview(false);
+                    setSelectedHistoryItem(null);
+                  }}
+                  className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Close"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {/* Modal Content */}
@@ -1529,7 +2143,144 @@ const[actionMessage,setActionMessage]=useState("")
                 companyName="Pluto Tours and Travel"
                 selectedLead={selectedLead}
                 colorTheme="orange"
+                cabImages={cabImages}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Message Modal */}
+      {showSuccessMessage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                <svg
+                  className="h-6 w-6 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {successMessageType === 'create' && 'Quote Sent Successfully!'}
+                {successMessageType === 'delete' && 'Quote Deleted Successfully!'}
+                {successMessageType === 'convert' && 'Quote Converted Successfully!'}
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Click on "Get History" button to view your updated history.
+              </p>
+              <button
+                onClick={() => {
+                  setShowSuccessMessage(false);
+                  setSuccessMessageType('');
+                }}
+                className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Link Copy Modal */}
+      {showLinkModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold text-gray-800">Copy Link</h3>
+              <button
+                onClick={() => {
+                  setShowLinkModal(false);
+                  setLinkToCopy('');
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+            <p className="text-gray-600 mb-3">
+              Unable to copy to clipboard automatically. Please select and copy the link below:
+            </p>
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                id="link-to-copy-input"
+                value={linkToCopy}
+                readOnly
+                onClick={(e) => e.target.select()}
+                onFocus={(e) => e.target.select()}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-800"
+              />
+              <button
+                onClick={async () => {
+                  const success = await copyToClipboard(linkToCopy);
+                  if (success) {
+                    toast.success("Link copied to clipboard!");
+                    setShowLinkModal(false);
+                    setLinkToCopy('');
+                  } else {
+                    // Select the text in the input for manual copying
+                    const input = document.getElementById('link-to-copy-input');
+                    if (input) {
+                      input.focus();
+                      input.select();
+                      input.setSelectionRange(0, linkToCopy.length);
+                      toast.info("Please manually copy the selected text");
+                    }
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
+                </svg>
+                Try Copy Again
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setShowLinkModal(false);
+                  setLinkToCopy('');
+                }}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

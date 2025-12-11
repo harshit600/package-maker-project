@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { toast } from 'react-toastify';
 import config from '../../config.jsx';
 
 const FinalcostingContext = createContext();
@@ -12,9 +13,23 @@ export const useFinalcosting = () => {
 };
 
 export const FinalcostingProvider = ({ children }) => {
+  const [cabImages, setCabImages] = useState([]);
+  const [cabImagesLoading, setCabImagesLoading] = useState(false);
   const [marginss, setMargins] = useState([]);
   const [marginData, setMarginData] = useState(null);
   const [addData, setAddData] = useState([]);
+  const [addDataPackage, setAddDataPackage] = useState([]);
+  const [addDataPackagePagination, setAddDataPackagePagination] = useState({
+    currentPage: 1,
+    totalPages: 0,
+    totalItems: 0,
+    itemsPerPage: 100,
+    hasNextPage: false,
+    hasPrevPage: false
+  });
+  const [addDataPackageLoading, setAddDataPackageLoading] = useState(false);
+  const [addDataPackagebyid, setAddDataPackagebyid] = useState(null);
+  const [addDataPackagebyidLoading, setAddDataPackagebyidLoading] = useState(false);
   const [loadings, setLoadings] = useState(false);
   const[ loadingss, setLoadingss ] = useState(false);
   const[ loadingsss, setLoadingsss ] = useState(false);
@@ -25,7 +40,7 @@ export const FinalcostingProvider = ({ children }) => {
   const [banks, setBanks] = useState([]);
   const [banksLoading, setBanksLoading] = useState(false);
   const [userData, setUserData] = useState(null);
-  console.log(userData,"userData")
+  const userDataFetched = useRef(false);
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 0,
@@ -73,6 +88,71 @@ export const FinalcostingProvider = ({ children }) => {
       setBanksLoading(false)
     }
   }
+  const fetchCabImages = async () => {
+    try {
+      setCabImagesLoading(true)
+      const response = await fetch(`${config.API_HOST}/api/cabs/getcabsminimal`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setCabImages(data?.result || [])
+    } catch (error) {
+      console.error('Error fetching cab images:', error)
+      toast.error('Failed to fetch cab images')
+    } finally {
+      setCabImagesLoading(false)
+    }
+  }
+  const fetchaddpackagebyid = useCallback(async (id) => {
+    if (!id) {
+      console.warn('fetchaddpackagebyid called without id')
+      return null
+    }
+    
+    
+    // Clear previous data and set loading
+    setAddDataPackagebyid(null)
+    setAddDataPackagebyidLoading(true)
+    
+    try {
+      const response = await fetch(`${config.API_HOST}/api/add/get/${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      
+      // The API response structure might be different - try both possibilities
+      const packageData = data?.data || data
+      
+      // Set the data first, then clear loading
+      // React will batch these updates, but we set data first to ensure UI can render
+      setAddDataPackagebyid(packageData)
+      setAddDataPackagebyidLoading(false)
+
+      return packageData // Return the package data so it can be used immediately
+
+    } catch (error) {
+      console.error('Error fetching package by id:', error)
+      toast.error('Failed to fetch add package by id')
+      setAddDataPackagebyidLoading(false)
+      return null // Return null on error
+    }
+  }, [])
   // get crm leads
    // Fetch margins by state
    const fetchcrmleads = useCallback(async (state) => {
@@ -124,13 +204,8 @@ export const FinalcostingProvider = ({ children }) => {
         return [];
       }
       
-      // Add timeout to prevent infinite loading
-      const timeoutId = setTimeout(() => {
-        setLoadingsss(false);
-      }, 10000); // 10 second timeout
-      
+     
       const response = await fetch(`${config.API_HOST}/api/finalcosting/get/${id}/${userId}/${customerLeadId}`);
-      clearTimeout(timeoutId);
       
       if (!response.ok) throw new Error("Failed to fetch history by package id");
       const data = await response.json();
@@ -147,6 +222,9 @@ export const FinalcostingProvider = ({ children }) => {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
+        // Don't fetch if userData already exists or has been fetched
+        if (userData || userDataFetched.current) return;
+        
         const userStr = localStorage.getItem("user");
         if (!userStr) return;
 
@@ -170,7 +248,7 @@ export const FinalcostingProvider = ({ children }) => {
 
         if (currentUserData) {
           setUserData(currentUserData);
-        
+          userDataFetched.current = true;
         }
       } catch (err) {
         console.error("Error fetching user data:", err);
@@ -178,7 +256,7 @@ export const FinalcostingProvider = ({ children }) => {
     };
 
     fetchUserData();
-  }, []);
+  }, []); // Empty dependency array - only run once on mount
   // Create new finalcosting entry
   const createFinalcosting = useCallback(async (historyItem) => {
     try {
@@ -311,9 +389,15 @@ export const FinalcostingProvider = ({ children }) => {
   const trackDownload = useCallback(async (packageId, packageName, downloadType ,history) => {
     try {
       // Verify this is the first history item
-      const firstHistory = history.length > 0 ? history[0] : null;
+      const firstHistory = history && history.length > 0 ? history[0] : null;
       if (!firstHistory || firstHistory._id !== packageId) {
         return null; // Don't track if not first history
+      }
+
+      // Validate required parameters
+      if (!packageName || !packageName.packageName) {
+        console.warn('Invalid packageName provided to trackDownload');
+        return null;
       }
 
       const name = packageName.packageName;
@@ -346,20 +430,31 @@ export const FinalcostingProvider = ({ children }) => {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to track download");
+        // Log the error but don't throw - make tracking non-blocking
+        const errorText = await response.text();
+        console.error('Failed to track download:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        return null; // Return null instead of throwing
       }
+      
       const result = await response.json();
       // Update local download counts only for first history
-      setDownloadCounts(prev => ({
-        ...prev,
-        [packageId]: result.downloadCounts
-      }));
+      if (result.downloadCounts) {
+        setDownloadCounts(prev => ({
+          ...prev,
+          [packageId]: result.downloadCounts
+        }));
+      }
 
       return result;
     } catch (error) {
+      // Log error but don't throw - make tracking non-blocking
       console.error('Error tracking download:', error);
-      setError(error.message);
-      throw error;
+      // Don't set error state or throw - just return null
+      return null;
     }
   }, []);
 
@@ -370,7 +465,6 @@ export const FinalcostingProvider = ({ children }) => {
   // Request edit discount
   const requestEditDiscount = useCallback(async (packageId, packageName,state, discountPercentage,  cabData, hotelData, total, marginAmount, marginPercentage) => {
          // Get the package state and extract just the state name
-         console.log("state",state)
          const packageState = capitalizeWords(state.toLowerCase());
       
     try {
@@ -408,7 +502,6 @@ export const FinalcostingProvider = ({ children }) => {
       });
 
       if (!response.ok) {
-        console.log(response,"response")
         if (response.status === 404) {
           // Backend route not implemented yet - show temporary message
           console.warn("Edit discount backend route not implemented yet");
@@ -450,12 +543,10 @@ export const FinalcostingProvider = ({ children }) => {
       
       // Get the package state and extract just the state name
       const packageState = state.toLowerCase();
-      
       // Find matching state margin
       const matchingStateMargin = data?.data?.find(
         (margin) => (margin.state || "").toLowerCase() == packageState
       );
-
       return matchingStateMargin || (Array.isArray(data.data) ? data.data[0] : null);
     } catch (error) {
       console.error("Error fetching margin by state:", error);
@@ -539,7 +630,46 @@ export const FinalcostingProvider = ({ children }) => {
       setLoadingss(false);
     }
   }, []);
+  // Fetch data from /api/add/packages endpoint with pagination
+ 
 
+  // Fetch all data automatically with pagination
+  const fetchAllAddDatapackage = useCallback(async () => {
+    try {
+      setAddDataPackageLoading(true);
+      setError(null);
+      
+      let currentPage = 1;
+      let allData = [];
+      let hasMorePages = true;
+      
+      while (hasMorePages) {
+        const response = await fetch(`${config.API_HOST}/api/add/packages?page=${currentPage}&limit=300`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch add data");
+        }
+        
+        const data = await response.json();
+        allData = [...allData, ...data.packages];
+        
+        // Check if there are more pages
+        hasMorePages = data.pagination.hasNextPage;
+        currentPage++;
+        
+        // Update pagination state with the last page info
+        setAddDataPackagePagination(data.pagination);
+      }
+      
+      setAddDataPackage(allData);
+      return allData;
+    } catch (error) {
+      console.error("Error fetching all add data:", error);
+      setError(error.message);
+      throw error;
+    } finally {
+      setAddDataPackageLoading(false);
+    }
+  }, []);
   // Delete package function
   const deletePackage = useCallback(async (packageId) => {
     try {
@@ -573,6 +703,8 @@ export const FinalcostingProvider = ({ children }) => {
     fetchAllAddData();
     fetchcrmleads();
     fetchBanks();
+    fetchAllAddDatapackage();
+    fetchCabImages();
   }, [fetchAllAddData,userData]);
 
   // Safety check to reset stuck loading states
@@ -593,6 +725,7 @@ export const FinalcostingProvider = ({ children }) => {
   // Refresh data function
   const refreshData = () => {
     fetchAllAddData();
+    fetchAllAddDatapackage();
   };
 
   const contextValue = {
@@ -607,6 +740,8 @@ export const FinalcostingProvider = ({ children }) => {
     userData,
     pagination, // Pagination state
     marginData,
+    cabImages,
+    cabImagesLoading,
     // Actions
     fetchHistoryByPackageId,
     setMarginData,
@@ -618,6 +753,7 @@ export const FinalcostingProvider = ({ children }) => {
     requestEditDiscount,
     fetchMarginByState,
     fetchAddData,
+    fetchAllAddDatapackage,
     fetchAllAddData, // New function to fetch all data
     deletePackage,
     refreshData,
@@ -628,7 +764,14 @@ export const FinalcostingProvider = ({ children }) => {
     crmloading,
     banks,
     banksLoading,
-   
+    addDataPackage,
+    addDataPackageLoading,
+    setAddDataPackage,
+    setAddDataPackageLoading, 
+    addDataPackagebyid,
+    addDataPackagebyidLoading,
+    setAddDataPackagebyidLoading,
+    fetchaddpackagebyid,
   };
 
   return (

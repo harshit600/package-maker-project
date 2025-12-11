@@ -10,6 +10,7 @@ import SightseeingSlider from "./SightseeingSlider";
 import ChangeHotel from "./changeHotel";
 import ActivityAndSightseeing from "./activityAndSigth";
 import PackageDetailsPopup from "./PackageDetailsPopup";
+import ViewPackagePopup from "./ViewPackagePopup";
 import FinalCosting from "./finalCosting";
 import RoomSlider from "./RoomSlider";
 import CreatePackageApproval from "../pages/CreatePackageApproval";
@@ -24,12 +25,17 @@ const config = {
 // Check your config.API_HOST value
 
 const AllLeads = () => {
-  const { addData, loadings, error, refreshData ,loadingss ,loadingsss,banks,banksLoading} = useFinalcosting();
+  const { addDataPackage,
+    addDataPackageLoading,
+    setAddDataPackage,
+    setAddDataPackageLoading, 
+    addDataPackagebyid,
+    addDataPackagebyidLoading,
+    fetchaddpackagebyid, addData, loadings, error, refreshData ,loadingss ,loadingsss,banks,banksLoading} = useFinalcosting();
   const { createBankTransaction, getLeadById, transactionDetail, transactionDetailLoading } = useBankManagement();
-  console.log(transactionDetail,"transactionDetail")
-  const [isDetailsPopupOpen, setIsDetailsPopupOpen] = useState(false);
   const { currentUser } = useSelector((state) => state.user);
   const loginuser = currentUser.data;
+ 
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -40,12 +46,12 @@ const AllLeads = () => {
   const [searchMobile, setSearchMobile] = useState("");
   const [searchName, setSearchName] = useState("");
   const [searchCategory, setSearchCategory] = useState("");
-  const [sharingMethod, setSharingMethod] = useState(null);
-  const [isSharing, setIsSharing] = useState(false);
+ 
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [viewLead, setViewLead] = useState(null);
   const [availablePackages, setAvailablePackages] = useState([]);
   const [isPackageInfoOpen, setIsPackageInfoOpen] = useState(false);
+  const [isViewPackagePopupOpen, setIsViewPackagePopupOpen] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState({
     activities: [],
     // ... other package properties ...
@@ -182,7 +188,6 @@ const AllLeads = () => {
             }
           : null,
       };
-
       const created = await createBankTransaction(payload);
 
       // Optimistically add to local list for UI feedback
@@ -244,22 +249,49 @@ const AllLeads = () => {
     "Payment Detail Shared"
   ];
   
+  // Add state for active status filter
+  const [activeStatusFilter, setActiveStatusFilter] = useState("All Leads");
+  
   // Handle status dropdown toggle
   const handleStatusDropdownToggle = (leadId) => {
     setOpenStatusDropdown(openStatusDropdown === leadId ? null : leadId);
   };
   
   // Handle status selection
-  const handleStatusSelect = (status, lead) => {
-    // Update the lead status (you can add API call here later)
-    const updatedLeads = leads.map(l => 
-      l._id === lead._id 
-        ? { ...l, publish: status }
-        : l
-    );
-    console.log(updatedLeads,"updatedLeads")
-    setLeads(updatedLeads);
-    setOpenStatusDropdown(null);
+  const handleStatusSelect = async (status, lead) => {
+    try {
+      // Update the lead status in backend
+      const response = await fetch(`${config.API_HOST}/api/leads/update-lead/${lead._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${loginuser?.token || ''}`
+        },
+        body: JSON.stringify({
+          leadStatus: status
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update lead status');
+      }
+
+      const result = await response.json();
+
+      // Update local state after successful backend update
+      const updatedLeads = leads.map(l => 
+        l._id === lead._id 
+          ? { ...l, leadStatus: status }
+          : l
+      );
+      setLeads(updatedLeads);
+      setOpenStatusDropdown(null);
+      
+    } catch (error) {
+      console.error('Error updating lead status:', error);
+      // You can add a toast notification here if you have one
+      alert('Failed to update lead status. Please try again.');
+    }
   };
   
   useEffect(() => {
@@ -292,6 +324,7 @@ const AllLeads = () => {
     const stateMapping = {
       'himachal': 'Himachal Pradesh',
       'Himachal': 'Himachal Pradesh',
+      'himachal': 'himachal',
       'Himachal Pradesh': 'Himachal Pradesh',
       'himachal_pradesh': 'Himachal Pradesh',
       'sikkim': 'Sikkim',
@@ -299,6 +332,8 @@ const AllLeads = () => {
       'sikkim': 'sikkim',
       'andhra_pradesh': 'Andhra Pradesh',
       'arunachal_pradesh': 'Arunachal Pradesh',
+      'arunachal': 'Arunachal Pradesh',
+      'arunachal pradesh': 'arunachal pradesh',
       'assam': 'Assam',
       'assam':'assam',
       'Assam': 'Assam',
@@ -378,10 +413,8 @@ const AllLeads = () => {
     const fetchapproval = async () => {
       try {
         const properStateName = getProperStateName(selectedLead?.destination);
-        console.log(properStateName,"properStateName")
         const response = await fetch(`${config.API_HOST}/api/packageapproval/getapprovalbystate/${properStateName}`);
         const data = await response.json();
-        console.log(data?.data,"data")
         // Filter packages where currentUser email and contactNo match loginuser
         const matchingPackages = data?.data?.filter(approval => {
           const approvalUser = approval.currentUser;
@@ -452,6 +485,11 @@ const AllLeads = () => {
   useEffect(() => {
     fetchLeads();
   }, []);
+  
+  // Reset to first page when status filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeStatusFilter]);
 
   useEffect(() => {
     fetchCabs();
@@ -697,18 +735,36 @@ const AllLeads = () => {
 
       if (day.selectedHotel?.selectedRoom) {
         const plandata = day.selectedHotel.selectedRoom.plandata?.[1];
+        console.log(plandata)
         if (Array.isArray(plandata)) {
           const foundRate = plandata.find((item) => {
-            const itemDate = new Date(item.date).toISOString().split("T")[0];
+            // Validate the date before processing
+            if (!item.date || typeof item.date !== 'string') {
+              return false;
+            }
+            
+            // Check if the date string looks malformed (contains multiple dates)
+            if (item.date.includes(' ') && item.date.split(' ').length > 1) {
+              return false;
+            }
+            
+            const dateObj = new Date(item.date);
+            
+            // Check if the date is valid
+            if (isNaN(dateObj.getTime())) {
+              return false;
+            }
+            
+            const itemDate = dateObj.toISOString().split("T")[0];
             return itemDate === formattedDate;
           });
           if (foundRate) {
-            displayRate = foundRate.value;
+            displayRate = foundRate.value; // Keep null if it's null in the data
           } else {
-            displayRate = day.selectedHotel.selectedRoom.baseRate;
+            displayRate =  "no rate found"|| day.selectedHotel.selectedRoom.baseRate;
           }
         } else {
-          displayRate = day.selectedHotel.selectedRoom.baseRate;
+          displayRate = "no rate found"|| day.selectedHotel.selectedRoom.baseRate;
         }
       } else if (defaultRoom) {
         // For default room, try to get AP rate from inventory
@@ -719,14 +775,29 @@ const AllLeads = () => {
           for (const period in apRates) {
             if (Array.isArray(apRates[period])) {
               const matchingRate = apRates[period].find((rate) => {
-                const rateDate = new Date(rate.date)
-                  .toISOString()
-                  .split("T")[0];
+                // Validate the date before processing
+                if (!rate.date || typeof rate.date !== 'string') {
+                  return false;
+                }
+                
+                // Check if the date string looks malformed (contains multiple dates)
+                if (rate.date.includes(' ') && rate.date.split(' ').length > 1) {
+                  return false;
+                }
+                
+                const dateObj = new Date(rate.date);
+                
+                // Check if the date is valid
+                if (isNaN(dateObj.getTime())) {
+                  return false;
+                }
+                
+                const rateDate = dateObj.toISOString().split("T")[0];
                 return rateDate === formattedDate;
               });
 
               if (matchingRate) {
-                displayRate = matchingRate.value;
+                displayRate = matchingRate.value; // Keep null if it's null in the data
                 break;
               }
             }
@@ -735,7 +806,7 @@ const AllLeads = () => {
 
         // Fallback to base rate if no inventory rate found
         if (!displayRate) {
-          displayRate = defaultRoom.baseRate;
+          displayRate = "no rate found"|| defaultRoom.baseRate;
         }
       }
     }
@@ -756,13 +827,13 @@ const AllLeads = () => {
           });
 
           if (foundRate) {
-            extraAdultRate = foundRate.value;
+            extraAdultRate = foundRate.value; // Keep null if it's null in the data
           } else {
             extraAdultRate =
-              day.selectedHotel.selectedRoom.extraAdultCharge || 0;
+              "no rate found"|| day.selectedHotel.selectedRoom.extraAdultCharge || 0;
           }
         } else {
-          extraAdultRate = day.selectedHotel.selectedRoom.extraAdultCharge || 0;
+          extraAdultRate = "no rate found"|| day.selectedHotel.selectedRoom.extraAdultCharge || 0;
         }
       } else if (defaultRoom) {
         // For default room, try to get extra adult rate from inventory
@@ -777,7 +848,7 @@ const AllLeads = () => {
 
             // Compare the rateDate with formattedDate
             if (rateDate === formattedDate) {
-              extraAdultRate = rate.value; // Assign the value if a match is found
+              extraAdultRate = rate.value; // Keep null if it's null in the data
               break; // Exit the loop once a match is found
             }
           }
@@ -785,7 +856,7 @@ const AllLeads = () => {
 
         // Fallback to standard extra adult charge if no inventory rate found
         if (!extraAdultRate) {
-          extraAdultRate = defaultRoom.extraAdultCharge || 0;
+          extraAdultRate = "no rate found"|| defaultRoom.extraAdultCharge || 0;
         }
       }
 
@@ -802,10 +873,10 @@ const AllLeads = () => {
           if (foundRate) {
             childRate = foundRate.value;
           } else {
-            childRate = day.selectedHotel.selectedRoom.childCharge || 0;
+            childRate = "no rate found"|| day.selectedHotel.selectedRoom.childCharge || 0;
           }
         } else {
-          childRate = day.selectedHotel.selectedRoom.childCharge || 0;
+          childRate = "no rate found"|| day.selectedHotel.selectedRoom.childCharge || 0;
         }
       } else if (defaultRoom) {
         const childInventory =
@@ -1105,8 +1176,8 @@ const AllLeads = () => {
               {selectedRoom && (
                 <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-gray-600">
                   <div>
-                    <span className="font-medium">Extra Adult:</span> ₹
-                    {extraAdultRate || selectedRoom.extraAdultCharge}
+                    <span className="font-medium">Extra Adult:</span> 
+                    {extraAdultRate !== null ? `₹${extraAdultRate}` : <span className="text-red-500">No rate found</span>}
                   </div>
                 </div>
               )}
@@ -1115,7 +1186,7 @@ const AllLeads = () => {
                 {/* Base Rate */}
                 <div className="flex items-baseline ">
                   <p className="text-2xl font-bold text-gray-900">
-                    ₹{(displayRate || 0).toLocaleString("en-IN")}
+                    {displayRate !== null ? `₹${displayRate.toLocaleString("en-IN")}` : <span className="text-red-500">No rate found</span>}
                   </p>
                   <p className="text-sm text-gray-500 ml-2">per night</p>
                   <div className="flex items-center p-3">
@@ -1210,13 +1281,33 @@ const AllLeads = () => {
                     Total Amount
                   </p>
 
-                  <p className="text-2xl font-bold text-blue-600">
-                    ₹
-                    {(
-                      displayRate * (hotelRoomsAndBeds[`hotel-${day.day}`]?.rooms ?? selectedLead?.noOfRooms ?? 1) +
-                      (extraAdultRate || selectedRoom?.extraAdultCharge) *
-                        (hotelRoomsAndBeds[`hotel-${day.day}`]?.extraBeds ?? selectedLead?.extraBeds ?? 0)
-                    ).toLocaleString("en-IN") || "N/A"}
+                  {/* <p className="text-2xl font-bold text-blue-600">
+                    {displayRate !== null && !isNaN(displayRate) ? (
+                      `₹${(
+                        displayRate * (hotelRoomsAndBeds[`hotel-${day.day}`]?.rooms ?? selectedLead?.noOfRooms ?? 1) +
+                        (extraAdultRate !== null ? extraAdultRate : (selectedRoom?.extraAdultCharge || 0)) *
+                          (hotelRoomsAndBeds[`hotel-${day.day}`]?.extraBeds ?? selectedLead?.extraBeds ?? 0)
+                      ).toLocaleString("en-IN")}`
+                    ) : (
+                      <span className="text-red-500">Cannot calculate - No base rate found</span>
+                    )}
+                  </p> */}
+                     <p className="text-2xl font-bold text-blue-600">
+                    {displayRate !== null && !isNaN(displayRate) ? (
+                      `₹${(() => {
+                        const rooms = hotelRoomsAndBeds[`hotel-${day.day}`]?.rooms ?? selectedLead?.noOfRooms ?? 1;
+                        const extraBeds = hotelRoomsAndBeds[`hotel-${day.day}`]?.extraBeds ?? selectedLead?.extraBeds ?? 0;
+                        const roomCost = displayRate * rooms;
+                        const extraAdultCost = extraBeds > 0 && extraAdultRate !== null && !isNaN(extraAdultRate) 
+                          ? extraAdultRate * extraBeds 
+                          : (extraBeds > 0 && selectedRoom?.extraAdultCharge && !isNaN(selectedRoom?.extraAdultCharge))
+                            ? selectedRoom.extraAdultCharge * extraBeds 
+                            : 0;
+                        return (roomCost + extraAdultCost).toLocaleString("en-IN");
+                      })()}`
+                    ) : (
+                      <span className="text-red-500">Cannot calculate - No base rate found</span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -1418,7 +1509,13 @@ const AllLeads = () => {
       const categoryMatch =
         !searchCategory ||
         lead.packageCategory?.toLowerCase() === searchCategory.toLowerCase();
-      return mobileMatch && nameMatch && categoryMatch;
+      
+      // Add status filtering
+      const statusMatch = 
+        activeStatusFilter === "All Leads" ||
+        lead.leadStatus === activeStatusFilter;
+      
+      return mobileMatch && nameMatch && categoryMatch && statusMatch;
     });
   };
 
@@ -1427,9 +1524,7 @@ const AllLeads = () => {
   const indexOfLastLead = currentPage * leadsPerPage;
   const indexOfFirstLead = indexOfLastLead - leadsPerPage;
   const currentLeads = filteredLeads.slice(indexOfFirstLead, indexOfLastLead);
-  console.log(currentLeads,"currentLeads")
   const totalPages = Math.ceil(filteredLeads.length / leadsPerPage);
-
   // Get unique categories from leads instead of packages
   const uniqueCategories = [
     ...new Set(leads.map((lead) => lead.packageCategory)),
@@ -1489,7 +1584,6 @@ const AllLeads = () => {
     try {
       if (lead._id) {
         const leadData = await getLeadById(lead._id);
-        console.log("Lead data fetched:", leadData);
         // You can use the fetched lead data here if needed
       }
     } catch (error) {
@@ -1630,6 +1724,7 @@ const AllLeads = () => {
       totalAmount: selectedLead?.totalAmount || 0
     });
     setIsEditingFinancials(true);
+    
   };
 
   // Function to cancel editing financial details
@@ -2217,13 +2312,25 @@ const AllLeads = () => {
         {/* Status Filter Tabs */}
         <div className="px-4 py-3 border-b border-gray-200">
           <div className="flex flex-wrap gap-2">
-            <button className="px-3 py-1.5 text-xl font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors">
+            <button 
+              onClick={() => setActiveStatusFilter("All Leads")}
+              className={`px-3 py-1.5 text-xl font-medium rounded-md transition-colors ${
+                activeStatusFilter === "All Leads"
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-600 bg-gray-100 hover:bg-gray-200"
+              }`}
+            >
               All Leads
             </button>
             {statusOptions.map((status) => (
               <button
                 key={status}
-                className="px-3 py-1.5 text-xl font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                onClick={() => setActiveStatusFilter(status)}
+                className={`px-3 py-1.5 text-xl font-medium rounded-md transition-colors ${
+                  activeStatusFilter === status
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 bg-gray-100 hover:bg-gray-200"
+                }`}
               >
                 {status}
               </button>
@@ -2325,6 +2432,24 @@ const AllLeads = () => {
                     <span> Add Status</span>
                   </div>
                 </th>
+                <th scope="col" className="px-4 py-3 text-left min-w-[80px] hidden sm:table-cell">
+                  <div className="flex items-center gap-2 text-xs font-medium text-white uppercase tracking-wider">
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span> Lead Action</span>
+                  </div>
+                </th>
                 <th scope="col" className="px-4 py-3 text-left min-w-[120px]">
                   <div className="flex items-center gap-2 text-xs font-medium text-white uppercase tracking-wider">
                     <svg
@@ -2340,7 +2465,7 @@ const AllLeads = () => {
                         d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                       />
                     </svg>
-                    <span>Actions</span>
+                    <span>Lead Status </span>
                   </div>
                 </th>
                 <th scope="col" className="px-4 py-3 text-left min-w-[100px]">
@@ -2358,7 +2483,7 @@ const AllLeads = () => {
                         d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                       />
                     </svg>
-                    <span>Lead Status</span>
+                    <span>Current Status</span>
                   </div>
                 </th>
               </tr>
@@ -2643,6 +2768,12 @@ const AllLeads = () => {
                     >
                       {lead.converted ? "Converted" : "Convert"}
                     </button>
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap hidden md:table-cell">
+                    <div className="text-sm text-gray-900">
+                    {lead?.leadStatus}
+                  
+                    </div>
                   </td>
                 </tr>
              ))}
@@ -3057,7 +3188,7 @@ const AllLeads = () => {
                                   </div>
                                   <div className="mt-4 flex justify-between items-center">
                                     <div className="text-gray-900 font-semibold text-sm">Total Amount: ₹{formatCurrency(selectedLead?.totalAmount)}</div>
-                                    <div className="text-gray-900 font-semibold text-sm">Due Amount: ₹{formatCurrency(selectedLead?.remainingAmount?selectedLead?.remainingAmount:selectedLead?.totalAmount)}</div>
+                                    <div className="text-gray-900 font-semibold text-sm">Due Amount: ₹{formatCurrency(selectedLead?.remainingAmount?selectedLead?.remainingAmount:0)}</div>
                                    
                                     <button
                                       type="button"
@@ -3229,7 +3360,7 @@ const AllLeads = () => {
                               <div className="flex justify-between m-2">
                                        <div className="text-gray-900 text-xl font-medium text-left"><span className="font-bold border-b-2 border-gray-900">Total Amount: </span> ₹{formatCurrency(selectedLead?.totalAmount)}</div>
 
-                                  <div className="text-gray-900 text-xl font-medium text-right"><span className="font-bold border-b-2 border-gray-900"> Due Amount: </span> ₹{formatCurrency(selectedLead?.remainingAmount?selectedLead?.remainingAmount:selectedLead?.totalAmount)}</div>
+                                  <div className="text-gray-900 text-xl font-medium text-right"><span className="font-bold border-b-2 border-gray-900"> Due Amount: </span> ₹{formatCurrency(selectedLead?.remainingAmount?selectedLead?.remainingAmount:0)}</div>
                                          
                                         </div>
                                 <div className="flex items-center justify-between">
@@ -3752,7 +3883,7 @@ const AllLeads = () => {
                                 scope="col"
                                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                               >
-                                PRICE
+                               View
                               </th>
                               <th
                                 scope="col"
@@ -3803,11 +3934,15 @@ const AllLeads = () => {
                                       : "N/A"}
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm font-medium text-green-600">
-                                      {pkg.finalCosting?.baseTotal
-                                        ? `₹${pkg.finalCosting.baseTotal}`
-                                        : "₹N/A"}
-                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        setSelectedPackage(pkg);
+                                        setIsViewPackagePopupOpen(true);
+                                      }}
+                                      className=" text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-md text-sm"
+                                    >
+                                      view 
+                                    </button>
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <button
@@ -4848,7 +4983,7 @@ const AllLeads = () => {
                                         <p className="text-xs sm:text-sm text-gray-600">
                                           Private Transfer/{cabDetails.cabType}
                                         </p>
-                                        {selectedCabs.some(selectedCab => selectedCab._id === cabDetails.cabId) && (
+                                        {selectedCabs.some(selectedCab => selectedCab.cabName === cabDetails.cabName) && (
                                           <div className="mt-2">
                                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                               ✓ Already Selected
@@ -4857,17 +4992,17 @@ const AllLeads = () => {
                                         )}
                                       </div>
                                       <div className="text-left sm:text-right mt-2 sm:mt-0">
-                                        {selectedCabs.some(selectedCab => selectedCab._id === cabDetails.cabId) ? (
+                                        {selectedCabs.some(selectedCab => selectedCab.cabName === cabDetails.cabName) ? (
                                           // Show selected cab info
                                           <div>
                                             <p className="text-base sm:text-lg font-bold text-green-600">
                                               Selected
                                             </p>
                                             <p className="text-xs sm:text-sm text-gray-500">
-                                              Quantity: {selectedCabs.find(selectedCab => selectedCab._id === cabDetails.cabId)?.quantity || 1}
+                                              Quantity: {selectedCabs.find(selectedCab => selectedCab.cabName === cabDetails.cabName)?.quantity || 1}
                                             </p>
                                           </div>
-                                        ) : selectedCab && selectedCab._id !== cabDetails.cabId ? (
+                                        ) : selectedCab && selectedCab.cabName !== cabDetails.cabName ? (
                                           // Show price difference when comparing with selected cab
                                           <div>
                                             <p
@@ -4952,7 +5087,7 @@ const AllLeads = () => {
                                           };
                                           
                                           // Check if this cab is already selected
-                                          const isAlreadySelected = selectedCabs.some(selectedCab => selectedCab._id === cabDetails.cabId);
+                                          const isAlreadySelected = selectedCabs.some(selectedCab => selectedCab.cabName === cabDetails.cabName);
                                           
                                           if (!isAlreadySelected) {
                                             // Add to selectedCabs array
@@ -4974,7 +5109,7 @@ const AllLeads = () => {
                                         }}
                                         className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
                                       >
-                                        {selectedCabs.some(selectedCab => selectedCab._id === cabDetails.cabId)
+                                        {selectedCabs.some(selectedCab => selectedCab.cabName === cabDetails.cabName)
                                           ? "Already Selected"
                                           : "Add Vehicle"}
                                       </button>
@@ -5080,6 +5215,13 @@ const AllLeads = () => {
           </div>
         </div>
       )}
+
+      {/* View Package Popup */}
+      <ViewPackagePopup
+        isOpen={isViewPackagePopupOpen}
+        onClose={() => setIsViewPackagePopupOpen(false)}
+        packageData={selectedPackage}
+      />
     </div>
   );
 };

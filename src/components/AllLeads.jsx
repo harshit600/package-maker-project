@@ -18,6 +18,8 @@ import AddPlace from "./AddPlace";
 import { useFinalcosting } from "../context/FinalcostingContext";
 import { useBankManagement } from "./bankManagement/bankManagementContext";
 import { useSelector } from "react-redux";
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { app } from "../firebase";
 const config = {
   API_HOST: "https://pluto-hotel-server-15c83810c41c.herokuapp.com",
 };
@@ -25,9 +27,15 @@ const config = {
 // Check your config.API_HOST value
 
 const AllLeads = () => {
-  const { addData, loadings, error, refreshData ,loadingss ,loadingsss,banks,banksLoading} = useFinalcosting();
+  const { addDataPackage,
+    setAddDataPackagebyidLoading,
+    addDataPackageLoading,
+    setAddDataPackage,
+    setAddDataPackageLoading, 
+    addDataPackagebyid,
+    addDataPackagebyidLoading,
+    fetchaddpackagebyid, addData, loadings, error, refreshData ,loadingss ,loadingsss,banks,banksLoading} = useFinalcosting();
   const { createBankTransaction, getLeadById, transactionDetail, transactionDetailLoading } = useBankManagement();
-  const [isDetailsPopupOpen, setIsDetailsPopupOpen] = useState(false);
   const { currentUser } = useSelector((state) => state.user);
   const loginuser = currentUser.data;
   const [leads, setLeads] = useState([]);
@@ -35,13 +43,13 @@ const AllLeads = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const leadsPerPage = 10;
   const [isEditPanelOpen, setIsEditPanelOpen] = useState(false);
+  const [ leadLoading, setLeadLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState(null);
   const [activeTab, setActiveTab] = useState("leadDetails");
   const [searchMobile, setSearchMobile] = useState("");
   const [searchName, setSearchName] = useState("");
   const [searchCategory, setSearchCategory] = useState("");
-  const [sharingMethod, setSharingMethod] = useState(null);
-  const [isSharing, setIsSharing] = useState(false);
+ 
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [viewLead, setViewLead] = useState(null);
   const [availablePackages, setAvailablePackages] = useState([]);
@@ -51,6 +59,7 @@ const AllLeads = () => {
     activities: [],
     // ... other package properties ...
   });
+  console.log(selectedPackage,"selectedPackage")
   const [packageInfoTab, setPackageInfoTab] = useState("package");
 
   const [selectedCab, setSelectedCab] = useState({
@@ -117,7 +126,11 @@ const AllLeads = () => {
     clearDate: "",
     toAccount: "",
     description: "",
+    utrNumber: "",
+    image: "",
   });
+
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const [savedPayments, setSavedPayments] = useState([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -137,6 +150,44 @@ const AllLeads = () => {
       }
     }
   };
+
+  // Function to handle image upload to Firebase
+  const handleImageUpload = async (file) => {
+    if (!file) return null;
+
+    try {
+      setUploadingImage(true);
+      const storage = getStorage(app);
+      const fileName = new Date().getTime() + file.name;
+      const storageRef = ref(storage, `payment-receipts/${fileName}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      return new Promise((resolve, reject) => {
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log("Upload is " + progress + "% done");
+          },
+          (error) => {
+            setUploadingImage(false);
+            toast.error("Image upload failed: " + error.message);
+            reject(error);
+          },
+          () => {
+            getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+              setUploadingImage(false);
+              resolve(downloadURL);
+            });
+          }
+        );
+      });
+    } catch (error) {
+      setUploadingImage(false);
+      toast.error("Failed to upload image");
+      return null;
+    }
+  };
   
   const handleSavePaymentDetail = async () => {
     try {
@@ -154,34 +205,39 @@ const AllLeads = () => {
       }
 
       // Resolve selected bank details (name and id) from current selection
-      const selectedBank = Array.isArray(banks)
-        ? banks.find(
-            (b) => `${b.bankName} (${b.accountNumber})` === paymentForm.toAccount
-          )
-        : null;
+      // const selectedBank = Array.isArray(banks)
+      //   ? banks.find(
+      //       (b) => `${b.bankName} (${b.accountNumber})` === paymentForm.toAccount
+      //     )
+      //   : null;
 
-      if (!selectedBank?._id) {
-        alert("Please select a valid To Account");
-        return;
-      }
+      // if (!selectedBank?._id) {
+      //   alert("Please select a valid To Account");
+      //   return;
+      // }
 
       const payload = {
         leadId: selectedLead?._id || null,
         leadName: selectedLead?.name || null,
+        travelDate: selectedLead?.travelDate || null,
+        duration: selectedLead?.days + " Days, " + selectedLead?.nights + " Nights" || null,
+        destination : selectedLead?.destination || null,
         paymentMode: paymentForm.paymentMode,
         paymentType: paymentForm.paymentType,
         transactionAmount: paymentForm.transactionAmount,
-        transactionId: paymentForm.transactionId,
+     transactionId: paymentForm.transactionId,
         transactionDate: paymentForm.transactionDate,
-        toAccount: paymentForm.toAccount,
+        // toAccount: paymentForm.toAccount,
         description: paymentForm.description,
-        bank: selectedBank
-          ? {
-              id: selectedBank._id,
-              bankName: selectedBank.bankName,
-              accountNumber: selectedBank.accountNumber,
-            }
-          : null,
+        utrNumber: paymentForm.utrNumber,
+        image: paymentForm.image,
+        // bank: selectedBank
+        //   ? {
+        //       id: selectedBank._id,
+        //       bankName: selectedBank.bankName,
+        //       accountNumber: selectedBank.accountNumber,
+        //     }
+        //   : null,
       };
       const created = await createBankTransaction(payload);
 
@@ -191,11 +247,11 @@ const AllLeads = () => {
         {
           ...payload,
           _id: created?.data?._id || created?._id || Math.random().toString(36).slice(2),
-          bank: {
-            id: selectedBank._id,
-            bankName: selectedBank.bankName,
-            accountNumber: selectedBank.accountNumber,
-          },
+          // bank: {
+          //   id: selectedBank._id,
+          //   bankName: selectedBank.bankName,
+          //   accountNumber: selectedBank.accountNumber,
+          // },
           createdAt: created?.data?.createdAt || new Date().toISOString(),
         },
       ]);
@@ -217,6 +273,8 @@ const AllLeads = () => {
         clearDate: "",
         toAccount: "",
         description: "",
+        utrNumber: "",
+        image: "",
       });
       setIsPaymentModalOpen(false);
     } catch (err) {
@@ -347,8 +405,8 @@ const AllLeads = () => {
       'kerala': 'Kerala',
       'kerala':'kerala',
       'Kerala': 'Kerala',
-      'madhya pradesh': 'Madhya Pradesh',
-      'madhya pradesh':'madhya_pradesh',
+      'madhya pradesh': 'madhya pradesh',
+      'madhya pradesh':'madhya pradesh',
       'maharashtra': 'Maharashtra',
       'maharashtra':'maharashtra',
       'manipur': 'Manipur',
@@ -407,7 +465,7 @@ const AllLeads = () => {
   useEffect(() => {
     const fetchapproval = async () => {
       try {
-        const properStateName = getProperStateName(selectedLead?.destination);
+        const properStateName = getProperStateName(selectedLead?.name);
         const response = await fetch(`${config.API_HOST}/api/packageapproval/getapprovalbystate/${properStateName}`);
         const data = await response.json();
         // Filter packages where currentUser email and contactNo match loginuser
@@ -730,7 +788,6 @@ const AllLeads = () => {
 
       if (day.selectedHotel?.selectedRoom) {
         const plandata = day.selectedHotel.selectedRoom.plandata?.[1];
-        console.log(plandata)
         if (Array.isArray(plandata)) {
           const foundRate = plandata.find((item) => {
             // Validate the date before processing
@@ -1316,6 +1373,7 @@ const AllLeads = () => {
   // ... rest of your existing code ...
 
   const fetchLeads = async () => {
+    setLeadLoading(true);
     try {
  
       const userStr = localStorage.getItem("user");
@@ -1342,6 +1400,7 @@ const AllLeads = () => {
       toast.error(error.message);
     } finally {
       setLoading(false);
+      setLeadLoading(false);
     }
   };
   const refreshLead = async (leadId) => {
@@ -1538,12 +1597,12 @@ const AllLeads = () => {
 
   // Modify fetchPackages to use context data instead of API calls
   const getFilteredPackages = (lead) => {
-    if (!addData || addData.length === 0 || !lead?.destination) {
+    if (!addDataPackage || addDataPackage.length === 0 || !lead?.destination) {
       return [];
     }
 
     // Filter packages where lead destination matches package name
-    const filteredPackages = addData
+    const filteredPackages = addDataPackage
       .filter((pkg) => {
         const searchTerm = lead.destination.toLowerCase().trim();
         const packageName = (pkg.package?.state || "")
@@ -1631,6 +1690,42 @@ const AllLeads = () => {
   const handleViewClick = (lead) => {
     setViewLead(lead);
     setIsViewModalOpen(true);
+  };
+
+  // Add function to handle package view with full data fetching
+  const handleViewPackage = async (packageId) => {
+    // Don't set loading here - let the context function handle it
+    try {
+      const packageData = await fetchaddpackagebyid(packageId);
+      // Update selectedPackage with the fetched data
+      if (packageData) {
+        setSelectedPackage(packageData);
+        setIsViewPackagePopupOpen(true);
+      } else {
+        toast.error('Failed to load package details');
+      }
+    } catch (error) {
+      console.error('Error fetching package details:', error);
+      toast.error('Failed to load package details');
+    }
+  };
+
+  // Add function to handle package selection with full data fetching
+  const handleSelectPackage = async (packageId) => {
+    // Don't set loading here - let the context function handle it
+    try {
+      const packageData = await fetchaddpackagebyid(packageId);
+      // Update selectedPackage with the fetched data
+      if (packageData) {
+        setSelectedPackage(packageData);
+        setIsPackageInfoOpen(true);
+      } else {
+        toast.error('Failed to load package details');
+      }
+    } catch (error) {
+      console.error('Error fetching package details:', error);
+      toast.error('Failed to load package details');
+    }
   };
   // Add function to handle lead deletion
   const handleDeleteLead = async (leadId) => {
@@ -1944,6 +2039,66 @@ const AllLeads = () => {
     // Close both sliders
     setShowHotelSlider(false);
     setShowRoomSlider(false);
+  };
+
+  // Handler to add hotel to similarhotel array
+  const handleAddSimilarHotel = (hotel, dayNumber) => {
+    const updatedPackage = { ...selectedPackage };
+    const dayIndex = dayNumber - 1;
+
+    if (updatedPackage.package?.itineraryDays?.[dayIndex]) {
+      const itineraryDay = updatedPackage.package.itineraryDays[dayIndex];
+      
+      // Initialize similarhotel array if it doesn't exist
+      if (!itineraryDay.similarhotel) {
+        itineraryDay.similarhotel = [];
+      }
+
+      // Check if hotel already exists in similarhotel array (to avoid duplicates)
+      const hotelExists = itineraryDay.similarhotel.some(
+        (similarHotel) => 
+          similarHotel.propertyName === hotel.basicInfo?.propertyName &&
+          similarHotel.day === dayNumber
+      );
+
+      if (!hotelExists) {
+        // Add hotel to similarhotel array
+        itineraryDay.similarhotel.push({
+          propertyName: hotel.basicInfo?.propertyName || '',
+          rating: parseInt(hotel.basicInfo?.hotelStarRating) || 0,
+          day: dayNumber
+        });
+
+        // Update the state
+        setSelectedPackage(updatedPackage);
+        
+        // Show success toast notification
+        toast.success(
+          `${hotel.basicInfo?.propertyName || 'Hotel'} added to similar hotels for Day ${dayNumber}`,
+          {
+            position: "top-right",
+            autoClose: 2000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          }
+        );
+      } else {
+        // Show info toast if hotel already exists
+        toast.info(
+          `${hotel.basicInfo?.propertyName || 'Hotel'} is already in similar hotels for Day ${dayNumber}`,
+          {
+            position: "top-right",
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          }
+        );
+      }
+    }
   };
 
   const getMinPrice = (rooms) => {
@@ -2484,10 +2639,36 @@ const AllLeads = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              { loadingss  ? (
-                <div className="flex justify-center h-screen">
-                  <div className="animate-spin mt-20 mr-20 rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-                </div>
+              {  leadLoading || addDataPackageLoading  ? (
+             <div className="flex justify-center items-center h-screen  "style={{width:"1600px" ,height:"500px"}}>
+             <div className="relative">
+               {/* Outer rotating ring */}
+               <div className="w-24 h-24 rounded-full border-4 border-transparent animate-[spin_1.5s_linear_infinite] 
+                 bg-gradient-to-tr from-cyan-400 via-blue-500 to-fuchsia-600 
+                 shadow-[0_0_30px_10px_rgba(56,189,248,0.3)]
+                 [mask-image:linear-gradient(white,transparent)] opacity-90">
+               </div>
+           
+               {/* Inner rotating glow ring (opposite direction) */}
+               <div className="absolute inset-2 rounded-full border-2 border-transparent animate-[spin_2s_linear_infinite_reverse]
+                 bg-gradient-to-r from-fuchsia-600 via-blue-500 to-cyan-400
+                 shadow-[0_0_25px_5px_rgba(236,72,153,0.4)]
+                 [mask-image:linear-gradient(white,transparent)] opacity-80">
+               </div>
+           
+               {/* Inner black core */}
+               <div className="absolute inset-4 rounded-full bg-black shadow-inner shadow-[inset_0_0_20px_rgba(0,0,0,0.8)]">
+               </div>
+           
+               {/* Glowing pulse ring */}
+               <div className="absolute inset-0 rounded-full animate-ping bg-gradient-to-r from-cyan-500 via-blue-500 to-fuchsia-500 opacity-20"></div>
+           
+               {/* Center glow pulse */}
+               <div className="absolute inset-10 rounded-full bg-gradient-to-tr from-blue-600 to-fuchsia-600 blur-xl opacity-70 animate-pulse"></div>
+             </div>
+           </div>
+           
+             
               ) : (
                 <>
               {currentLeads.map((lead, index) => (
@@ -3114,7 +3295,7 @@ const AllLeads = () => {
                                         <option value="cash">Cash</option>
                                       </select>
                                     </div>
-                                    <div>
+                                    {/* <div>
                                       <label className="block text-sm font-medium text-gray-700 mb-1">To Account</label>
                                       <select
                                         className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
@@ -3128,7 +3309,7 @@ const AllLeads = () => {
                                           </option>
                                         ))}
                                       </select>
-                                    </div>
+                                    </div> */}
                                     <div>
                                       <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
                                       <select
@@ -3160,7 +3341,7 @@ const AllLeads = () => {
                                         onChange={(e) => setPaymentForm({ ...paymentForm, transactionId: e.target.value })}
                                         placeholder="Enter transaction reference"
                                       />
-                                    </div>
+                                    </div> 
                                     <div>
                                       <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Date</label>
                                       <input
@@ -3168,6 +3349,16 @@ const AllLeads = () => {
                                         className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
                                         value={paymentForm.transactionDate}
                                         onChange={(e) => setPaymentForm({ ...paymentForm, transactionDate: e.target.value })}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">UTR Number</label>
+                                      <input
+                                        type="text"
+                                        className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                        value={paymentForm.utrNumber}
+                                        onChange={(e) => setPaymentForm({ ...paymentForm, utrNumber: e.target.value.trim() })}
+                                        placeholder="Enter UTR number"
                                       />
                                     </div>
                                     <div className="md:col-span-2">
@@ -3179,6 +3370,37 @@ const AllLeads = () => {
                                         onChange={(e) => setPaymentForm({ ...paymentForm, description: e.target.value })}
                                         placeholder="Enter description"
                                       />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Payment Receipt Image</label>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                        onChange={async (e) => {
+                                          const file = e.target.files[0];
+                                          if (file) {
+                                            const imageUrl = await handleImageUpload(file);
+                                            if (imageUrl) {
+                                              setPaymentForm({ ...paymentForm, image: imageUrl });
+                                              toast.success("Image uploaded successfully!");
+                                            }
+                                          }
+                                        }}
+                                        disabled={uploadingImage}
+                                      />
+                                      {uploadingImage && (
+                                        <p className="text-sm text-blue-600 mt-1">Uploading image...</p>
+                                      )}
+                                      {paymentForm.image && (
+                                        <div className="mt-2">
+                                          <img 
+                                            src={paymentForm.image} 
+                                            alt="Payment receipt" 
+                                            className="w-32 h-32 object-cover rounded border border-gray-300"
+                                          />
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                   <div className="mt-4 flex justify-between items-center">
@@ -3828,11 +4050,24 @@ const AllLeads = () => {
                           Selected Lead Destination:{" "}
                           {selectedLead?.destination || "None"}
                         </p>
-                        {loadingss && (
+                        {addDataPackageLoading && (
                           <p className="text-blue-600">Loading packages from context...</p>
                         )}
                        
                       </div>
+
+                      {/* Package View Loading State */}
+                      {addDataPackagebyidLoading  && (
+                        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-center justify-center space-x-3">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                            <div>
+                              <p className="text-blue-600 font-medium">Loading package details...</p>
+                              <p className="text-blue-500 text-sm">Please wait while we fetch the complete package information</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Lead Destination Info */}
                       <div className="bg-blue-50 p-4 rounded-lg mb-4">
@@ -3889,7 +4124,7 @@ const AllLeads = () => {
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
-                            {loadingss ? (
+                            {addDataPackageLoading ? (
                               <tr>
                                 <td
                                   colSpan="6"
@@ -3931,8 +4166,7 @@ const AllLeads = () => {
                                   <td className="px-6 py-4 whitespace-nowrap">
                                     <button
                                       onClick={() => {
-                                        setSelectedPackage(pkg);
-                                        setIsViewPackagePopupOpen(true);
+                                        handleViewPackage(pkg._id);
                                       }}
                                       className=" text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-md text-sm"
                                     >
@@ -3942,8 +4176,7 @@ const AllLeads = () => {
                                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <button
                                       onClick={() => {
-                                        setSelectedPackage(pkg);
-                                        setIsPackageInfoOpen(true);
+                                        handleSelectPackage(pkg._id);
                                       }}
                                       className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-md text-sm"
                                     >
@@ -3958,13 +4191,13 @@ const AllLeads = () => {
                                   colSpan="6"
                                   className="px-6 py-4 text-center text-gray-500"
                                 >
-                                  {!addData || addData.length === 0 
+                                  {!addDataPackage || addDataPackage.length === 0 
                                     ? "No packages available in the system"
                                     : !selectedLead?.destination
                                     ? "Please select a destination for this lead"
                                     : "No packages available for this destination and duration"
                                   }
-                                  {(!addData || addData.length === 0) && (
+                                  {(!addDataPackage || addDataPackage.length === 0) && (
                                     <button
                                       onClick={refreshData}
                                       className="ml-2 text-blue-600 hover:text-blue-800 underline"
@@ -4931,7 +5164,7 @@ const AllLeads = () => {
                       ).map(([cabType, cabsArray]) =>
                         cabsArray.map((cabDetails) => {
                           const cab = cabs.find(
-                            (c) => c._id === cabDetails.cabId
+                            (c) => c?.cabName === cabDetails.cabName
                           );
                           if (!cab) return null;
 
@@ -5133,6 +5366,7 @@ const AllLeads = () => {
           setShowHotelSlider={setShowHotelSlider}
           selectedPackage={selectedPackage}
           handleSelectHotel={handleSelectHotel}
+          handleAddSimilarHotel={handleAddSimilarHotel}
           hotelsByCity={hotelsByCity}
           setHotelsByCity={setHotelsByCity}
           fetchHotelRooms={fetchHotelRooms}
@@ -5212,11 +5446,19 @@ const AllLeads = () => {
       )}
 
       {/* View Package Popup */}
-      <ViewPackagePopup
+      {addDataPackagebyidLoading  ? (
+        <div className="flex items-center justify-center h-full" >
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+          <p className="text-gray-600 text-sm">Loading package details...</p>
+        </div>
+      ) : (
+        <ViewPackagePopup
         isOpen={isViewPackagePopupOpen}
         onClose={() => setIsViewPackagePopupOpen(false)}
+        addDataPackagebyidLoading={addDataPackagebyidLoading}
         packageData={selectedPackage}
       />
+      )}
     </div>
   );
 };

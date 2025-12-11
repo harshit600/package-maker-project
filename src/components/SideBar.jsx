@@ -236,6 +236,351 @@ const [isLoading, setIsLoading] = useState(true);
 
             {/* Main Navigation - Updated styling with responsive design */}
             <div className="space-y-1 sm:space-y-1.5">
+              {userData?.userType === "For Account" && (
+                <>
+                  <div className="flex flex-col">
+                        <div
+                          onClick={() => setIsAccountOpen(!isAccountOpen)}
+                          className={`flex items-center px-2 sm:px-3 py-2 text-xs sm:text-sm rounded-lg transition-all duration-200 cursor-pointer group ${
+                            isActive("/account")
+                              ? "bg-white text-[#2d2d44]"
+                              : "text-white hover:bg-[rgb(59,130,246,0.5)]"
+                          }`}
+                        >
+                          <svg
+                            className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                              isActive("/account")
+                                ? "text-blue-600"
+                                : "text-white group-hover:text-blue-600"
+                            }`}
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                            />
+                          </svg>
+                          <span className="ml-2 sm:ml-3 font-medium truncate">Account</span>
+                        </div>
+
+                        {/* User submenu */}
+                        {isAccountOpen && (
+                          <div className="ml-3 sm:ml-4 space-y-1 sm:space-y-2">
+                            {/* Add User - Updated with user-plus icon */}
+                            <div
+                              onClick={() => handleNavigation("/add-bank")}
+                              className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.5)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                isActive("/add-bank")
+                                  ? "bg-[rgb(59,130,246,0.5)] text-white"
+                                  : "text-white"
+                              }`}
+                            >
+                              <svg
+                                className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                                  isActive("/add-bank")
+                                    ? "text-blue-600"
+                                    : "text-white group-hover:text-blue-600"
+                                }`}
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                                />
+                              </svg>
+                              <span className="ml-2 sm:ml-3 font-medium truncate">Add Bank account</span>
+                            </div>
+                            <div
+                              onClick={() => handleNavigation("/bank-list")}
+                              className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.5)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                isActive("/bank-list")
+                                  ? "bg-[rgb(59,130,246,0.5)] text-white"
+                                  : "text-white"
+                              }`}
+                            >
+                              <svg
+                                className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                                  isActive("/bank-list")
+                                    ? "text-blue-600"
+                                    : "text-white group-hover:text-blue-600"
+                                }`}
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                                />
+                              </svg>
+                              <span className="ml-2 sm:ml-3 font-medium truncate"> Bank List</span>
+                            </div>
+                            <div
+                              onClick={() => handleNavigation("/hotel-ledger")}
+                              className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.5)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                isActive("/hotel-ledger")
+                                  ? "bg-[rgb(59,130,246,0.5)] text-white"
+                                  : "text-white"
+                              }`}
+                            >
+                              <svg
+                                className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                                  isActive("/hotel-ledger")
+                                    ? "text-blue-600"
+                                    : "text-white group-hover:text-blue-600"
+                                }`}
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                                />
+                              </svg>
+                              <span className="ml-2 sm:ml-3 font-medium truncate"> Hotel Ledger</span>
+                            </div>
+                            <div
+                              onClick={() => handleNavigation("/transport-ledger")}
+                              className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.5)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                isActive("/transport-ledger")
+                                  ? "bg-[rgb(59,130,246,0.5)] text-white"
+                                  : "text-white"
+                              }`}
+                            >
+                              <svg
+                                className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                                  isActive("/transport-ledger")
+                                    ? "text-blue-600"
+                                    : "text-white group-hover:text-blue-600"
+                                }`}
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                                />
+                              </svg>
+                              <span className="ml-2 sm:ml-3 font-medium truncate"> Transport Ledger</span>
+                            </div>
+                            <div
+                              onClick={() => handleNavigation("/transaction-list")}
+                              className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.5)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                isActive("/transaction-list")
+                                  ? "bg-[rgb(59,130,246,0.5)] text-white"
+                                  : "text-white"
+                              }`}
+                            >
+                              <svg
+                                className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                                  isActive("/transaction-list")
+                                    ? "text-blue-600"
+                                    : "text-white group-hover:text-blue-600"
+                                }`}
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                                />
+                              </svg>
+                              <span className="ml-2 sm:ml-3 font-medium truncate"> Transaction List</span>
+                            </div>
+                            <div
+                              onClick={() => handleNavigation("/bank-report")}
+                              className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.5)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                isActive("/bank-report")
+                                  ? "bg-[rgb(59,130,246,0.5)] text-white"
+                                  : "text-white"
+                              }`}
+                            >
+                              <svg
+                                className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                                  isActive("/bank-report")
+                                    ? "text-blue-600"
+                                    : "text-white group-hover:text-blue-600"
+                                }`}
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                                />
+                              </svg>
+                              <span className="ml-2 sm:ml-3 font-medium truncate"> Bank Report</span>
+                            </div>
+                            <div
+                              onClick={() => setIsProfitLossOpen(!isProfitLossOpen)}
+                              className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.5)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                isActive("/profit-loss-report") || isActive("/operation-profit-loss")
+                                  ? "bg-[rgb(59,130,246,0.5)] text-white"
+                                  : "text-white"
+                              }`}
+                            >
+                              <svg
+                                className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                                  isActive("/profit-loss-report") || isActive("/operation-profit-loss")
+                                    ? "text-blue-600"
+                                    : "text-white group-hover:text-blue-600"
+                                }`}
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                                />
+                              </svg>
+                              <span className="ml-2 sm:ml-3 font-medium truncate">Profit & Loss Report</span>
+                              <svg
+                                className={`w-4 h-4 ml-auto transition-transform duration-200 ${
+                                  isProfitLossOpen ? 'rotate-180' : ''
+                                }`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 9l-7 7-7-7"
+                                />
+                              </svg>
+                            </div>
+
+                            {/* Profit & Loss submenu */}
+                            {isProfitLossOpen && (
+                              <div className="ml-6 sm:ml-8 space-y-1 sm:space-y-2">
+                                {/* General Profit & Loss */}
+                                <div
+                                  onClick={() => handleNavigation("/profit-loss-report")}
+                                  className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.3)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                    isActive("/profit-loss-report")
+                                      ? "bg-[rgb(59,130,246,0.3)] text-white"
+                                      : "text-gray-300"
+                                  }`}
+                                >
+                                  <svg
+                                    className={`w-3 h-3 sm:w-4 sm:h-4 transition duration-75 ${
+                                      isActive("/profit-loss-report")
+                                        ? "text-blue-400"
+                                        : "text-gray-400 group-hover:text-blue-400"
+                                    }`}
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                                    />
+                                  </svg>
+                                  <span className="ml-2 sm:ml-3 font-medium truncate">sales P&L</span>
+                                </div>
+
+                                {/* Operation Profit Loss */}
+                                <div
+                                  onClick={() => handleNavigation("/operation-profit-loss")}
+                                  className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.3)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                    isActive("/operation-profit-loss")
+                                      ? "bg-[rgb(59,130,246,0.3)] text-white"
+                                      : "text-gray-300"
+                                  }`}
+                                >
+                                  <svg
+                                    className={`w-3 h-3 sm:w-4 sm:h-4 transition duration-75 ${
+                                      isActive("/operation-profit-loss")
+                                        ? "text-blue-400"
+                                        : "text-gray-400 group-hover:text-blue-400"
+                                    }`}
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+                                    />
+                                  </svg>
+                                  <span className="ml-2 sm:ml-3 font-medium truncate">Operation P&L</span>
+                                </div>
+                              </div>
+                            )}
+                            <div
+                              onClick={() => handleNavigation("/Service-report")}
+                              className={`flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg hover:bg-[rgb(59,130,246,0.5)] hover:text-white group cursor-pointer transition-all duration-200 backdrop-blur-sm ${
+                                isActive("/Service-report")
+                                  ? "bg-[rgb(59,130,246,0.5)] text-white"
+                                  : "text-white"
+                              }`}
+                            >
+                              <svg
+                                className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                                  isActive("/Service-report")
+                                    ? "text-blue-600"
+                                    : "text-white group-hover:text-blue-600"
+                                }`}
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                                />
+                              </svg>
+                              <span className="ml-2 sm:ml-3 font-medium truncate"> Service Report</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                </>
+              )}
               {userData?.userType === "For B2B Sale" || userData?.userType === "For Internal sale" ? (
                 <>
                 
@@ -389,7 +734,7 @@ const [isLoading, setIsLoading] = useState(true);
               ) : (
                 <>
                   {/* Regular user menu items */}
-                  {userData?.userType !== "For B2B Sale" && userData?.userType !== "For Internal sale" && (
+                  {userData?.userType !== "For B2B Sale" && userData?.userType !== "For Internal sale" && userData?.userType !== "For Account" && (
                     <>
                      <div className="flex flex-col">
                         <div
@@ -704,7 +1049,34 @@ const [isLoading, setIsLoading] = useState(true);
                         </svg>
                         <span className="ml-2 sm:ml-3 font-medium truncate">Activities</span>
                       </div>
-
+                      <div
+                        onClick={() => window.open("https://backendactivity.ptwhotels.com/login", "_blank")}
+                        className={`flex items-center px-2 sm:px-3 py-2 text-xs sm:text-sm rounded-lg transition-all duration-200 cursor-pointer group ${
+                          isActive("/add-activities")
+                            ? "bg-white text-[#2d2d44]"
+                            : "text-white hover:bg-[rgb(59,130,246,0.5)]"
+                        }`}
+                      >
+                        <svg
+                          className={`w-4 h-4 sm:w-5 sm:h-5 transition duration-75 ${
+                            isActive("/add-activities")
+                              ? "text-blue-600"
+                              : "text-white group-hover:text-blue-600 dark:group-hover:text-white"
+                          }`}
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13 10V3L4 14h7v7l9-11h-7z"
+                          />
+                        </svg>
+                        <span className="ml-2 sm:ml-3 font-medium truncate"> Add Activities</span>
+                      </div>
                       {/* Hotel Manager - Updated with hotel icon */}
                       <div
                         onClick={() => handleNavigation("/hotel-manager")}

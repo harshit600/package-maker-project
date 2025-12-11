@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Icons, pdfStyles } from "./newFile";
 
 import {
@@ -6,23 +6,56 @@ import {
   Page,
   View,
   Text,
+  Link,
 } from "@react-pdf/renderer";
 import { Image } from "@react-pdf/renderer";
+import { stateImages, getStateImages } from "./images";
 
 
 
 // Add this helper function at the top of the component
 const decodeHtmlEntities = (text) => {
   if (!text) return "";
-  return text
+  let decoded = text
+    // Decode common HTML entities first
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/<[^>]*>/g, "") // Remove HTML tags
+    .replace(/&apos;/g, "'")
+    // Decode bullet point entities
+    .replace(/&bull;/g, "•")
+    .replace(/&bullet;/g, "•")
+    .replace(/&#8226;/g, "•")
+    .replace(/&#149;/g, "•")
+    // Decode numeric entities
+    .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec))
+    // Decode hex entities
+    .replace(/&#x([a-f\d]+);/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)))
+    // Remove HTML tags
+    .replace(/<[^>]*>/g, "")
+    // Clean up any stray & characters that aren't part of valid entities
+    .replace(/&(?![a-zA-Z]{2,10};|#\d{1,6};|#x[0-9a-fA-F]{1,6};)/g, "")
+    // Clean up multiple spaces
+    .replace(/\s+/g, " ")
     .trim();
+  
+  return decoded;
+};
+
+// Helper function to ensure text ends with a period and format properly
+const formatInclusionExclusionText = (text) => {
+  if (!text) return "";
+  let formatted = text.trim();
+  // Remove existing trailing punctuation
+  formatted = formatted.replace(/[.,;:!?]+$/, "");
+  // Add period if not empty
+  if (formatted.length > 0) {
+    formatted += ".";
+  }
+  return formatted;
 };
 
 // Enhanced HTML parser for list items with formatting
@@ -100,12 +133,73 @@ const parseInlineFormatting = (htmlString) => {
   return segments;
 };
 
+const arrayBufferToBase64 = (buffer) => {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+
+  if (typeof globalThis !== "undefined") {
+    if (typeof globalThis.btoa === "function") {
+      return globalThis.btoa(binary);
+    }
+    if (typeof globalThis.Buffer !== "undefined") {
+      return globalThis.Buffer.from(bytes).toString("base64");
+    }
+    if (typeof globalThis.window !== "undefined") {
+      const base64Chars =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+      let result = "";
+      let i = 0;
+      while (i < binary.length) {
+        const chr1 = binary.charCodeAt(i++);
+        const chr2 = binary.charCodeAt(i++);
+        const chr3 = binary.charCodeAt(i++);
+        const enc1 = chr1 >> 2;
+        const enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+        let enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+        let enc4 = chr3 & 63;
+        if (Number.isNaN(chr2)) {
+          enc3 = enc4 = 64;
+        } else if (Number.isNaN(chr3)) {
+          enc4 = 64;
+        }
+        result +=
+          base64Chars.charAt(enc1) +
+          base64Chars.charAt(enc2) +
+          base64Chars.charAt(enc3) +
+          base64Chars.charAt(enc4);
+      }
+      return result;
+    }
+  }
+
+  throw new Error("Base64 encoding is not supported in this environment.");
+};
+
+const getHotelImageUrl = (hotel) => {
+  if (!hotel) return null;
+  if (Array.isArray(hotel.propertyphoto) && hotel.propertyphoto.length > 0) {
+    return hotel.propertyphoto[0];
+  }
+  if (typeof hotel.propertyphoto === "string" && hotel.propertyphoto.trim()) {
+    return hotel.propertyphoto;
+  }
+  if (hotel.roomimage) {
+    return hotel.roomimage;
+  }
+  return null;
+};
+
 // Update the PackagePDF component
 const PlutoToursPDF = ({
   packageSummary,
   showMargin,
   showDiscount,
   discountAmount,
+  cabImages,
   activeDiscountPercentage,
   finalTotal,
   getCurrentMarginPercentage,
@@ -114,51 +208,89 @@ const PlutoToursPDF = ({
   colorTheme,
 }) => {
   const [destinationImages, setDestinationImages] = useState([]);
+  const [hotelImageCache, setHotelImageCache] = useState({});
+  const [cabImageCache, setCabImageCache] = useState({});
+  console.log(packageSummary,"packageSummary")
+  // Helper function to find cab image by matching cabName or cabType
+  const findCabImage = useCallback((cabName, cabType) => {
+    if (!cabImages || !Array.isArray(cabImages) || cabImages.length === 0) {
+      return null;
+    }
+
+    const normalizedCabName = (cabName || "").toLowerCase().trim();
+    const normalizedCabType = (cabType || "").toLowerCase().trim();
+
+    // First, try to match by cabName (case-insensitive, partial matching)
+    if (normalizedCabName) {
+      const nameMatch = cabImages.find((cab) => {
+        const normalizedImageCabName = (cab.cabName || "").toLowerCase().trim();
+        
+        // Exact match
+        if (normalizedImageCabName === normalizedCabName) {
+          return true;
+        }
+        
+        // Partial match - check if history cabName is contained in image cabName or vice versa
+        if (normalizedImageCabName.includes(normalizedCabName) || 
+            normalizedCabName.includes(normalizedImageCabName)) {
+          return true;
+        }
+        
+        // Word-by-word matching (e.g., "Innova Crysta" matches "Crysta" or "Innova")
+        const historyWords = normalizedCabName.split(/\s+/);
+        const imageWords = normalizedImageCabName.split(/\s+/);
+        
+        // Check if any word from history matches any word from image
+        return historyWords.some(word => 
+          word.length > 2 && imageWords.some(imgWord => 
+            imgWord.includes(word) || word.includes(imgWord)
+          )
+        );
+      });
+
+      if (nameMatch && nameMatch.cabImages && nameMatch.cabImages.length > 0) {
+        return nameMatch.cabImages[0];
+      }
+    }
+
+    // If no name match, try to match by cabType (case-insensitive)
+    if (normalizedCabType) {
+      const typeMatch = cabImages.find((cab) => {
+        const normalizedImageCabType = (cab.cabType || "").toLowerCase().trim();
+        return normalizedImageCabType === normalizedCabType;
+      });
+
+      if (typeMatch && typeMatch.cabImages && typeMatch.cabImages.length > 0) {
+        return typeMatch.cabImages[0];
+      }
+    }
+
+    return null;
+  }, [cabImages]);
 
   useEffect(() => {
-    const fetchDestinationImages = async () => {
+    const getDestinationImages = () => {
       try {
-        // Extract location from package name and create a better search query
-        const packageName = packageSummary.package?.packageName || "";
-
-        // Extract main destination keywords
-        let searchTerm = packageName
-          .toLowerCase()
-          .replace(/tour package|tour|package|heaven/gi, "")
-          .trim();
-
-        // Add "tourism" or "landscape" to get better travel-related images
-        searchTerm = `${searchTerm} tourism landscape`;
-
-        const response = await fetch(
-          `https://api.pexels.com/v1/search?query=${searchTerm}&per_page=3&orientation=landscape`,
-          {
-            headers: {
-              Authorization: `s7bpT61DC6XnYdLXzNIb9VOeh3HJUifJ1SDaypfNL5X361wMLohDXVhu`,
-            },
-          }
-        );
-        const data = await response.json();
-
-        if (data.photos && data.photos.length >= 3) {
-          setDestinationImages(data.photos.map((photo) => photo.src.large));
+        // Get the state from package data
+        const packageState = packageSummary.package?.state || "";
+        
+        // Try to match state with state names from images.jsx
+        const stateName = findMatchingState(packageState);
+        
+        if (stateName) {
+          // Get images for the matched state
+          const images = getStateImages(stateName);
+          setDestinationImages(images);
         } else {
-          // If not enough relevant images, try a more generic search
-          const fallbackResponse = await fetch(
-            `https://api.pexels.com/v1/search?query=${searchTerm} mountains nature&per_page=3&orientation=landscape`,
-            {
-              headers: {
-                Authorization: `s7bpT61DC6XnYdLXzNIb9VOeh3HJUifJ1SDaypfNL5X361wMLohDXVhu`,
-              },
-            }
-          );
-          const fallbackData = await fallbackResponse.json();
-          setDestinationImages(
-            fallbackData.photos.map((photo) => photo.src.large)
-          );
+          // Fallback to default images if no state match found
+          setDestinationImages([
+            "https://res.cloudinary.com/dcp1ev1uk/image/upload/v1724223741/himaclahimg2_cs0qvm.jpg",
+            "https://res.cloudinary.com/dcp1ev1uk/image/upload/v1724223742/himaclahimg3_klatkm.jpg",
+            "https://res.cloudinary.com/dcp1ev1uk/image/upload/v1724223742/himaclahimg4_ujs3z9.jpg",
+          ]);
         }
       } catch (error) {
-        console.error("Error fetching images:", error);
+        console.error("Error getting images:", error);
         // Fallback to default images
         setDestinationImages([
           "https://res.cloudinary.com/dcp1ev1uk/image/upload/v1724223741/himaclahimg2_cs0qvm.jpg",
@@ -168,9 +300,165 @@ const PlutoToursPDF = ({
       }
     };
 
-    fetchDestinationImages();
-  }, [packageSummary.package?.packageName]);
+    getDestinationImages();
+  }, [packageSummary.package?.state]);
 
+  const fetchImageAsDataUri = async (imageUrl) => {
+    if (!imageUrl) return null;
+
+    const sanitizedUrl = imageUrl.replace(/^https?:\/\//, "");
+    const weservBase = `https://images.weserv.nl/?url=${encodeURIComponent(
+      `ssl:${sanitizedUrl}`
+    )}`;
+    const attempts = [
+      {
+        url: `${weservBase}&output=jpg`,
+        label: "weserv-jpg",
+      },
+      {
+        url: `${weservBase}&n=-1`,
+        label: "weserv-raw",
+      },
+      {
+        url: `https://api.allorigins.win/raw?url=${encodeURIComponent(imageUrl)}`,
+        label: "allorigins",
+      },
+      {
+        url: `https://cors.isomorphic-git.org/${imageUrl}`,
+        label: "isomorphic-git",
+      },
+    ];
+
+    for (const attempt of attempts) {
+      try {
+        const response = await fetch(attempt.url, {
+          mode: "cors",
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to load image (${attempt.label}) ${response.status}`);
+        }
+        const buffer = await response.arrayBuffer();
+        const contentType =
+          response.headers.get("content-type") || "image/jpeg";
+        const base64 = arrayBufferToBase64(buffer);
+        console.log("PlutoToursPDF image fetched", {
+          source: imageUrl,
+          via: attempt.label,
+        });
+        return `data:${contentType};base64,${base64}`;
+      } catch (error) {
+        console.warn("Image fetch attempt failed", {
+          source: imageUrl,
+          via: attempt.label,
+          error,
+        });
+      }
+    }
+
+    throw new Error("All image fetch attempts failed");
+  };
+
+  useEffect(() => {
+    const preloadHotelImages = async () => {
+      if (!packageSummary?.hotels) {
+        setHotelImageCache({});
+        return;
+      }
+
+      const cacheEntries = await Promise.all(
+        packageSummary.hotels.map(async (hotel, index) => {
+          const imageUrl = getHotelImageUrl(hotel);
+          if (!imageUrl) return [index, null];
+          try {
+            const dataUri = await fetchImageAsDataUri(imageUrl);
+            console.log("PlutoToursPDF hotel image cached", {
+              propertyName: hotel?.propertyName,
+              source: imageUrl,
+              viaProxy: dataUri?.startsWith("data:"),
+              cacheKey: index,
+            });
+            return [index, dataUri];
+          } catch (error) {
+            console.error("Failed to cache hotel image", {
+              propertyName: hotel?.propertyName,
+              imageUrl,
+              error,
+            });
+            return [index, null];
+          }
+        })
+      );
+
+      const newCache = {};
+      cacheEntries.forEach(([index, dataUri]) => {
+        newCache[index] = dataUri;
+      });
+      setHotelImageCache(newCache);
+    };
+
+    preloadHotelImages();
+  }, [packageSummary?.hotels]);
+
+  useEffect(() => {
+    const preloadCabImages = async () => {
+      if (!packageSummary?.transfer?.details || !Array.isArray(packageSummary.transfer.details)) {
+        setCabImageCache({});
+        return;
+      }
+
+      const cacheEntries = await Promise.all(
+        packageSummary.transfer.details.map(async (cab, index) => {
+          const imageUrl = findCabImage(cab?.cabName, cab?.cabType);
+          if (!imageUrl) return [index, null];
+          try {
+            const dataUri = await fetchImageAsDataUri(imageUrl);
+            console.log("PlutoToursPDF cab image cached", {
+              cabName: cab?.cabName,
+              cabType: cab?.cabType,
+              source: imageUrl,
+              viaProxy: dataUri?.startsWith("data:"),
+              cacheKey: index,
+            });
+            return [index, dataUri];
+          } catch (error) {
+            console.error("Failed to cache cab image", {
+              cabName: cab?.cabName,
+              cabType: cab?.cabType,
+              imageUrl,
+              error,
+            });
+            return [index, null];
+          }
+        })
+      );
+
+      const newCache = {};
+      cacheEntries.forEach(([index, dataUri]) => {
+        newCache[index] = dataUri;
+      });
+      setCabImageCache(newCache);
+    };
+
+    preloadCabImages();
+  }, [packageSummary?.transfer?.details, findCabImage]);
+
+  // Helper function to find matching state from package state
+  const findMatchingState = (packageState) => {
+    const lowerPackageState = packageState.toLowerCase();
+    
+    // Check each state name to see if it matches
+    for (const stateName of Object.keys(stateImages)) {
+      const lowerStateName = stateName.toLowerCase();
+      
+      // Check if state name matches exactly or is contained in package state
+      if (lowerPackageState === lowerStateName || lowerPackageState.includes(lowerStateName)) {
+        return stateName;
+      }
+    }
+    
+    return null;
+  };
   // Define color schemes
   const colors = {
     default: {
@@ -203,6 +491,236 @@ const PlutoToursPDF = ({
       // ... other styles
     },
     // ... update other style objects to use theme colors
+  };
+
+  const itineraryDays = packageSummary.package?.itineraryDays || [];
+
+  const getHotelForDay = (dayObj) => {
+    if (!dayObj || !packageSummary?.hotels) return null;
+    return packageSummary.hotels.find(
+      (hotel) => String(hotel.day) === String(dayObj.day)
+    );
+  };
+
+  const getHotelImageForDay = (dayObj) => {
+    if (!dayObj || !packageSummary?.hotels) return null;
+    const hotelIndex = packageSummary.hotels.findIndex(
+      (hotel) => String(hotel.day) === String(dayObj.day)
+    );
+    if (hotelIndex === -1) return null;
+    return hotelImageCache[hotelIndex] || null;
+  };
+
+  const getConsecutiveHotelIndices = (startIndex, propertyName) => {
+    const indices = [];
+    if (!propertyName) return indices;
+    for (let i = startIndex; i < itineraryDays.length; i += 1) {
+      const hotelAtIndex = getHotelForDay(itineraryDays[i]);
+      if (hotelAtIndex?.propertyName === propertyName) {
+        indices.push(i);
+      } else {
+        break;
+      }
+    }
+    return indices;
+  };
+
+  // Helper function to get grouped hotels for the "Your Hotels" section
+  const getGroupedHotels = () => {
+    if (!packageSummary?.hotels || !itineraryDays) return [];
+    
+    const grouped = [];
+    const processedHotels = new Set();
+    
+    itineraryDays.forEach((day, dayIndex) => {
+      const hotel = getHotelForDay(day);
+      if (!hotel || processedHotels.has(hotel.propertyName)) return;
+      
+      const consecutiveIndices = getConsecutiveHotelIndices(dayIndex, hotel.propertyName);
+      if (consecutiveIndices.length > 0) {
+        processedHotels.add(hotel.propertyName);
+        
+        // Calculate check-in date
+        const startDate = selectedLead?.travelDate
+          ? new Date(selectedLead.travelDate)
+          : new Date();
+        const checkInDate = new Date(startDate);
+        checkInDate.setDate(startDate.getDate() + consecutiveIndices[0]);
+        
+        // Get night badges
+        const nightBadges = consecutiveIndices.map(idx => formatOrdinal(idx + 1));
+        
+        // Get hotel image
+        const hotelIndex = packageSummary.hotels.findIndex(
+          h => h.propertyName === hotel.propertyName
+        );
+        const hotelImage = hotelIndex !== -1 ? hotelImageCache[hotelIndex] : null;
+        
+        grouped.push({
+          hotel,
+          nightBadges,
+          checkInDate,
+          hotelImage,
+          consecutiveIndices,
+          city: hotel.cityName || hotel.hotelCity || day.selectedItinerary?.cityName || "",
+        });
+      }
+    });
+    
+    return grouped;
+  };
+
+  const formatOrdinal = (number) => {
+    const n = Number(number);
+    if (Number.isNaN(n)) return `${number}`;
+    const remainder100 = n % 100;
+    if (remainder100 >= 11 && remainder100 <= 13) {
+      return `${n}th`;
+    }
+    switch (n % 10) {
+      case 1:
+        return `${n}st`;
+      case 2:
+        return `${n}nd`;
+      case 3:
+        return `${n}rd`;
+      default:
+        return `${n}th`;
+    }
+  };
+
+  const formatDisplayDate = (date) => {
+    try {
+      return date.toLocaleDateString("en-US", {
+        day: "numeric",
+        month: "long",
+      });
+    } catch (error) {
+      return date.toDateString();
+    }
+  };
+
+  const getStarDisplay = (rating) => {
+    const parsed = Math.round(Number(rating) || 0);
+    if (!parsed) return null;
+    return "★".repeat(parsed);
+  };
+
+  const accommodationStyles = {
+    card: {
+      backgroundColor: "#FFFFFF",
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: "#E2E8F0",
+      padding: 14,
+      marginTop: 10,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    leftColumn: {
+      flex: 1,
+      flexDirection: "column",
+      gap: 8,
+    },
+    badgeWrapper: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 6,
+    },
+    badge: {
+      backgroundColor: "#DBEAFE",
+      borderRadius: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderWidth: 1,
+      borderColor: "#BFDBFE",
+    },
+    badgeText: {
+      fontSize: 10,
+      fontWeight: "600",
+      color: "#1D4ED8",
+    },
+    nightsText: {
+      fontSize: 11,
+      color: "#1F2937",
+    },
+    nightsCity: {
+      fontWeight: "bold",
+      color: "#0F172A",
+    },
+    subText: {
+      fontSize: 9,
+      color: "#6B7280",
+    },
+    hotelName: {
+      fontSize: 13,
+      fontWeight: "bold",
+      color: "#1E40AF",
+    },
+    starText: {
+      fontSize: 10,
+      color: "#F59E0B",
+    },
+    infoRow: {
+      flexDirection: "row",
+      gap: 24,
+      marginTop: 6,
+    },
+    infoColumn: {
+      minWidth: 90,
+    },
+    infoHeading: {
+      fontSize: 8,
+      color: "#94A3B8",
+      letterSpacing: 1,
+      marginBottom: 4,
+    },
+    infoValue: {
+      fontSize: 10,
+      fontWeight: "600",
+      color: "#1F2937",
+      textTransform: "capitalize",
+    },
+    secondaryValue: {
+      fontSize: 9,
+      color: "#475569",
+      marginTop: 2,
+    },
+    similarLabel: {
+      fontSize: 10,
+      fontWeight: "600",
+      color: "#1E40AF",
+      marginTop: 6,
+      marginBottom: 2,
+    },
+    similarValue: {
+      fontSize: 10,
+      color: "#1F2937",
+    },
+    imageWrapper: {
+      width: 140,
+      height: 110,
+      borderRadius: 10,
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: "#E2E8F0",
+    },
+    placeholder: {
+      width: 140,
+      height: 110,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: "#E2E8F0",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#F8FAFC",
+    },
+    placeholderText: {
+      fontSize: 8,
+      color: "#94A3B8",
+    },
   };
 
   return (
@@ -704,120 +1222,283 @@ const PlutoToursPDF = ({
             ))}
           </View>
 
-          {/* Lead Details Section */}
-          <View style={{
+          {/* Enhanced Lead Details Section */}
+          <View wrap={false} style={{
             marginBottom: 16,
-            padding: 12,
-            backgroundColor: "#F8FAFC",
-            borderRadius: 8,
+            backgroundColor: "#FFFFFF",
+            borderRadius: 12,
             borderWidth: 1,
             borderColor: "#E2E8F0",
+            overflow: "hidden",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 4,
+            minHeight: 300,
+            flexShrink: 0,
           }}>
+            {/* Beautiful Header */}
             <View
               style={{
+                backgroundColor: "#2d2d44",
+                paddingTop: 14,
+                paddingBottom: 14,
+                paddingLeft: 16,
+                paddingRight: 16,
                 flexDirection: "row",
                 alignItems: "center",
-                marginBottom: 12,
-                gap: 8,
+                gap: 12,
+                position: "relative",
+                overflow: "hidden",
               }}
             >
-              <View style={{ width: 14, height: 14 }}>
-                <Icons.User width={14} height={14} color="#2d2d44" />
-              </View>
-              <Text
+              {/* Decorative Background Elements */}
+              <View
                 style={{
-                  fontSize: 12,
-                  fontWeight: "bold",
-                  color: "#1E293B",
+                  position: "absolute",
+                  top: -30,
+                  right: -30,
+                  width: 100,
+                  height: 100,
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                  borderRadius: 50,
+                }}
+              />
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: -20,
+                  left: -20,
+                  width: 80,
+                  height: 80,
+                  backgroundColor: "rgba(255, 255, 255, 0.03)",
+                  borderRadius: 40,
+                }}
+              />
+              
+              {/* Icon Container */}
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  backgroundColor: "rgba(255, 255, 255, 0.15)",
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  position: "relative",
+                  zIndex: 2,
                 }}
               >
-                Your Details
-              </Text>
+                <View style={{ width: 20, height: 20 }}>
+                  <Icons.User width={20} height={20} color="#FFFFFF" />
+                </View>
+              </View>
+              
+              {/* Title */}
+              <View style={{ flex: 1, position: "relative", zIndex: 2 }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "bold",
+                    color: "#FFFFFF",
+                    letterSpacing: 0.5,
+                    marginBottom: 2,
+                  }}
+                >
+                  Your Details
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 10,
+                    color: "rgba(255, 255, 255, 0.7)",
+                    fontWeight: "500",
+                  }}
+                >
+                  Your travel information
+                </Text>
+              </View>
             </View>
 
-            {/* Combined Info Grid */}
+            {/* Content Section */}
             <View
+              wrap={false}
               style={{
-                backgroundColor: "#F8FAFC",
-                padding: 12,
-                borderRadius: 6,
-                borderWidth: 1,
-                borderColor: "#E2E8F0",
+                paddingTop: 16,
+                paddingBottom: 16,
+                paddingLeft: 16,
+                paddingRight: 16,
+                backgroundColor: "#FFFFFF",
+                minHeight: 250,
+                flexShrink: 0,
               }}
             >
               <View
                 style={{
                   flexDirection: "row",
                   flexWrap: "wrap",
-                  gap: 16,
+                  gap: 12,
                 }}
               >
-                {/* Personal Info */}
-                <View style={{ flex: 1, minWidth: 200 }}>
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      color: "#000",
-                      marginBottom: 8,
-                      fontWeight: "700",
-                    }}
-                  >
-                    Personal Information
-                  </Text>
-                  <View style={{ gap: 4 }}>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
+                {/* Personal Info Card */}
+                <View wrap={false} style={{ 
+                  flex: 1, 
+                  minWidth: 200,
+                  backgroundColor: "#F8FAFC",
+                  padding: 14,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: "#E2E8F0",
+                  borderLeftWidth: 4,
+                  borderLeftColor: "#3B82F6",
+                  minHeight: 150,
+                  flexShrink: 0,
+                  marginBottom: 12,
+                }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12, gap: 6 }}>
+                    <View style={{ 
+                      width: 24, 
+                      height: 24, 
+                      backgroundColor: "#DBEAFE", 
+                      borderRadius: 6,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}>
+                      <View style={{ width: 12, height: 12 }}>
+                        <Icons.Profile width={12} height={12} color="#3B82F6" />
+                      </View>
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: "#1E293B",
+                        fontWeight: "bold",
+                        letterSpacing: 0.3,
+                      }}
+                    >
+                      Personal Information
+                    </Text>
+                  </View>
+                  <View style={{ gap: 8 }}>
+                    <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
                       <Text
-                        style={{ fontSize: 9, color: "#64748B", width: 60 }}
+                        style={{ 
+                          fontSize: 9, 
+                          color: "#64748B", 
+                          width: 65,
+                          fontWeight: "500",
+                        }}
                       >
                         Name:
                       </Text>
-                      <Text style={{ fontSize: 9, color: "#1E293B", flex: 1 }}>
+                      <Text style={{ 
+                        fontSize: 10, 
+                        color: "#1E293B", 
+                        flex: 1,
+                        fontWeight: "600",
+                      }}>
                         {selectedLead?.name || "N/A"}
                       </Text>
                     </View>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
+                    <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
                       <Text
-                        style={{ fontSize: 9, color: "#64748B", width: 60 }}
+                        style={{ 
+                          fontSize: 9, 
+                          color: "#64748B", 
+                          width: 65,
+                          fontWeight: "500",
+                        }}
                       >
                         Contact:
                       </Text>
-                      <Text style={{ fontSize: 9, color: "#1E293B", flex: 1 }}>
+                      <Text style={{ 
+                        fontSize: 10, 
+                        color: "#1E293B", 
+                        flex: 1,
+                        fontWeight: "600",
+                      }}>
                         {selectedLead?.mobile || "N/A"}
                       </Text>
                     </View>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
+                    <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
                       <Text
-                        style={{ fontSize: 9, color: "#64748B", width: 60 }}
+                        style={{ 
+                          fontSize: 9, 
+                          color: "#64748B", 
+                          width: 65,
+                          fontWeight: "500",
+                        }}
                       >
                         Email:
                       </Text>
-                      <Text style={{ fontSize: 9, color: "#1E293B", flex: 1 }}>
+                      <Text style={{ 
+                        fontSize: 10, 
+                        color: "#1E293B", 
+                        flex: 1,
+                        fontWeight: "600",
+                      }}>
                         {selectedLead?.email || "N/A"}
                       </Text>
                     </View>
                   </View>
                 </View>
 
-                {/* Travel Info */}
-                <View style={{ flex: 1, minWidth: 200 }}>
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      color: "#000",
-                      marginBottom: 8,
-                      fontWeight: "700",
-                    }}
-                  >
-                    Travel Information
-                  </Text>
-                  <View style={{ gap: 4 }}>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
+                {/* Travel Info Card */}
+                <View wrap={false} style={{ 
+                  flex: 1, 
+                  minWidth: 200,
+                  backgroundColor: "#F8FAFC",
+                  padding: 14,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: "#E2E8F0",
+                  borderLeftWidth: 4,
+                  borderLeftColor: "#10B981",
+                  minHeight: 150,
+                  flexShrink: 0,
+                  marginBottom: 12,
+                }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12, gap: 6 }}>
+                    <View style={{ 
+                      width: 24, 
+                      height: 24, 
+                      backgroundColor: "#D1FAE5", 
+                      borderRadius: 6,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}>
+                      <View style={{ width: 12, height: 12 }}>
+                        <Icons.Calendar width={12} height={12} color="#10B981" />
+                      </View>
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: "#1E293B",
+                        fontWeight: "bold",
+                        letterSpacing: 0.3,
+                      }}
+                    >
+                      Travel Information
+                    </Text>
+                  </View>
+                  <View style={{ gap: 8 }}>
+                    <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
                       <Text
-                        style={{ fontSize: 9, color: "#64748B", width: 60 }}
+                        style={{ 
+                          fontSize: 9, 
+                          color: "#64748B", 
+                          width: 65,
+                          fontWeight: "500",
+                        }}
                       >
                         Date:
                       </Text>
-                      <Text style={{ fontSize: 9, color: "#1E293B", flex: 1 }}>
+                      <Text style={{ 
+                        fontSize: 10, 
+                        color: "#1E293B", 
+                        flex: 1,
+                        fontWeight: "600",
+                      }}>
                         {selectedLead?.travelDate
                           ? new Date(
                               selectedLead.travelDate
@@ -825,72 +1506,162 @@ const PlutoToursPDF = ({
                           : "N/A"}
                       </Text>
                     </View>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
+                    <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
                       <Text
-                        style={{ fontSize: 9, color: "#64748B", width: 60 }}
+                        style={{ 
+                          fontSize: 9, 
+                          color: "#64748B", 
+                          width: 65,
+                          fontWeight: "500",
+                        }}
                       >
                         Duration:
                       </Text>
-                      <Text style={{ fontSize: 9, color: "#1E293B", flex: 1 }}>
+                      <Text style={{ 
+                        fontSize: 10, 
+                        color: "#1E293B", 
+                        flex: 1,
+                        fontWeight: "600",
+                      }}>
                         {selectedLead?.nights || "0"} Nights /{" "}
                         {selectedLead?.days || "0"} Days
                       </Text>
                     </View>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
+                    <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
                       <Text
-                        style={{ fontSize: 9, color: "#64748B", width: 60 }}
+                        style={{ 
+                          fontSize: 9, 
+                          color: "#64748B", 
+                          width: 65,
+                          fontWeight: "500",
+                        }}
                       >
                         Package:
                       </Text>
-                      <Text style={{ fontSize: 9, color: "#1E293B", flex: 1 }}>
+                      <Text style={{ 
+                        fontSize: 10, 
+                        color: "#1E293B", 
+                        flex: 1,
+                        fontWeight: "600",
+                      }}>
                         {selectedLead?.packageType || "N/A"}
                       </Text>
                     </View>
                   </View>
                 </View>
 
-                {/* Guest Info */}
-                <View style={{ flex: 1, minWidth: 200 }}>
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      color: "#64748B",
-                      marginBottom: 8,
-                      fontWeight: "500",
+                {/* Guest Info Card */}
+                <View wrap={false} style={{ 
+                  flex: 1, 
+                  minWidth: 200,
+                  backgroundColor: "#F8FAFC",
+                  padding: 14,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: "#E2E8F0",
+                  borderLeftWidth: 4,
+                  borderLeftColor: "#F59E0B",
+                  minHeight: 150,
+                  flexShrink: 0,
+                  marginBottom: 12,
+                }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12, gap: 6 }}>
+                    <View style={{ 
+                      width: 24, 
+                      height: 24, 
+                      backgroundColor: "#FEF3C7", 
+                      borderRadius: 6,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}>
+                      <View style={{ width: 12, height: 12 }}>
+                        <Icons.Group width={12} height={12} color="#F59E0B" />
+                      </View>
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: "#1E293B",
+                        fontWeight: "bold",
+                        letterSpacing: 0.3,
+                      }}
+                    >
+                      Guest Information
+                    </Text>
+                  </View>
+                  <View
+                    style={{ 
+                      flexDirection: "row", 
+                      flexWrap: "wrap", 
+                      gap: 10,
                     }}
                   >
-                    Guest Information
-                  </Text>
-                  <View
-                    style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}
-                  >
                     <View
-                      style={{ flexDirection: "row", gap: 4, minWidth: 80 }}
+                      style={{ 
+                        flexDirection: "row", 
+                        gap: 6, 
+                        backgroundColor: "#FFFFFF",
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 6,
+                        borderWidth: 1,
+                        borderColor: "#E2E8F0",
+                        alignItems: "center",
+                      }}
                     >
-                      <Text style={{ fontSize: 9, color: "#64748B" }}>
+                      <View style={{ width: 10, height: 10 }}>
+                        <Icons.Adult width={10} height={10} color="#3B82F6" />
+                      </View>
+                      <Text style={{ fontSize: 9, color: "#64748B", fontWeight: "500" }}>
                         Adults:
                       </Text>
-                      <Text style={{ fontSize: 9, color: "#1E293B" }}>
+                      <Text style={{ fontSize: 10, color: "#1E293B", fontWeight: "bold" }}>
                         {selectedLead?.adults || "0"}
                       </Text>
                     </View>
                     <View
-                      style={{ flexDirection: "row", gap: 4, minWidth: 80 }}
+                      style={{ 
+                        flexDirection: "row", 
+                        gap: 6,
+                        backgroundColor: "#FFFFFF",
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 6,
+                        borderWidth: 1,
+                        borderColor: "#E2E8F0",
+                        alignItems: "center",
+                      }}
                     >
-                      <Text style={{ fontSize: 9, color: "#64748B" }}>
+                      <View style={{ width: 10, height: 10 }}>
+                        <Icons.Child width={10} height={10} color="#10B981" />
+                      </View>
+                      <Text style={{ fontSize: 9, color: "#64748B", fontWeight: "500" }}>
                         Children:
                       </Text>
-                      <Text style={{ fontSize: 9, color: "#1E293B" }}>
+                      <Text style={{ fontSize: 10, color: "#1E293B", fontWeight: "bold" }}>
                         {selectedLead?.kids || "0"}
                       </Text>
                     </View>
                     <View
-                      style={{ flexDirection: "row", gap: 4, minWidth: 80 }}
+                      style={{ 
+                        flexDirection: "row", 
+                        gap: 6,
+                        backgroundColor: "#FFFFFF",
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 6,
+                        borderWidth: 1,
+                        borderColor: "#E2E8F0",
+                        alignItems: "center",
+                      }}
                     >
-                      <Text style={{ fontSize: 9, color: "#64748B" }}>
+                      <View style={{ width: 10, height: 10 }}>
+                        <Icons.Room width={10} height={10} color="#F59E0B" />
+                      </View>
+                      <Text style={{ fontSize: 9, color: "#64748B", fontWeight: "500" }}>
                         Rooms:
                       </Text>
-                      <Text style={{ fontSize: 9, color: "#1E293B" }}>
+                      <Text style={{ fontSize: 10, color: "#1E293B", fontWeight: "bold" }}>
                         {selectedLead?.noOfRooms || "0"}
                       </Text>
                     </View>
@@ -899,70 +1670,204 @@ const PlutoToursPDF = ({
               </View>
             </View>
           </View>
+          {/* Enhanced Package Description Section */}
           <View style={{
             marginBottom: 16,
-            padding: 12,
-            backgroundColor: "#F8FAFC",
-            borderRadius: 8,
+            marginTop: 0,
+            backgroundColor: "#FFFFFF",
+            borderRadius: 12,
             borderWidth: 1,
             borderColor: "#E2E8F0",
+            overflow: "hidden",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 4,
           }}>
+            {/* Beautiful Header */}
             <View
               style={{
+                backgroundColor: "#2d2d44",
+                paddingTop: 14,
+                paddingBottom: 14,
+                paddingLeft: 16,
+                paddingRight: 16,
                 flexDirection: "row",
                 alignItems: "center",
-                marginBottom: 12,
-                gap: 8,
+                gap: 12,
+                position: "relative",
+                overflow: "hidden",
               }}
             >
-              <View style={{ width: 14, height: 14 }}>
-                <Icons.User width={14} height={14} color="#2d2d44" />
-              </View>
-              <Text
+              {/* Decorative Background Elements */}
+              <View
                 style={{
-                  fontSize: 12,
-                  fontWeight: "bold",
-                  color: "#1E293B",
+                  position: "absolute",
+                  top: -30,
+                  right: -30,
+                  width: 100,
+                  height: 100,
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                  borderRadius: 50,
+                }}
+              />
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: -20,
+                  left: -20,
+                  width: 80,
+                  height: 80,
+                  backgroundColor: "rgba(255, 255, 255, 0.03)",
+                  borderRadius: 40,
+                }}
+              />
+              
+              {/* Icon Container */}
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  backgroundColor: "rgba(255, 255, 255, 0.15)",
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  position: "relative",
+                  zIndex: 2,
                 }}
               >
-                Package Description
-              </Text>
+                <View style={{ width: 20, height: 20 }}>
+                  <Icons.Document width={20} height={20} color="#FFFFFF" />
+                </View>
+              </View>
+              
+              {/* Title */}
+              <View style={{ flex: 1, position: "relative", zIndex: 2 }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "bold",
+                    color: "#FFFFFF",
+                    letterSpacing: 0.5,
+                    marginBottom: 2,
+                  }}
+                >
+                  Package Description
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 10,
+                    color: "rgba(255, 255, 255, 0.7)",
+                    fontWeight: "500",
+                  }}
+                >
+                  Discover what awaits you
+                </Text>
+              </View>
             </View>
+
+            {/* Content Section */}
             {packageSummary?.package?.packageDescription && (
               <View
                 style={{
-                  marginBottom: 16,
-                  padding: 12,
-                  backgroundColor: "#F8FAFC",
-                  borderRadius: 8,
-                  borderLeftWidth: 3,
-                  borderLeftColor: "#2d2d44",
+                  paddingTop: 16,
+                  paddingBottom: 16,
+                  paddingLeft: 16,
+                  paddingRight: 16,
+                  backgroundColor: "#FFFFFF",
+                  position: "relative",
                 }}
               >
-                {parseHtmlContent(packageSummary.package.packageDescription).map((textSegments, idx) => (
+                {/* Decorative Quote Symbol */}
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    left: 8,
+                    width: 40,
+                    height: 40,
+                    opacity: 0.08,
+                  }}
+                >
                   <Text
-                    key={idx}
                     style={{
-                      fontSize: 14,
-                      color: "#374151",
-                      lineHeight: 1.5,
-                      marginBottom: 4,
+                      fontSize: 50,
+                      color: "#2d2d44",
+                      fontFamily: "Helvetica-Bold",
                     }}
                   >
-                    {Array.isArray(textSegments) ? (
-                      textSegments.map((segment, segIdx) => (
-                        <Text 
-                          key={segIdx} 
-                          style={segment.bold ? { fontWeight: 'bold', fontFamily: 'Helvetica-Bold' } : {}}
-                        >
-                          {segment.text}
-                        </Text>
-                      ))
-                    ) : (
-                      textSegments
-                    )}
+                    "
                   </Text>
-                ))}
+                </View>
+
+                {/* Description Content */}
+                <View style={{ paddingTop: 4 }}>
+                  {parseHtmlContent(packageSummary.package.packageDescription).map((textSegments, idx) => (
+                    <View
+                      key={idx}
+                      style={{
+                        marginBottom: idx < parseHtmlContent(packageSummary.package.packageDescription).length - 1 ? 10 : 0,
+                        paddingLeft: 12,
+                        borderLeftWidth: 3,
+                        borderLeftColor: "#DBEAFE",
+                        paddingTop: 6,
+                        paddingBottom: 6,
+                        paddingRight: 4,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          color: "#1E293B",
+                          lineHeight: 1.6,
+                          textAlign: "left",
+                        }}
+                      >
+                        {Array.isArray(textSegments) ? (
+                          textSegments.map((segment, segIdx) => (
+                            <Text 
+                              key={segIdx} 
+                              style={segment.bold ? { 
+                                fontWeight: 'bold', 
+                                fontFamily: 'Helvetica-Bold',
+                                color: "#2d2d44",
+                              } : {
+                                color: "#475569",
+                              }}
+                            >
+                              {segment.text}
+                            </Text>
+                          ))
+                        ) : (
+                          <Text style={{ color: "#475569" }}>{textSegments}</Text>
+                        )}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Bottom Decorative Line */}
+                <View
+                  style={{
+                    marginTop: 12,
+                    height: 2,
+                    backgroundColor: "#EFF6FF",
+                    borderRadius: 1,
+                    position: "relative",
+                  }}
+                >
+                  <View
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      width: "25%",
+                      height: "100%",
+                      backgroundColor: "#2d2d44",
+                      borderRadius: 1,
+                    }}
+                  />
+                </View>
               </View>
             )}
           </View>
@@ -1111,9 +2016,9 @@ const PlutoToursPDF = ({
             </View>
 
             {/* Hotels and Transport Info with Costs */}
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+            <View style={{ flexDirection: "column", gap: 10, marginTop: 10 }}>
               {/* Hotels Summary */}
-              <View style={{ flex: 1 }}>
+              <View style={{ width: "100%" }}>
                 <View
                   style={{
                     backgroundColor: "#FFFFFF",
@@ -1132,9 +2037,9 @@ const PlutoToursPDF = ({
                       flexDirection: "row",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      marginBottom: 6,
+                      marginBottom: 12,
                       borderBottom: "1px solid #E2E8F0",
-                      paddingBottom: 5,
+                      paddingBottom: 8,
                     }}
                   >
                     <View
@@ -1156,81 +2061,233 @@ const PlutoToursPDF = ({
                     </View>
                   </View>
 
-                  {packageSummary.hotels?.map((hotel, index) => (
-                    <View
-                      key={index}
-                      style={{
-                        marginBottom:
-                          index === packageSummary.hotels.length - 1 ? 0 : 6,
-                        backgroundColor: "#F8FAFC",
-                        borderRadius: 6,
-                        padding: 5,
-                      }}
-                    >
+                  {/* Detailed Hotel Cards */}
+                  {getGroupedHotels().map((groupedHotel, index) => {
+                    const { hotel, nightBadges, checkInDate, hotelImage, city } = groupedHotel;
+                    const similarOptions =
+                      hotel?.similarHotels ||
+                      hotel?.alternateHotels ||
+                      hotel?.alternativeHotels;
+                    const starRating = hotel.basicInfo?.hotelStarRating || hotel.starRating;
+                    
+                    return (
                       <View
+                        key={index}
+                        wrap={false}
                         style={{
-                          flexDirection: "row",
-                          justifyContent: "space-between",
-                          alignItems: "flex-start",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 10,
-                            color: "#1E293B",
-                            fontWeight: "600",
-                            marginBottom: 1,
-                            flex: 1,
-                          }}
-                        >
-                          {hotel.propertyName}
-                        </Text>
-                      </View>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 5,
+                          marginTop: index === 0 ? 10 : 10,
+                          marginBottom: 10,
+                          minHeight: 140,
                         }}
                       >
                         <View
-                          style={{
-                            backgroundColor: "#EFF6FF",
-                            paddingHorizontal: 4,
-                            paddingVertical: 1,
-                            borderRadius: 3,
-                            flexDirection: "row",
-                            alignItems: "center",
-                          }}
+                          style={[
+                            accommodationStyles.card,
+                            { 
+                              marginTop: 0,
+                              marginBottom: 0,
+                              minHeight: 140,
+                              flexShrink: 0,
+                            }
+                          ]}
+                          wrap={false}
                         >
-                          <Text
-                            style={{
-                              fontSize: 8,
-                              color: "#2d2d44",
-                              fontWeight: "500",
-                            }}
-                          >
-                            {hotel.basicInfo?.hotelStarRating}★
-                          </Text>
+                          <View style={accommodationStyles.leftColumn}>
+                            {/* Night Badges and City */}
+                            <View style={accommodationStyles.badgeWrapper}>
+                              {nightBadges.map((badge, badgeIndex) => (
+                                <View
+                                  key={badgeIndex}
+                                  style={accommodationStyles.badge}
+                                >
+                                  <Text style={accommodationStyles.badgeText}>
+                                    {badge}
+                                  </Text>
+                                </View>
+                              ))}
+                              <Text style={accommodationStyles.nightsText}>
+                                Nights at{" "}
+                                <Text style={accommodationStyles.nightsCity}>
+                                  {city || "Destination"}
+                                </Text>
+                              </Text>
+                            </View>
+
+                            {/* Check-in Date */}
+                            <Text style={accommodationStyles.subText}>
+                              Check-in on {formatDisplayDate(checkInDate)}
+                            </Text>
+
+                            {/* Hotel Name */}
+                            <Text style={accommodationStyles.hotelName}>
+                              {hotel.propertyName}
+                            </Text>
+
+                            {/* Star Rating */}
+                            {starRating && getStarDisplay(starRating) && (
+                              <Text style={accommodationStyles.starText}>
+                                {getStarDisplay(starRating)}
+                              </Text>
+                            )}
+
+                            {/* ROOMS and MEAL PLAN */}
+                            <View style={accommodationStyles.infoRow}>
+                              <View style={accommodationStyles.infoColumn}>
+                                <Text style={accommodationStyles.infoHeading}>
+                                  ROOMS
+                                </Text>
+                                <Text style={accommodationStyles.infoValue}>
+                                  {hotel.roomName || "1 Deluxe Room"}
+                                </Text>
+                                {(selectedLead?.adults || selectedLead?.noOfRooms) && (
+                                  <Text style={accommodationStyles.secondaryValue}>
+                                    {selectedLead?.adults || 2} Pax
+                                  </Text>
+                                )}
+                              </View>
+                              <View style={accommodationStyles.infoColumn}>
+                                <Text style={accommodationStyles.infoHeading}>
+                                  MEAL PLAN
+                                </Text>
+                                <Text style={accommodationStyles.infoValue}>
+                                  {hotel.mealPlan || "Breakfast"}
+                                </Text>
+                              </View>
+                            </View>
+
+                            {/* Similar Options */}
+                            {Array.isArray(similarOptions) &&
+                              similarOptions.length > 0 && (
+                                <View>
+                                  <Text style={accommodationStyles.similarLabel}>
+                                    Similar Options
+                                  </Text>
+                                  <Text style={accommodationStyles.similarValue}>
+                                    {similarOptions
+                                      .slice(0, 3)
+                                      .map((hotelOption) =>
+                                        typeof hotelOption === "string"
+                                          ? hotelOption
+                                          : hotelOption?.propertyName ||
+                                            hotelOption?.name
+                                      )
+                                      .filter(Boolean)
+                                      .join(", ")}
+                                  </Text>
+                                </View>
+                              )}
+                          </View>
+
+                          {/* Hotel Image */}
+                          {hotelImage ? (
+                            <View style={accommodationStyles.imageWrapper}>
+                              <Image
+                                source={{ uri: hotelImage }}
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover",
+                                }}
+                              />
+                            </View>
+                          ) : (
+                            <View style={accommodationStyles.placeholder}>
+                              <Text style={accommodationStyles.placeholderText}>
+                                Image unavailable
+                              </Text>
+                            </View>
+                          )}
                         </View>
+                      </View>
+                    );
+                  })}
+
+                  {/* Satisfaction Question at bottom of Your Hotels */}
+                  <View
+                    style={{
+                      marginTop: 12,
+                      paddingTop: 12,
+                      borderTopWidth: 1,
+                      borderTopColor: "#E2E8F0",
+                      backgroundColor: "#F8FAFC",
+                      alignItems: "center",
+                      paddingBottom: 12,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        color: "#64748B",
+                        marginBottom: 8,
+                        fontWeight: "500",
+                      }}
+                    >
+                      Satisfied with Hotels?
+                    </Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        gap: 8,
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Link
+                        src={`https://wa.me/917018103686?text=${encodeURIComponent(
+                          `Customer is satisfied with the Hotels\n\nPackage: ${packageSummary.package?.packageName || "N/A"}\nCustomer: ${selectedLead?.name || "N/A"}\nDuration: ${packageSummary.package?.duration || "N/A"}`
+                        )}`}
+                        style={{
+                          backgroundColor: "rgba(34, 197, 94, 0.2)",
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                          borderRadius: 6,
+                          borderWidth: 1,
+                          borderColor: "rgba(34, 197, 94, 0.4)",
+                          textDecoration: "none",
+                        }}
+                      >
                         <Text
                           style={{
-                            fontSize: 8,
-                            color: "#64748B",
-                            fontWeight: "500",
+                            fontSize: 9,
+                            color: "#1E293B",
+                            fontWeight: "600",
                           }}
                         >
-                          {hotel.mealPlan}
+                          Yes
                         </Text>
-                      </View>
+                      </Link>
+                      <Link
+                        src={`https://wa.me/917018103686?text=${encodeURIComponent(
+                          `Customer is not satisfied with the Hotels\n\nPackage: ${packageSummary.package?.packageName || "N/A"}\nCustomer: ${selectedLead?.name || "N/A"}\nDuration: ${packageSummary.package?.duration || "N/A"}`
+                        )}`}
+                        style={{
+                          backgroundColor: "rgba(239, 68, 68, 0.2)",
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                          borderRadius: 6,
+                          borderWidth: 1,
+                          borderColor: "rgba(239, 68, 68, 0.4)",
+                          textDecoration: "none",
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 9,
+                            color: "#1E293B",
+                            fontWeight: "600",
+                          }}
+                        >
+                          No
+                        </Text>
+                      </Link>
                     </View>
-                  ))}
+                  </View>
                 </View>
               </View>
 
               {/* Transport Summary */}
-              <View style={{ flex: 1 }}>
+              <View wrap={false} style={{ width: "100%", minHeight: 200, flexShrink: 0 }}>
                 <View
+                  wrap={false}
                   style={{
                     backgroundColor: "#FFFFFF",
                     borderRadius: 8,
@@ -1241,6 +2298,8 @@ const PlutoToursPDF = ({
                     shadowOffset: { width: 0, height: 1 },
                     shadowOpacity: 0.1,
                     shadowRadius: 2,
+                    minHeight: 180,
+                    flexShrink: 0,
                   }}
                 >
                   <View
@@ -1273,96 +2332,91 @@ const PlutoToursPDF = ({
                   </View>
 
                   {packageSummary.transfer?.details?.length > 0 ? (
-  packageSummary?.transfer?.details?.map((cab, index) => (
-    <View
-      key={cab?._id || index}
-      style={{
-        backgroundColor: "#F8FAFC",
-        borderRadius: 6,
-        padding: 5,
-        marginBottom: 6, // Optional spacing between multiple cabs
-      }}
-    >
+  packageSummary?.transfer?.details?.map((cab, index) => {
+    const cabImage = cabImageCache[index] || null;
+    
+    return (
       <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-        }}
+        wrap={false}
+        key={cab?._id || index}
+        style={[
+          accommodationStyles.card,
+          { 
+            marginTop: index === 0 ? 10 : 10, 
+            marginBottom: 12,
+            minHeight: 120,
+            flexShrink: 0,
+          }
+        ]}
       >
-        <Text
-          style={{
-            fontSize: 10,
-            color: "#1E293B",
-            fontWeight: "600",
-            marginBottom: 1,
-          }}
-        >
-          {cab?.cabName || "Standard Vehicle"}
-        </Text>
-      </View>
-
-      <Text
-        style={{
-          fontSize: 9,
-          color: "#1E293B",
-          marginBottom: 2,
-        }}
-      >
-        {cab?.cabType || "Sedan"}
-      </Text>
-
-      <View style={{ flexDirection: "row", gap: 5, marginTop: 2 }}>
-        <View
-          style={{
-            backgroundColor: "#EFF6FF",
-            paddingHorizontal: 4,
-            paddingVertical: 1,
-            borderRadius: 3,
-            flexDirection: "row",
-            alignItems: "center",
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 8,
-              color: "#2d2d44",
-              fontWeight: "500",
-            }}
-          >
-            {cab?.vehicleCategory || ""}
+        {/* Cab Details - Left Column */}
+        <View style={accommodationStyles.leftColumn}>
+          {/* Cab Name */}
+          <Text style={accommodationStyles.hotelName}>
+            {cab?.cabName || "Standard Vehicle"}
           </Text>
+
+          {/* Cab Type */}
+          <Text style={accommodationStyles.subText}>
+            {cab?.cabType || "Sedan"}
+          </Text>
+
+          {/* Cab Info Row */}
+          <View style={accommodationStyles.infoRow}>
+            {cab?.vehicleCategory && (
+              <View style={accommodationStyles.infoColumn}>
+                <Text style={accommodationStyles.infoHeading}>
+                  CATEGORY
+                </Text>
+                <Text style={accommodationStyles.infoValue}>
+                  {cab.vehicleCategory}
+                </Text>
+              </View>
+            )}
+
+            <View style={accommodationStyles.infoColumn}>
+              <Text style={accommodationStyles.infoHeading}>
+                SEATING
+              </Text>
+              <Text style={accommodationStyles.infoValue}>
+                {cab?.cabSeatingCapacity || "4"} Seater
+              </Text>
+            </View>
+          </View>
         </View>
 
-        <View
-          style={{
-            backgroundColor: "#EFF6FF",
-            paddingHorizontal: 4,
-            paddingVertical: 1,
-            borderRadius: 3,
-            flexDirection: "row",
-            alignItems: "center",
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 8,
-              color: "#2d2d44",
-              fontWeight: "500",
-            }}
-          >
-            {cab?.cabSeatingCapacity || "4"} Seater
-          </Text>
-        </View>
+        {/* Cab Image - Right Side */}
+        {cabImage ? (
+          <View style={accommodationStyles.imageWrapper}>
+            <Image
+              source={{ uri: cabImage }}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+              }}
+            />
+          </View>
+        ) : (
+          <View style={accommodationStyles.placeholder}>
+            <Text style={accommodationStyles.placeholderText}>
+              Image unavailable
+            </Text>
+          </View>
+        )}
       </View>
-    </View>
-  ))
+    );
+  })
 ) : (
   <View
+    wrap={false}
     style={{
       backgroundColor: "#F8FAFC",
       borderRadius: 6,
       padding: 5,
+      minHeight: 80,
+      flexShrink: 0,
+      marginBottom: 12,
     }}
   >
     <Text
@@ -1429,6 +2483,85 @@ const PlutoToursPDF = ({
   </View>
 )}
 
+                  {/* Satisfaction Question at bottom of Your Transport */}
+                  <View
+                    style={{
+                      marginTop: 12,
+                      paddingTop: 12,
+                      borderTopWidth: 1,
+                      borderTopColor: "#E2E8F0",
+                      backgroundColor: "#F8FAFC",
+                      alignItems: "center",
+                      paddingBottom: 12,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        color: "#64748B",
+                        marginBottom: 8,
+                        fontWeight: "500",
+                      }}
+                    >
+                      Satisfied with Transport?
+                    </Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        gap: 8,
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Link
+                        src={`https://wa.me/917018103686?text=${encodeURIComponent(
+                          `Customer is satisfied with the Transport\n\nPackage: ${packageSummary.package?.packageName || "N/A"}\nCustomer: ${selectedLead?.name || "N/A"}\nDuration: ${packageSummary.package?.duration || "N/A"}`
+                        )}`}
+                        style={{
+                          backgroundColor: "rgba(34, 197, 94, 0.2)",
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                          borderRadius: 6,
+                          borderWidth: 1,
+                          borderColor: "rgba(34, 197, 94, 0.4)",
+                          textDecoration: "none",
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 9,
+                            color: "#1E293B",
+                            fontWeight: "600",
+                          }}
+                        >
+                          Yes
+                        </Text>
+                      </Link>
+                      <Link
+                        src={`https://wa.me/917018103686?text=${encodeURIComponent(
+                          `Customer is not satisfied with the Transport\n\nPackage: ${packageSummary.package?.packageName || "N/A"}\nCustomer: ${selectedLead?.name || "N/A"}\nDuration: ${packageSummary.package?.duration || "N/A"}`
+                        )}`}
+                        style={{
+                          backgroundColor: "rgba(239, 68, 68, 0.2)",
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                          borderRadius: 6,
+                          borderWidth: 1,
+                          borderColor: "rgba(239, 68, 68, 0.4)",
+                          textDecoration: "none",
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 9,
+                            color: "#1E293B",
+                            fontWeight: "600",
+                          }}
+                        >
+                          No
+                        </Text>
+                      </Link>
+                    </View>
+                  </View>
                 </View>
               </View>
             </View>
@@ -1748,18 +2881,24 @@ const PlutoToursPDF = ({
 
               {/* Compact City Route Overview */}
               <View
+                wrap={false}
                 style={{
                   backgroundColor: "#F8FAFC",
                   padding: 16,
                   borderBottomWidth: 1,
                   borderBottomColor: "#E2E8F0",
+                  minHeight: 100,
+                  flexShrink: 0,
                 }}
               >
                 <View
+                  wrap={false}
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
                     marginBottom: 12,
+                    minHeight: 30,
+                    flexShrink: 0,
                   }}
                 >
                   <View style={{ width: 16, height: 16, marginRight: 8 }}>
@@ -1777,11 +2916,14 @@ const PlutoToursPDF = ({
                 </View>
 
                 <View
+                  wrap={false}
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
                     flexWrap: "wrap",
                     gap: 8,
+                    minHeight: 50,
+                    flexShrink: 0,
                   }}
                 >
                   {Array.from(
@@ -1792,10 +2934,17 @@ const PlutoToursPDF = ({
                     )
                   ).map((cityName, index, cities) => (
                     <View
+                      wrap={false}
                       key={index}
-                      style={{ flexDirection: "row", alignItems: "center" }}
+                      style={{ 
+                        flexDirection: "row", 
+                        alignItems: "center",
+                        minHeight: 30,
+                        flexShrink: 0,
+                      }}
                     >
                       <View
+                        wrap={false}
                         style={{
                           backgroundColor: "#EFF6FF",
                           paddingVertical: 6,
@@ -1806,6 +2955,8 @@ const PlutoToursPDF = ({
                           flexDirection: "row",
                           alignItems: "center",
                           gap: 6,
+                          minHeight: 28,
+                          flexShrink: 0,
                         }}
                       >
                         <View
@@ -1828,11 +2979,14 @@ const PlutoToursPDF = ({
                       </View>
                       {index < cities.length - 1 && (
                         <View
+                          wrap={false}
                           style={{
                             width: 16,
                             height: 2,
                             backgroundColor: "#CBD5E1",
                             marginHorizontal: 4,
+                            minHeight: 2,
+                            flexShrink: 0,
                           }}
                         />
                       )}
@@ -1845,9 +2999,30 @@ const PlutoToursPDF = ({
               <View style={{ padding: 12, gap: 12 }}>
                 {packageSummary?.package?.itineraryDays?.map((day, index) => {
                   const dayData = day.selectedItinerary;
-                  const dayHotel = packageSummary.hotels.find(
-                    (hotel) => hotel.day === day.day
+                  const dayHotel = getHotelForDay(day);
+                  const previousDayHotel =
+                    index > 0 ? getHotelForDay(itineraryDays[index - 1]) : null;
+                  const isStartOfHotelStay =
+                    !!dayHotel &&
+                    dayHotel.propertyName !== previousDayHotel?.propertyName;
+                  const consecutiveStayIndices = isStartOfHotelStay
+                    ? getConsecutiveHotelIndices(index, dayHotel.propertyName)
+                    : [];
+                  const stayNightBadges = consecutiveStayIndices.map((dayIndex) =>
+                    formatOrdinal(dayIndex + 1)
                   );
+                  const hotelImageSource = isStartOfHotelStay
+                    ? getHotelImageForDay(day)
+                    : null;
+                  const stayCity =
+                    dayHotel?.cityName ||
+                    dayHotel?.hotelCity ||
+                    dayData?.cityName ||
+                    "";
+                  const similarOptions =
+                    dayHotel?.similarHotels ||
+                    dayHotel?.alternateHotels ||
+                    dayHotel?.alternativeHotels;
 
                   // Calculate date
                   const startDate = selectedLead?.travelDate
@@ -1865,8 +3040,15 @@ const PlutoToursPDF = ({
                   );
 
                   return (
-                    <View key={index} style={{ position: "relative" }}>
-                      {/* Timeline Connector */}
+                    <View 
+                      key={index} 
+                      style={{ 
+                        position: "relative",
+                        marginBottom: 20,
+                        paddingLeft: 0,
+                      }}
+                    >
+                      {/* Timeline Connector - Only show between days, not extending beyond */}
                       {index !==
                         packageSummary.package.itineraryDays.length - 1 && (
                         <View
@@ -1874,15 +3056,15 @@ const PlutoToursPDF = ({
                             position: "absolute",
                             left: 20,
                             top: 40,
-                            bottom: -16,
+                            height: 20,
                             width: 2,
                             backgroundColor: "#E2E8F0",
-                            zIndex: 1,
+                            zIndex: 0,
                           }}
                         />
                       )}
 
-                      {/* Day Card */}
+                      {/* Day Card - Allow page breaks */}
                       <View
                         style={{
                           backgroundColor: "#FFFFFF",
@@ -1891,6 +3073,8 @@ const PlutoToursPDF = ({
                           borderColor: "#E2E8F0",
                           overflow: "hidden",
                           position: "relative",
+                          marginLeft: 0,
+                          marginBottom: 0,
                         }}
                       >
                         {/* Day Header */}
@@ -1954,7 +3138,6 @@ const PlutoToursPDF = ({
                                 flexShrink: 1,
                                 minWidth: 0,
                               }}
-                              wrap={false}
                             >
                               {dayData.itineraryTitle}
                             </Text>
@@ -2008,8 +3191,8 @@ const PlutoToursPDF = ({
                                 </Text>
                               </View>
                             )}
-                            {dayData.activities &&
-                              dayData.activities.length > 0 && (
+                            {packageSummary?.activities &&
+                              packageSummary.activities.filter(activity => activity.dayNumber === day.day).length > 0 && (
                                 <View
                                   style={{
                                     backgroundColor: "#EFF6FF",
@@ -2027,32 +3210,79 @@ const PlutoToursPDF = ({
                                       fontWeight: "600",
                                     }}
                                   >
-                                    {dayData.activities.length} Activities
+                                    {packageSummary.activities.filter(activity => activity.dayNumber === day.day).length} Activities
                                   </Text>
                                 </View>
                               )}
                           </View>
                         </View>
 
-                        {/* Day Content */}
-                        <View style={{ padding: 12, gap: 8 }}>
-                          {/* Description */}
-                          {dayData.itineraryDescription && (
-                            <Text
-                              style={{
-                                fontSize: 12,
-                                color: "#475569",
-                                lineHeight: 1.5,
-                              }}
-                            >
-                              {decodeHtmlEntities(dayData.itineraryDescription)}
-                            </Text>
+                        {/* Day Content - Allow page breaks */}
+                        <View style={{ padding: 12, gap: 8, paddingBottom: 16 }}>
+                    {dayData.itineraryDescription && (
+                            <View style={{ gap: 6, marginBottom: 8, marginTop: 0 }}>
+                              {(() => {
+                                let decodedText = decodeHtmlEntities(dayData.itineraryDescription);
+                                // Clean up common issues: •&, &•, etc.
+                                decodedText = decodedText
+                                  .replace(/•&/g, "•")
+                                  .replace(/&•/g, "•")
+                                  .replace(/•\s*&/g, "•")
+                                  .replace(/&\s*•/g, "•")
+                                  .replace(/^•\s*&/g, "•")
+                                  .replace(/^&\s*•/g, "•");
+                                // Split by period followed by space, keeping the period with the sentence
+                                const sentences = decodedText
+                                  .split(/\.\s+/)
+                                  .filter(s => s.trim().length > 0)
+                                  .map(s => {
+                                    let trimmed = s.trim();
+                                    // Clean up any remaining •& patterns in each sentence
+                                    trimmed = trimmed.replace(/•&/g, "•").replace(/&•/g, "•");
+                                    // Add period back if it was removed by split (except for last sentence if it already has one)
+                                    return trimmed.endsWith('.') ? trimmed : trimmed + '.';
+                                  });
+                                
+                                return sentences.map((sentence, idx) => (
+                                  <View
+                                    key={idx}
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "flex-start",
+                                      marginBottom: idx < sentences.length - 1 ? 6 : 0,
+                                      gap: 8,
+                                    }}
+                                  >
+                                    <View
+                                      style={{
+                                        width: 6,
+                                        height: 6,
+                                        backgroundColor: "#000000",
+                                        borderRadius: 3,
+                                        marginTop: 4,
+                                        flexShrink: 0,
+                                      }}
+                                    />
+                                    <Text
+                                      style={{
+                                        fontSize: 12,
+                                        color: "#475569",
+                                        lineHeight: 1.5,
+                                        flex: 1,
+                                      }}
+                                    >
+                                      {sentence}
+                                    </Text>
+                                  </View>
+                                ));
+                              })()}
+                            </View>
                           )}
 
-                          {/* Compact City Areas */}
+                          {/* Compact City Areas - Vertical Layout */}
                           {day.selectedItinerary?.cityArea &&
                             day.selectedItinerary.cityArea.length > 0 && (
-                              <View style={{ gap: 8 }}>
+                              <View style={{ gap: 8, marginTop: 8, marginBottom: 8 }}>
                                 <Text
                                   style={{
                                     fontSize: 11,
@@ -2065,8 +3295,7 @@ const PlutoToursPDF = ({
                                 </Text>
                                 <View
                                   style={{
-                                    flexDirection: "row",
-                                    flexWrap: "wrap",
+                                    flexDirection: "column",
                                     gap: 6,
                                   }}
                                 >
@@ -2081,25 +3310,28 @@ const PlutoToursPDF = ({
                                           key={areaIndex}
                                           style={{
                                             backgroundColor: "#F1F5F9",
-                                            paddingHorizontal: 8,
-                                            paddingVertical: 4,
+                                            paddingHorizontal: 10,
+                                            paddingVertical: 6,
                                             borderRadius: 8,
                                             flexDirection: "row",
                                             alignItems: "center",
-                                            gap: 4,
+                                            gap: 6,
+                                            borderLeftWidth: 3,
+                                            borderLeftColor: "#3B82F6",
                                           }}
                                         >
-                                          <View style={{ width: 8, height: 8 }}>
+                                          <View style={{ width: 10, height: 10 }}>
                                             <Icons.Location
-                                              width={8}
-                                              height={8}
-                                              color="#64748B"
+                                              width={10}
+                                              height={10}
+                                              color="#3B82F6"
                                             />
                                           </View>
                                           <Text
                                             style={{
                                               fontSize: 10,
                                               color: "#475569",
+                                              fontWeight: "500",
                                             }}
                                           >
                                             {decodeHtmlEntities(areaText)}
@@ -2112,105 +3344,159 @@ const PlutoToursPDF = ({
                               </View>
                             )}
 
-                          {/* Compact Hotel Info */}
+                          {/* Compact Hotel Info - Show for every day */}
                           {dayHotel && (
-                            <View
-                              style={{
-                                backgroundColor: "#F8FAFC",
-                                borderRadius: 8,
-                                padding: 12,
-                                borderWidth: 1,
-                                borderColor: "#E2E8F0",
-                              }}
-                            >
-                              <View
-                                style={{
-                                  flexDirection: "row",
-                                  alignItems: "center",
-                                  gap: 8,
-                                  marginBottom: 6,
-                                }}
-                              >
-                                <View style={{ width: 14, height: 14 }}>
-                                  <Icons.Hotel
-                                    width={14}
-                                    height={14}
-                                    color="#2d2d44"
+                            <View style={[accommodationStyles.card, { marginTop: 12, marginBottom: 12 }]}>
+                              <View style={accommodationStyles.leftColumn}>
+                                <View style={accommodationStyles.badgeWrapper}>
+                                  <View style={accommodationStyles.badge}>
+                                    <Text style={accommodationStyles.badgeText}>
+                                      {formatOrdinal(index + 1)} Night
+                                    </Text>
+                                  </View>
+                                  <Text style={accommodationStyles.nightsText}>
+                                    at{" "}
+                                    <Text style={accommodationStyles.nightsCity}>
+                                      {stayCity || "Destination"}
+                                    </Text>
+                                  </Text>
+                                </View>
+
+                                <Text style={accommodationStyles.subText}>
+                                  Check-in on {formatDisplayDate(currentDate)}
+                                </Text>
+
+                                <Text style={accommodationStyles.hotelName}>
+                                  {dayHotel.propertyName}
+                                </Text>
+                                {getStarDisplay(
+                                  dayHotel.basicInfo?.hotelStarRating ||
+                                    dayHotel.starRating
+                                ) && (
+                                  <Text style={accommodationStyles.starText}>
+                                    {getStarDisplay(
+                                      dayHotel.basicInfo?.hotelStarRating ||
+                                        dayHotel.starRating
+                                    )}
+                                  </Text>
+                                )}
+
+                                <View style={accommodationStyles.infoRow}>
+                                  <View style={accommodationStyles.infoColumn}>
+                                    <Text style={accommodationStyles.infoHeading}>
+                                      ROOMS
+                                    </Text>
+                                    <Text style={accommodationStyles.infoValue}>
+                                      {dayHotel.roomName || "Standard Room"}
+                                    </Text>
+                                    
+                                  </View>
+                                  <View style={accommodationStyles.infoColumn}>
+                                    <Text style={accommodationStyles.infoHeading}>
+                                      MEAL PLAN
+                                    </Text>
+                                    <Text style={accommodationStyles.infoValue}>
+                                      {dayHotel.mealPlan || "Breakfast"}
+                                    </Text>
+                                  </View>
+                                </View>
+
+                                {/* Similar Hotels from itineraryDays */}
+                                {Array.isArray(day.similarhotel) &&
+                                  day.similarhotel.length > 0 && (
+                                    <View style={{ marginTop: 10 }}>
+                                      <Text style={accommodationStyles.similarLabel}>
+                                        Similar Hotels
+                                      </Text>
+                                      <View style={{ gap: 6, marginTop: 6 }}>
+                                        {day.similarhotel.map((similarHotel, shIndex) => (
+                                          <View
+                                            key={shIndex}
+                                            style={{
+                                              backgroundColor: "#F8FAFC",
+                                              padding: 10,
+                                              borderRadius: 6,
+                                              borderWidth: 1,
+                                              borderColor: "#E2E8F0",
+                                              flexDirection: "row",
+                                              alignItems: "flex-start",
+                                              gap: 8,
+                                            }}
+                                          >
+                                            <View style={{ flex: 1 }}>
+                                              <Text
+                                                style={{
+                                                  fontSize: 10,
+                                                  fontWeight: "600",
+                                                  color: "#1E293B",
+                                                  marginBottom: 4,
+                                                  lineHeight: 1.4,
+                                                }}
+                                              >
+                                                {similarHotel.propertyName || "Hotel Name"}
+                                              </Text>
+                                           
+                                            </View>
+                                          </View>
+                                        ))}
+                                      </View>
+                                    </View>
+                                  )}
+                                {/* Fallback to old similarOptions if similarhotel is not available */}
+                                {(!day.similarhotel || day.similarhotel.length === 0) &&
+                                  Array.isArray(similarOptions) &&
+                                  similarOptions.length > 0 && (
+                                    <View>
+                                      <Text style={accommodationStyles.similarLabel}>
+                                        Similar Options
+                                      </Text>
+                                      <Text style={accommodationStyles.similarValue}>
+                                        {similarOptions
+                                          .slice(0, 3)
+                                          .map((hotelOption) =>
+                                            typeof hotelOption === "string"
+                                              ? hotelOption
+                                              : hotelOption?.propertyName ||
+                                                hotelOption?.name
+                                          )
+                                          .filter(Boolean)
+                                          .join(", ")}
+                                      </Text>
+                                    </View>
+                                  )}
+                              </View>
+
+                              {getHotelImageForDay(day) ? (
+                                <View style={accommodationStyles.imageWrapper}>
+                                  <Image
+                                    source={{ uri: getHotelImageForDay(day) }}
+                                    style={{
+                                      width: "100%",
+                                      height: "100%",
+                                      objectFit: "cover",
+                                    }}
                                   />
                                 </View>
-                                <Text
-                                  style={{
-                                    fontSize: 12,
-                                    fontWeight: "600",
-                                    color: "#1E293B",
-                                  }}
-                                >
-                                  Accommodation
-                                </Text>
-                              </View>
-                              <Text
-                                style={{
-                                  fontSize: 11,
-                                  color: "#1E293B",
-                                  marginBottom: 4,
-                                }}
-                              >
-                                {dayHotel.propertyName}
-                              </Text>
-                              <View style={{ flexDirection: "row", gap: 8 }}>
-                                <View
-                                  style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    gap: 4,
-                                  }}
-                                >
-                                  <View style={{ width: 10, height: 10 }}>
-                                    <Icons.Room
-                                      width={10}
-                                      height={10}
-                                      color="#64748B"
-                                    />
-                                  </View>
-                                  <Text
-                                    style={{ fontSize: 9, color: "#64748B" }}
-                                  >
-                                    {dayHotel.roomName}
+                              ) : (
+                                <View style={accommodationStyles.placeholder}>
+                                  <Text style={accommodationStyles.placeholderText}>
+                                    Image unavailable
                                   </Text>
                                 </View>
-                                <View
-                                  style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    gap: 4,
-                                  }}
-                                >
-                                  <View style={{ width: 10, height: 10 }}>
-                                    <Icons.Food
-                                      width={10}
-                                      height={10}
-                                      color="#64748B"
-                                    />
-                                  </View>
-                                  <Text
-                                    style={{ fontSize: 9, color: "#64748B" }}
-                                  >
-                                    {dayHotel.mealPlan}
-                                  </Text>
-                                </View>
-                              </View>
+                              )}
                             </View>
                           )}
 
                           {/* Compact Activities */}
-                          {dayData.activities &&
-                            dayData.activities.length > 0 && (
-                              <View style={{ gap: 6 }}>
+                          {packageSummary?.activities &&
+                            packageSummary.activities.filter(activity => activity.dayNumber === day.day).length > 0 && (
+                              <View style={{ gap: 6, marginTop: 8, marginBottom: 8 }}>
                                 <View
                                   style={{
                                     flexDirection: "row",
                                     alignItems: "center",
                                     gap: 6,
+                                    marginBottom: 4,
                                   }}
                                 >
                                   <View style={{ width: 12, height: 12 }}>
@@ -2230,38 +3516,77 @@ const PlutoToursPDF = ({
                                     Activities
                                   </Text>
                                 </View>
-                                <View style={{ gap: 4 }}>
-                                  {dayData.activities
+                                <View style={{ gap: 4, paddingBottom: 4 }}>
+                                  {packageSummary.activities
+                                    .filter(activity => activity.dayNumber === day.day)
                                     .slice(0, 3)
                                     .map((activity, actIndex) => (
                                       <View
                                         key={actIndex}
                                         style={{
-                                          flexDirection: "row",
-                                          alignItems: "center",
-                                          gap: 6,
+                                          gap: 4,
+                                          padding: 8,
+                                          backgroundColor: "#F8FAFC",
+                                          borderRadius: 6,
+                                          borderWidth: 1,
+                                          borderColor: "#E2E8F0",
                                         }}
                                       >
-                                        <View
+                                        <Text
                                           style={{
-                                            width: 4,
-                                            height: 4,
-                                            backgroundColor: "#2d2d44",
-                                            borderRadius: 2,
+                                            fontSize: 11,
+                                            fontWeight: "600",
+                                            color: "#1E293B",
                                           }}
-                                        />
+                                        >
+                                          {activity.title}
+                                        </Text>
                                         <Text
                                           style={{
                                             fontSize: 10,
                                             color: "#475569",
-                                            flex: 1,
+                                            lineHeight: 1.4,
                                           }}
                                         >
-                                          {decodeHtmlEntities(activity)}
+                                          {decodeHtmlEntities(activity.description)}
                                         </Text>
+                                        {activity.thing_to_carry && (
+                                          <View style={{ gap: 2 }}>
+                                            <Text
+                                              style={{
+                                                fontSize: 9,
+                                                color: "#64748B",
+                                                fontWeight: "600",
+                                              }}
+                                            >
+                                              Things to carry:
+                                            </Text>
+                                            {activity.thing_to_carry
+                                              .replace(/<ul[^>]*>/gi, '')
+                                              .replace(/<\/ul>/gi, '')
+                                              .replace(/<li[^>]*>/gi, '• ')
+                                              .replace(/<\/li>/gi, '\n')
+                                              .replace(/&nbsp;/gi, ' ')
+                                              .split('\n')
+                                              .filter(item => item.trim())
+                                              .map((item, itemIndex) => (
+                                                <Text
+                                                  key={itemIndex}
+                                                  style={{
+                                                    fontSize: 9,
+                                                    color: "#64748B",
+                                                    marginLeft: 8,
+                                                    lineHeight: 1.3,
+                                                  }}
+                                                >
+                                                  {item.trim()}
+                                                </Text>
+                                              ))}
+                                          </View>
+                                        )}
                                       </View>
                                     ))}
-                                  {dayData.activities.length > 3 && (
+                                  {packageSummary.activities.filter(activity => activity.dayNumber === day.day).length > 3 && (
                                     <Text
                                       style={{
                                         fontSize: 9,
@@ -2269,7 +3594,7 @@ const PlutoToursPDF = ({
                                         fontStyle: "italic",
                                       }}
                                     >
-                                      +{dayData.activities.length - 3} more
+                                      +{packageSummary.activities.filter(activity => activity.dayNumber === day.day).length - 3} more
                                       activities
                                     </Text>
                                   )}
@@ -2282,10 +3607,93 @@ const PlutoToursPDF = ({
                   );
                 })}
               </View>
+
+              {/* Satisfaction Question at bottom of Journey Itinerary */}
+              <View
+                style={{
+                  marginTop: 16,
+                  paddingTop: 16,
+                  paddingBottom: 16,
+                  paddingLeft: 16,
+                  paddingRight: 16,
+                  borderTopWidth: 1,
+                  borderTopColor: "#E2E8F0",
+                  backgroundColor: "#F8FAFC",
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 10,
+                    color: "#64748B",
+                    marginBottom: 8,
+                    fontWeight: "500",
+                  }}
+                >
+                  Satisfied with Journey Itinerary?
+                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    gap: 8,
+                    justifyContent: "center",
+                  }}
+                >
+                  <Link
+                    src={`https://wa.me/917018103686?text=${encodeURIComponent(
+                      `Customer is satisfied with the Journey Itinerary\n\nPackage: ${packageSummary.package?.packageName || "N/A"}\nCustomer: ${selectedLead?.name || "N/A"}\nDuration: ${packageSummary.package?.duration || "N/A"}`
+                    )}`}
+                    style={{
+                      backgroundColor: "rgba(34, 197, 94, 0.2)",
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: "rgba(34, 197, 94, 0.4)",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 9,
+                        color: "#1E293B",
+                        fontWeight: "600",
+                      }}
+                    >
+                      Yes
+                    </Text>
+                  </Link>
+                  <Link
+                    src={`https://wa.me/917018103686?text=${encodeURIComponent(
+                      `Customer is not satisfied with the Journey Itinerary\n\nPackage: ${packageSummary.package?.packageName || "N/A"}\nCustomer: ${selectedLead?.name || "N/A"}\nDuration: ${packageSummary.package?.duration || "N/A"}`
+                    )}`}
+                    style={{
+                      backgroundColor: "rgba(239, 68, 68, 0.2)",
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: "rgba(239, 68, 68, 0.4)",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 9,
+                        color: "#1E293B",
+                        fontWeight: "600",
+                      }}
+                    >
+                      No
+                    </Text>
+                  </Link>
+                </View>
+              </View>
             </View>
 
             {/* Modern Inclusions Section */}
             <View
+              wrap={false}
               style={{
                 marginTop: 12,
                 marginBottom: 12,
@@ -2294,10 +3702,13 @@ const PlutoToursPDF = ({
                 borderWidth: 1,
                 borderColor: "#E2E8F0",
                 overflow: "hidden",
+                minHeight: 200,
+                flexShrink: 0,
               }}
             >
               {/* Header */}
               <View
+                wrap={false}
                 style={{
                   backgroundColor: "#F8FAFC",
                   padding: 10,
@@ -2306,6 +3717,8 @@ const PlutoToursPDF = ({
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 6,
+                  minHeight: 40,
+                  flexShrink: 0,
                 }}
               >
                 <View style={{ width: 16, height: 16 }}>
@@ -2324,6 +3737,7 @@ const PlutoToursPDF = ({
 
               {/* Package Summary Stats */}
               <View
+                wrap={false}
                 style={{
                   flexDirection: "row",
                   padding: 12,
@@ -2331,10 +3745,13 @@ const PlutoToursPDF = ({
                   borderBottomColor: "#E2E8F0",
                   backgroundColor: "#FAFAFA",
                   gap: 12,
+                  minHeight: 70,
+                  flexShrink: 0,
                 }}
               >
                 {/* Total Hotels Card */}
                 <View
+                  wrap={false}
                   style={{
                     flex: 1,
                     backgroundColor: "#EFF6FF",
@@ -2343,6 +3760,8 @@ const PlutoToursPDF = ({
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 8,
+                    minHeight: 60,
+                    flexShrink: 0,
                   }}
                 >
                   <View style={{ width: 20, height: 20 }}>
@@ -2368,6 +3787,7 @@ const PlutoToursPDF = ({
 
                 {/* Total Days Card */}
                 <View
+                  wrap={false}
                   style={{
                     flex: 1,
                     backgroundColor: "#F0FDF4",
@@ -2376,6 +3796,8 @@ const PlutoToursPDF = ({
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 8,
+                    minHeight: 60,
+                    flexShrink: 0,
                   }}
                 >
                   <View style={{ width: 20, height: 20 }}>
@@ -2401,132 +3823,367 @@ const PlutoToursPDF = ({
               </View>
 
               {/* Inclusions List */}
-              <View style={{ padding: 12, gap: 8 }}>
+              <View wrap={false} style={{ 
+                padding: 16, 
+                gap: 6,
+                minHeight: 100,
+                flexShrink: 0,
+              }}>
                 {/* Hotels */}
                 <View
+                  wrap={false}
                   style={{
                     flexDirection: "row",
                     alignItems: "flex-start",
-                    gap: 10,
+                    gap: 12,
+                    paddingBottom: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#E2E8F0",
+                    marginBottom: 4,
+                    minHeight: 30,
                   }}
                 >
-                  <View style={{ width: 14, height: 14 }}>
-                    <Icons.Hotel width={14} height={14} color="#2d2d44" />
+                  <View style={{ 
+                    width: 20, 
+                    height: 20,
+                    backgroundColor: "#DBEAFE",
+                    borderRadius: 10,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginTop: 2,
+                  }}>
+                    <Icons.Hotel width={12} height={12} color="#3B82F6" />
                   </View>
-                  <Text style={{ flex: 1, fontSize: 11, color: "#1E293B" }}>
+                  <Text style={{ 
+                    flex: 1, 
+                    fontSize: 11, 
+                    color: "#1E293B",
+                    lineHeight: 1.6,
+                    fontWeight: "500",
+                  }}>
                     {packageSummary.hotels?.length || 0} Hotels accommodation
                     with {packageSummary.package?.itineraryDays?.length || 0}{" "}
-                    days itinerary
+                    days itinerary.
                   </Text>
                 </View>
 
-                {/* Main Inclusions - Fixed HTML parsing */}
-                {packageSummary?.package?.packageInclusions && (
-                  <View style={pdfStyles.exclusionsList}>
-                    {parseHtmlContent(packageSummary.package.packageInclusions).map((textSegments, index) => (
-                      <View key={index} style={pdfStyles.exclusionItem}>
-                        <View style={pdfStyles.bulletPoint} />
-                        <Text style={pdfStyles.exclusionText}>
-                          {Array.isArray(textSegments) ? (
-                            textSegments.map((segment, segIdx) => (
-                              <Text 
-                                key={segIdx} 
-                                style={segment.bold ? { fontWeight: 'bold', fontFamily: 'Helvetica-Bold' } : {}}
-                              >
-                                {segment.text}
-                              </Text>
-                            ))
-                          ) : (
-                            textSegments
-                          )}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
+                {/* Main Inclusions - Enhanced with better styling */}
+                {packageSummary?.package?.packageInclusions && (() => {
+                  const parsedItems = parseHtmlContent(packageSummary.package.packageInclusions);
+                  // Split items by newlines if they contain multiple lines
+                  const allItems = [];
+                  parsedItems.forEach((textSegments) => {
+                    const textContent = Array.isArray(textSegments) 
+                      ? textSegments.map(seg => seg.text).join("")
+                      : textSegments;
+                    // Split by newline or multiple spaces to create separate items
+                    const lines = textContent.split(/\n+/).filter(line => line.trim().length > 0);
+                    if (lines.length > 0) {
+                      lines.forEach(line => {
+                        allItems.push(line.trim());
+                      });
+                    } else if (textContent.trim().length > 0) {
+                      allItems.push(textContent.trim());
+                    }
+                  });
+                  
+                  return (
+                    <View wrap={false} style={{ 
+                      gap: 4,
+                      minHeight: 50,
+                      flexShrink: 0,
+                    }}>
+                      {allItems.map((item, index) => {
+                        const formattedText = formatInclusionExclusionText(item);
+                        
+                        return (
+                          <View 
+                            key={index}
+                            wrap={false}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "flex-start",
+                              gap: 12,
+                              paddingLeft: 4,
+                              marginBottom: 2,
+                              minHeight: 25,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {/* Enhanced Green Bullet - Always visible for each item */}
+                            <View style={{
+                              width: 20,
+                              height: 20,
+                              alignItems: "center",
+                              justifyContent: "flex-start",
+                              paddingTop: 2,
+                              flexShrink: 0,
+                            }}>
+                              <View style={{
+                                width: 8,
+                                height: 8,
+                                backgroundColor: "#16A34A",
+                                borderRadius: 4,
+                                borderWidth: 2,
+                                borderColor: "#86EFAC",
+                              }} />
+                            </View>
+                            <Text style={{
+                              flex: 1,
+                              fontSize: 11,
+                              color: "#1E293B",
+                              lineHeight: 1.7,
+                              textAlign: "left",
+                              flexWrap: "wrap",
+                            }}>
+                              {formattedText}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  );
+                })()}
               </View>
             </View>
 
             {/* Package Exclusions Section */}
             <View style={{
               marginBottom: 12,
-              padding: 12,
               backgroundColor: "#FFFFFF",
               borderRadius: 8,
               borderWidth: 1,
               borderColor: "#E2E8F0",
+              overflow: "hidden",
             }}>
               {/* Header */}
-              <View style={pdfStyles.exclusionsHeader}>
-                <Icons.Close />
-                <Text style={pdfStyles.exclusionsTitle}>
+              <View style={{
+                backgroundColor: "#FEF2F2",
+                padding: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+                borderBottomWidth: 1,
+                borderBottomColor: "#FEE2E2",
+              }}>
+                <View style={{
+                  width: 32,
+                  height: 32,
+                  backgroundColor: "#DC2626",
+                  borderRadius: 16,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  <View style={{ width: 16, height: 16 }}>
+                    <Icons.Close width={16} height={16} color="#FFFFFF" />
+                  </View>
+                </View>
+                <Text style={{
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  color: "#991B1B",
+                  letterSpacing: 0.5,
+                }}>
                   Package Exclusions
                 </Text>
               </View>
 
-              {/* Main Exclusions - Fixed HTML parsing */}
-              {packageSummary?.package?.packageExclusions && (
-                <View style={pdfStyles.exclusionsList}>
-                  {parseHtmlContent(packageSummary.package.packageExclusions).map((textSegments, index) => (
-                    <View key={index} style={pdfStyles.exclusionItem}>
-                      <View style={pdfStyles.bulletPoint} />
-                      <Text style={pdfStyles.exclusionText}>
-                        {Array.isArray(textSegments) ? (
-                          textSegments.map((segment, segIdx) => (
-                            <Text 
-                              key={segIdx} 
-                              style={segment.bold ? { fontWeight: 'bold', fontFamily: 'Helvetica-Bold' } : {}}
-                            >
-                              {segment.text}
-                            </Text>
-                          ))
-                        ) : (
-                          textSegments
-                        )}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-              {/* Custom Exclusions - Fixed HTML parsing and bullet points */}
+              {/* Main Exclusions - Enhanced with better styling */}
+              {packageSummary?.package?.packageExclusions && (() => {
+                const parsedItems = parseHtmlContent(packageSummary.package.packageExclusions);
+                // Split items by newlines if they contain multiple lines
+                const allItems = [];
+                parsedItems.forEach((textSegments) => {
+                  const textContent = Array.isArray(textSegments) 
+                    ? textSegments.map(seg => seg.text).join("")
+                    : textSegments;
+                  // Split by newline or multiple spaces to create separate items
+                  const lines = textContent.split(/\n+/).filter(line => line.trim().length > 0);
+                  if (lines.length > 0) {
+                    lines.forEach(line => {
+                      allItems.push(line.trim());
+                    });
+                  } else if (textContent.trim().length > 0) {
+                    allItems.push(textContent.trim());
+                  }
+                });
+                
+                return (
+                  <View style={{ padding: 16, gap: 4 }}>
+                    {allItems.map((item, index) => {
+                      const formattedText = formatInclusionExclusionText(item);
+                      
+                      return (
+                        <View 
+                          key={index}
+                          wrap={false}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "flex-start",
+                            gap: 12,
+                            paddingLeft: 4,
+                            marginBottom: 2,
+                            minHeight: 20,
+                          }}
+                        >
+                          {/* Enhanced Red Bullet - Always visible for each item */}
+                          <View style={{
+                            width: 20,
+                            height: 20,
+                            alignItems: "center",
+                            justifyContent: "flex-start",
+                            paddingTop: 2,
+                            flexShrink: 0,
+                          }}>
+                            <View style={{
+                              width: 8,
+                              height: 8,
+                              backgroundColor: "#EF4444",
+                              borderRadius: 4,
+                              borderWidth: 2,
+                              borderColor: "#FCA5A5",
+                            }} />
+                          </View>
+                          <Text style={{
+                            flex: 1,
+                            fontSize: 11,
+                            color: "#1E293B",
+                            lineHeight: 1.7,
+                            textAlign: "left",
+                            flexWrap: "wrap",
+                          }}>
+                            {formattedText}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })()}
+              
+              {/* Custom Exclusions - Enhanced with better styling */}
               {packageSummary?.package?.customExclusions?.map(
                 (section, index) => (
-                  <View key={index} style={pdfStyles.customExclusion}>
+                  <View 
+                    key={index}
+                    wrap={false}
+                    style={{
+                      padding: 16,
+                      borderTopWidth: index === 0 && !packageSummary?.package?.packageExclusions ? 0 : 1,
+                      borderTopColor: "#E2E8F0",
+                      backgroundColor: index % 2 === 0 ? "#FFFFFF" : "#FAFAFA",
+                      marginBottom: 8,
+                      minHeight: 100,
+                    }}
+                  >
                     <View
+                      wrap={false}
                       style={{
                         flexDirection: "row",
-                        gap: 8,
-                        marginBottom: 16,
+                        gap: 10,
+                        marginBottom: 8,
                         backgroundColor: "#FEF2F2",
                         padding: 12,
                         borderRadius: 8,
+                        alignItems: "center",
+                        borderLeftWidth: 4,
+                        borderLeftColor: "#DC2626",
+                        flexShrink: 0,
                       }}
                     >
-                      <Icons.Close />
-                      <Text style={pdfStyles.customExclusionTitle}>
+                      <View style={{
+                        width: 24,
+                        height: 24,
+                        backgroundColor: "#DC2626",
+                        borderRadius: 12,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}>
+                        <View style={{ width: 12, height: 12 }}>
+                          <Icons.Close width={12} height={12} color="#FFFFFF" />
+                        </View>
+                      </View>
+                      <Text style={{
+                        fontSize: 13,
+                        fontWeight: "bold",
+                        color: "#991B1B",
+                        letterSpacing: 0.3,
+                      }}>
                         {section.name}
                       </Text>
                     </View>
                     {/* Parse HTML content properly with list items and formatting */}
-                    {parseHtmlContent(section.description).map((textSegments, idx) => (
-                      <View key={idx} style={pdfStyles.exclusionItem}>
-                        <View style={pdfStyles.bulletPoint} />
-                        <Text style={pdfStyles.exclusionText}>
-                          {Array.isArray(textSegments) ? (
-                            textSegments.map((segment, segIdx) => (
-                              <Text 
-                                key={segIdx} 
-                                style={segment.bold ? { fontWeight: 'bold', fontFamily: 'Helvetica-Bold' } : {}}
+                    {(() => {
+                      const parsedItems = parseHtmlContent(section.description);
+                      // Split items by newlines if they contain multiple lines
+                      const allItems = [];
+                      parsedItems.forEach((textSegments) => {
+                        const textContent = Array.isArray(textSegments) 
+                          ? textSegments.map(seg => seg.text).join("")
+                          : textSegments;
+                        // Split by newline or multiple spaces to create separate items
+                        const lines = textContent.split(/\n+/).filter(line => line.trim().length > 0);
+                        if (lines.length > 0) {
+                          lines.forEach(line => {
+                            allItems.push(line.trim());
+                          });
+                        } else if (textContent.trim().length > 0) {
+                          allItems.push(textContent.trim());
+                        }
+                      });
+                      
+                      return (
+                        <View style={{ gap: 4 }}>
+                          {allItems.map((item, idx) => {
+                            const formattedText = formatInclusionExclusionText(item);
+                            
+                            return (
+                              <View 
+                                key={idx}
+                                wrap={false}
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "flex-start",
+                                  gap: 12,
+                                  paddingLeft: 4,
+                                  marginBottom: 2,
+                                  minHeight: 20,
+                                }}
                               >
-                                {segment.text}
-                              </Text>
-                            ))
-                          ) : (
-                            textSegments
-                          )}
-                        </Text>
-                      </View>
-                    ))}
+                                {/* Enhanced Red Bullet - Always visible for each item */}
+                                <View style={{
+                                  width: 20,
+                                  height: 20,
+                                  alignItems: "center",
+                                  justifyContent: "flex-start",
+                                  paddingTop: 2,
+                                  flexShrink: 0,
+                                }}>
+                                  <View style={{
+                                    width: 8,
+                                    height: 8,
+                                    backgroundColor: "#EF4444",
+                                    borderRadius: 4,
+                                    borderWidth: 2,
+                                    borderColor: "#FCA5A5",
+                                  }} />
+                                </View>
+                                <Text style={{
+                                  flex: 1,
+                                  fontSize: 11,
+                                  color: "#1E293B",
+                                  lineHeight: 1.7,
+                                  textAlign: "left",
+                                  flexWrap: "wrap",
+                                }}>
+                                  {formattedText}
+                                </Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      );
+                    })()}
                   </View>
                 )
               )}
@@ -2581,6 +4238,84 @@ const PlutoToursPDF = ({
                       ? finalTotal.toFixed(0)
                       : packageSummary.totals.grandTotal}
                   </Text>
+                </View>
+                
+                {/* Satisfaction Question with WhatsApp Links */}
+                <View
+                  style={{
+                    marginTop: 12,
+                    paddingTop: 12,
+                    borderTopWidth: 1,
+                    borderTopColor: "rgba(255, 255, 255, 0.2)",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: "#E2E8F0",
+                      marginBottom: 8,
+                      fontWeight: "500",
+                    }}
+                  >
+                    Satisfied with price?
+                  </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      gap: 8,
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Link
+                      src={`https://wa.me/917018103686?text=${encodeURIComponent(
+                        `Customer is satisfied with the price\n\nPackage: ${packageSummary.package?.packageName || "N/A"}\nCustomer: ${selectedLead?.name || "N/A"}\nDuration: ${packageSummary.package?.duration || "N/A"}`
+                      )}`}
+                      style={{
+                        backgroundColor: "rgba(34, 197, 94, 0.2)",
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 6,
+                        borderWidth: 1,
+                        borderColor: "rgba(34, 197, 94, 0.4)",
+                        textDecoration: "none",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 9,
+                          color: "#FFFFFF",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Yes
+                      </Text>
+                    </Link>
+                    <Link
+                      src={`https://wa.me/917018103686?text=${encodeURIComponent(
+                        `Customer is not satisfied with the price\n\nPackage: ${packageSummary.package?.packageName || "N/A"}\nCustomer: ${selectedLead?.name || "N/A"}\nDuration: ${packageSummary.package?.duration || "N/A"}`
+                      )}`}
+                      style={{
+                        backgroundColor: "rgba(239, 68, 68, 0.2)",
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 6,
+                        borderWidth: 1,
+                        borderColor: "rgba(239, 68, 68, 0.4)",
+                        textDecoration: "none",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 9,
+                          color: "#FFFFFF",
+                          fontWeight: "600",
+                        }}
+                      >
+                        No
+                      </Text>
+                    </Link>
+                  </View>
                 </View>
               </View>
 
@@ -2835,25 +4570,31 @@ const PlutoToursPDF = ({
             </View>
 
             {/* Date Change Policy Section */}
-            <View style={{
-              marginBottom: 16,
-              padding: 12,
-              backgroundColor: "#FFFFFF",
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: "#E2E8F0",
-            }}>
-              <Text style={pdfStyles.policyTitle}>Date Change Policy</Text>
+            <View 
+              wrap={false}
+              style={{
+                marginBottom: 16,
+                padding: 12,
+                backgroundColor: "#FFFFFF",
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: "#E2E8F0",
+                minHeight: 400,
+              }}
+            >
+              <View wrap={false} style={{ marginBottom: 12 }}>
+                <Text style={pdfStyles.policyTitle}>Date Change Policy</Text>
+              </View>
 
-              <View style={pdfStyles.policyContainer}>
-                <View style={pdfStyles.currentPolicyHeader}>
+              <View wrap={false} style={[pdfStyles.policyContainer, { minHeight: 350 }]}>
+                <View wrap={false} style={pdfStyles.currentPolicyHeader}>
                   <Text style={pdfStyles.currentPolicyText}>
                     Your Current Policy
                   </Text>
                 </View>
 
                 {/* Policy Timeline Bar */}
-                <View style={pdfStyles.policyTimelineContainer}>
+                <View wrap={false} style={[pdfStyles.policyTimelineContainer, { minHeight: 100 }]}>
                   <View style={pdfStyles.policyTimeline}>
                     <View style={pdfStyles.timelineGradient} />
                     <View style={pdfStyles.cancelIcon}>
@@ -2871,7 +4612,7 @@ const PlutoToursPDF = ({
 
                 {/* Policy Points */}
                 <View style={pdfStyles.policyPoints}>
-                  <View style={pdfStyles.policyPoint}>
+                  <View wrap={false} style={[pdfStyles.policyPoint, { marginBottom: 10, minHeight: 30 }]}>
                     <View style={pdfStyles.bulletPoint} />
                     <Text style={pdfStyles.policyText}>
                       These are non-refundable amounts as per the current
@@ -2880,7 +4621,7 @@ const PlutoToursPDF = ({
                     </Text>
                   </View>
 
-                  <View style={pdfStyles.policyPoint}>
+                  <View wrap={false} style={[pdfStyles.policyPoint, { marginBottom: 10, minHeight: 30 }]}>
                     <View style={pdfStyles.bulletPoint} />
                     <Text style={pdfStyles.policyText}>
                       Date Change fees don't include any fare change in the
@@ -2889,7 +4630,7 @@ const PlutoToursPDF = ({
                     </Text>
                   </View>
 
-                  <View style={pdfStyles.policyPoint}>
+                  <View wrap={false} style={[pdfStyles.policyPoint, { marginBottom: 10, minHeight: 30 }]}>
                     <View style={pdfStyles.bulletPoint} />
                     <Text style={pdfStyles.policyText}>
                       Date Change will depend on the availability of the
@@ -2897,7 +4638,7 @@ const PlutoToursPDF = ({
                     </Text>
                   </View>
 
-                  <View style={pdfStyles.policyPoint}>
+                  <View wrap={false} style={[pdfStyles.policyPoint, { marginBottom: 10, minHeight: 50 }]}>
                     <View style={pdfStyles.bulletPoint} />
                     <Text style={pdfStyles.policyText}>
                       Please note, TCS once collected cannot be refunded in case
@@ -2907,7 +4648,7 @@ const PlutoToursPDF = ({
                     </Text>
                   </View>
 
-                  <View style={pdfStyles.policyPoint}>
+                  <View wrap={false} style={[pdfStyles.policyPoint, { marginBottom: 0, minHeight: 30 }]}>
                     <View style={pdfStyles.bulletPoint} />
                     <Text style={pdfStyles.policyText}>
                       Cancellation charges shown is exclusive of all taxes and
@@ -2943,14 +4684,16 @@ const PlutoToursPDF = ({
 
 const AccountDetailsSection = () => (
   <View style={pdfStyles.accountDetailsSection}>
-    <Text style={pdfStyles.accountDetailsHeader}>
-      ACCOUNT DETAILS AND UPI ID
-    </Text>
+    <View wrap={false} style={{ marginBottom: 16 }}>
+      <Text style={pdfStyles.accountDetailsHeader}>
+        ACCOUNT DETAILS AND UPI ID
+      </Text>
+    </View>
 
     {/* Bank Grid Section */}
     <View style={pdfStyles.bankGrid}>
       {/* SBI Section */}
-      <View style={pdfStyles.bankCard}>
+      <View wrap={false} style={[pdfStyles.bankCard, { minHeight: 180, marginBottom: 12 }]}>
         <Text style={pdfStyles.bankName}>STATE BANK OF INDIA A/C</Text>
         <View style={pdfStyles.bankDetail}>
           <Text style={pdfStyles.bankLabel}>A/C No:</Text>
@@ -2971,7 +4714,7 @@ const AccountDetailsSection = () => (
       </View>
 
       {/* HDFC Section */}
-      <View style={pdfStyles.bankCard}>
+      <View wrap={false} style={[pdfStyles.bankCard, { minHeight: 180, marginBottom: 12 }]}>
         <Text style={pdfStyles.bankName}>HDFC BANK</Text>
         <View style={pdfStyles.bankDetail}>
           <Text style={pdfStyles.bankLabel}>A/C No:</Text>
@@ -2992,7 +4735,7 @@ const AccountDetailsSection = () => (
       </View>
 
       {/* ICICI Section */}
-      <View style={pdfStyles.bankCard}>
+      <View wrap={false} style={[pdfStyles.bankCard, { minHeight: 180, marginBottom: 12 }]}>
         <Text style={pdfStyles.bankName}>ICICI BANK</Text>
         <View style={pdfStyles.bankDetail}>
           <Text style={pdfStyles.bankLabel}>A/C No:</Text>
@@ -3013,7 +4756,7 @@ const AccountDetailsSection = () => (
       </View>
 
       {/* Bank of Baroda Section */}
-      <View style={pdfStyles.bankCard}>
+      <View wrap={false} style={[pdfStyles.bankCard, { minHeight: 180, marginBottom: 12 }]}>
         <Text style={pdfStyles.bankName}>BANK OF BARODA</Text>
         <View style={pdfStyles.bankDetail}>
           <Text style={pdfStyles.bankLabel}>A/C No:</Text>
@@ -3035,12 +4778,12 @@ const AccountDetailsSection = () => (
     </View>
 
     {/* UPI Section */}
-    <View style={pdfStyles.upiSection}>
-      <View style={pdfStyles.upiCard}>
+    <View wrap={false} style={[pdfStyles.upiSection, { marginTop: 8 }]}>
+      <View wrap={false} style={[pdfStyles.upiCard, { minHeight: 80, marginBottom: 8 }]}>
         <Text style={pdfStyles.upiTitle}>GOOGLE PAY @ PHONE PAY</Text>
         <Text style={pdfStyles.upiValue}>80917-53823</Text>
       </View>
-      <View style={pdfStyles.upiCard}>
+      <View wrap={false} style={[pdfStyles.upiCard, { minHeight: 100 }]}>
         <Text style={pdfStyles.upiTitle}>UPI ID</Text>
         <Text style={pdfStyles.upiValue}>UpId: mdplutotours-2@okhdfcbank</Text>
         <Text style={pdfStyles.upiValue}>UpId: 981666196@sbi</Text>

@@ -78,7 +78,7 @@ function PackageForm({
 
 const stateOptions = [
   { value: "Andhra Pradesh", label: "Andhra Pradesh" },
-  { value: "arunachal_pradesh", label: "Arunachal Pradesh" },
+  { value: "arunachal pradesh", label: "Arunachal Pradesh" },
   { value: "assam", label: "Assam" },
   { value: "bihar", label: "Bihar" },
   { value: "chhattisgarh", label: "Chhattisgarh" },
@@ -99,7 +99,7 @@ const stateOptions = [
   { value: "punjab", label: "Punjab" },
   { value: "rajasthan", label: "Rajasthan" },
   { value: "sikkim", label: "Sikkim" },
-  { value: "tamil_nadu", label: "Tamil Nadu" },
+  { value: "tamil nadu", label: "Tamil Nadu" },
   { value: "telangana", label: "Telangana" },
   { value: "tripura", label: "Tripura" },
   { value: "Uttar Pradesh", label: "Uttar Pradesh" },

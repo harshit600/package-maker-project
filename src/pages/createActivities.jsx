@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 
 function CreateActivities() {
   const [products, setProducts] = useState([]);
+  console.log(products,"products")
   const [images, setImages] = useState({});
+  console.log(images,"images")
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showAllStates, setShowAllStates] = useState(false);
@@ -12,14 +14,16 @@ function CreateActivities() {
 
   useEffect(() => {
     Promise.all([
-      fetch("https://backendactivity.plutotours.in/api/products").then((res) =>
+      fetch("https://backendactivity.ptwhotels.com/api/products").then((res) =>
         res.json()
       ),
-      fetch("https://backendactivity.plutotours.in/api/images").then((res) =>
+      fetch("https://backendactivity.ptwhotels.com/api/images").then((res) =>
         res.json()
       ),
     ])
       .then(([productsData, imagesData]) => {
+        console.log(productsData,"productsData")
+        console.log(imagesData,"imagesData")
         setProducts(productsData.Product);
 
         const imagesByProduct = imagesData.Iamges.reduce((acc, img) => {
@@ -27,11 +31,11 @@ function CreateActivities() {
             acc[img.product_id] = [];
           }
           acc[img.product_id].push(
-            `https://backendactivity.plutotours.in/${img.image}`
+            `https://backendactivity.ptwhotels.com/${img.image}`
           );
           return acc;
         }, {});
-
+console.log(imagesByProduct,"imagesByProduct")
         setImages(imagesByProduct);
         setLoading(false);
       })

@@ -1,4 +1,2422 @@
+10/15/2025
+import React, { useState, useEffect } from 'react'
+import { useBankManagement } from './bankManagementContext'
+import { useFinalcosting } from '../../context/FinalcostingContext'
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { storage } from "../../firebase";
+function ServiceReport() {
+  const {createBankTransaction, serviceReport, serviceReportLoading, serviceReportList, updateCabVerification, updateHotelVerification } = useBankManagement()
+  const [expandedRows, setExpandedRows] = useState({})
+  const [activeMainTab, setActiveMainTab] = useState('tomorrow')
+  const [activeSubTab, setActiveSubTab] = useState('checkinHotel')
+  const [verificationStates, setVerificationStates] = useState({})
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [selectedPaymentData, setSelectedPaymentData] = useState(null)
+  
+  const [paymentFormData, setPaymentFormData] = useState({
+    paymentMode: '',
+    toAccount: '',
+    paymentType: 'Payment',
+    transactionAmount: '',
+    transactionId: '',
+    transactionDate: '',
+    transactionDescription: ''
+  })
 
+  // New payment modal states
+  const [showHotelPaymentModal, setShowHotelPaymentModal] = useState(false)
+  const [showCabPaymentModal, setShowCabPaymentModal] = useState(false)
+  const [manualBanks, setManualBanks] = useState([])
+  const [loadingManualBanks, setLoadingManualBanks] = useState(false)
+  const [hotelBank, setHotelBank] = useState([])
+  const [loadingHotelBank, setLoadingHotelBank] = useState(true)
+  const [cabBank, setCabBank] = useState([])
+  const [loadingCabBank, setLoadingCabBank] = useState(true)
+  const [propertyBankSearchTerm, setPropertyBankSearchTerm] = useState('')
+  const [showPropertyBankDropdown, setShowPropertyBankDropdown] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
+
+  // Hotel payment form data
+  const [hotelPaymentData, setHotelPaymentData] = useState({
+    bank: "",
+    toBank: "",
+    isDualBankTransaction: true,
+    paymentMode: "RTGS",
+    paymentType: "out",
+    toBankPaymentType: "in",
+    transactionAmount: "",
+    transactionId: "",
+    transactionDate: "",
+    description: "",
+    utrNumber: "",
+    image: ""
+  })
+
+  // Cab payment form data
+  const [cabPaymentData, setCabPaymentData] = useState({
+    bank: "",
+    toBank: "",
+    isDualBankTransaction: true,
+    paymentMode: "RTGS",
+    paymentType: "out",
+    toBankPaymentType: "in",
+    transactionAmount: "",
+    transactionId: "",
+    transactionDate: "",
+    description: "",
+    utrNumber: "",
+    image: ""
+  })
+  const { banks,banksLoading} = useFinalcosting()
+
+  // API configuration
+  const config = {
+    API_HOST: "https://pluto-hotel-server-15c83810c41c.herokuapp.com",
+  }
+
+  useEffect(() => {
+    fetchHotelBank()
+    fetchCabBank()
+  }, [])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showPropertyBankDropdown && !event.target.closest('.property-bank-dropdown')) {
+        setShowPropertyBankDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showPropertyBankDropdown])
+
+  const fetchHotelBank = async () => {
+    setLoadingHotelBank(true);
+    try {
+      const response = await fetch(`${config.API_HOST}/api/bankaccountdetail/get-auto-created`);
+      const data = await response.json();
+      console.log("Hotel banks data:", data?.data);
+      setHotelBank(data?.data || []);
+    } catch (error) {
+      console.error(error.message);
+    } finally {
+      setLoadingHotelBank(false);
+    }
+  }
+
+  const fetchCabBank = async () => {
+    setLoadingCabBank(true);
+    try {
+      const response = await fetch(`${config.API_HOST}/api/bankaccountdetail/auto-create-from-cabusers`);
+      const data = await response.json();
+      console.log("Cab banks data:", data?.data?.results);
+      setCabBank(data?.data?.results || []);
+    } catch (error) {
+      console.error(error.message);
+    } finally {
+      setLoadingCabBank(false);
+    }
+  }
+
+  const fetchManualBanks = async () => {
+    try {
+      setLoadingManualBanks(true)
+      const response = await fetch(`${config.API_HOST}/api/bankaccountdetail/get-manual`)
+      const data = await response.json()
+      console.log('Manual banks:', data)
+      if (data.success) {
+        setManualBanks(data.data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching manual banks:', error)
+    } finally {
+      setLoadingManualBanks(false)
+    }
+  }
+
+  // Function to handle image upload to Firebase
+  const handleImageUpload = async (file) => {
+    if (!file) return null;
+
+    try {
+      setUploadingImage(true);
+      const fileName = new Date().getTime() + file.name;
+      const storageRef = ref(storage, `payment-receipts/${fileName}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      return new Promise((resolve, reject) => {
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log("Upload is " + progress + "% done");
+          },
+          (error) => {
+            setUploadingImage(false);
+            console.error("Upload failed:", error);
+            reject(error);
+          },
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              setUploadingImage(false);
+              resolve(downloadURL);
+            } catch (error) {
+              setUploadingImage(false);
+              console.error("Error getting download URL:", error);
+              reject(error);
+            }
+          }
+        );
+      });
+    } catch (error) {
+      setUploadingImage(false);
+      console.error("Upload error:", error);
+      return null;
+    }
+  };
+
+  // Filter hotel banks based on search term
+  const filteredHotelBanks = hotelBank?.filter(bank =>
+    bank.bankName?.toLowerCase().includes(propertyBankSearchTerm.toLowerCase()) ||
+    bank.accountNumber?.toLowerCase().includes(propertyBankSearchTerm.toLowerCase())
+  )
+
+  // Filter cab banks based on search term
+  const filteredCabBanks = cabBank?.filter(bank =>
+    bank.userName?.toLowerCase().includes(propertyBankSearchTerm.toLowerCase()) ||
+    bank.bankId?.toLowerCase().includes(propertyBankSearchTerm.toLowerCase())
+  )
+
+  const handlePropertyBankSearch = (searchTerm) => {
+    setPropertyBankSearchTerm(searchTerm)
+    setShowPropertyBankDropdown(true)
+  }
+
+  const handlePropertyBankSelect = (bank, type) => {
+    if (type === 'hotel') {
+      setHotelPaymentData(prev => ({
+        ...prev,
+        toBank: bank._id
+      }))
+      setPropertyBankSearchTerm(`${bank.bankName} - ${bank.accountNumber}`)
+    } else {
+      setCabPaymentData(prev => ({
+        ...prev,
+        toBank: bank.bankId
+      }))
+      setPropertyBankSearchTerm(`${bank.userName} - ${bank.bankId}`)
+    }
+    setShowPropertyBankDropdown(false)
+  }
+
+  // Refresh data function
+  const handleRefresh = () => {
+    serviceReportList();
+  };
+
+  // Handle payment modal
+  const handleOpenPaymentModal = (item) => {
+    setSelectedPaymentData(item);
+    // Set default form data when opening modal
+    setPaymentFormData({
+      paymentMode: '',
+      toAccount: '',
+      paymentType: 'Payment',
+      transactionAmount: item.leadata?.remainingAmount || 0,
+      transactionId: '',
+      transactionDate: new Date().toISOString().slice(0, 16), // Format for datetime-local input
+      transactionDescription: ''
+    });
+    setShowPaymentModal(true);
+  };
+
+  const handleClosePaymentModal = () => {
+    setShowPaymentModal(false);
+    setSelectedPaymentData(null);
+    // Reset form data when closing modal
+    setPaymentFormData({
+      paymentMode: '',
+      toAccount: '',
+      paymentType: 'Payment',
+      transactionAmount: '',
+      transactionId: '',
+      transactionDate: '',
+      transactionDescription: ''
+    });
+  };
+
+  const handleFormInputChange = (field, value) => {
+    setPaymentFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Hotel payment modal handlers
+  const handleOpenHotelPaymentModal = () => {
+    setHotelPaymentData({
+      bank: "",
+      toBank: "",
+      isDualBankTransaction: true,
+      paymentMode: "RTGS",
+      paymentType: "out",
+      toBankPaymentType: "in",
+      transactionAmount: "",
+      transactionId: "",
+      transactionDate: new Date().toISOString().split('T')[0],
+      description: "",
+      utrNumber: "",
+      image: ""
+    })
+    setPropertyBankSearchTerm('')
+    setShowPropertyBankDropdown(false)
+    fetchManualBanks()
+    setShowHotelPaymentModal(true)
+  }
+
+  const handleCloseHotelPaymentModal = () => {
+    setShowHotelPaymentModal(false)
+    setPropertyBankSearchTerm('')
+  }
+
+  const handleHotelPaymentDataChange = (field, value) => {
+    setHotelPaymentData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  // Cab payment modal handlers
+  const handleOpenCabPaymentModal = () => {
+    setCabPaymentData({
+      bank: "",
+      toBank: "",
+      isDualBankTransaction: true,
+      paymentMode: "RTGS",
+      paymentType: "out",
+      toBankPaymentType: "in",
+      transactionAmount: "",
+      transactionId: "",
+      transactionDate: new Date().toISOString().split('T')[0],
+      description: "",
+      utrNumber: "",
+      image: ""
+    })
+    setPropertyBankSearchTerm('')
+    setShowPropertyBankDropdown(false)
+    fetchManualBanks()
+    setShowCabPaymentModal(true)
+  }
+
+  const handleCloseCabPaymentModal = () => {
+    setShowCabPaymentModal(false)
+    setPropertyBankSearchTerm('')
+  }
+
+  const handleCabPaymentDataChange = (field, value) => {
+    setCabPaymentData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+    const handleSubmitPayment = async () => {
+    try {
+      // Get selected bank details
+      const selectedBank = banks?.find(bank => bank._id === paymentFormData.toAccount);
+      
+      // Create payload similar to AllLeads.jsx structure
+      const payload = {
+        leadId: selectedPaymentData?.leadata?._id || null,
+        leadName: selectedPaymentData?.leadata?.name || null,
+        paymentMode: paymentFormData.paymentMode,
+        paymentType: paymentFormData.paymentType,
+        transactionAmount: paymentFormData.transactionAmount,
+        transactionId: paymentFormData.transactionId,
+        transactionDate: paymentFormData.transactionDate ? new Date(paymentFormData.transactionDate).toISOString().split('T')[0] : '',
+        toAccount: selectedBank ? `${selectedBank.bankName} (${selectedBank.accountNumber})` : paymentFormData.toAccount,
+        description: paymentFormData.transactionDescription,
+        bank: selectedBank
+          ? {
+              id: selectedBank._id,
+              bankName: selectedBank.bankName,
+              accountNumber: selectedBank.accountNumber,
+            }
+          : null,
+        // Additional data for service report
+        submittedAt: new Date().toISOString()
+      };
+      
+     
+      
+      // Send data to createBankTransaction API
+      console.log('Sending data to createBankTransaction...');
+      const response = await createBankTransaction(payload);
+      console.log('Bank transaction created successfully:', response);
+      
+      // Handle payment submission logic here
+      handleClosePaymentModal();
+      
+    } catch (error) {
+      console.error('Error creating bank transaction:', error);
+      // You can add error handling here (show error message to user)
+      alert('Failed to create bank transaction: ' + error.message);
+    }
+  };
+
+  // Hotel payment submission
+  const handleSubmitHotelPayment = async () => {
+    try {
+      if (!hotelPaymentData.bank || !hotelPaymentData.toBank || !hotelPaymentData.transactionAmount) {
+        alert('Please fill in all required fields (From Bank, To Bank, and Transaction Amount)')
+        return
+      }
+
+      const paymentRequestData = {
+        bank: hotelPaymentData.bank,
+        toBank: hotelPaymentData.toBank,
+        paymentMode: hotelPaymentData.paymentMode,
+        paymentType: hotelPaymentData.paymentType,
+        toBankPaymentType: hotelPaymentData.toBankPaymentType,
+        transactionAmount: parseFloat(hotelPaymentData.transactionAmount),
+        transactionId: hotelPaymentData.transactionId,
+        transactionDate: hotelPaymentData.transactionDate,
+        description: hotelPaymentData.description,
+        isDualBankTransaction: hotelPaymentData.isDualBankTransaction,
+        utrNumber: hotelPaymentData.utrNumber,
+        image: hotelPaymentData.image
+      }
+
+      const response = await fetch(
+        `${config.API_HOST}/api/banktransactions/create`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(paymentRequestData)
+        }
+      )
+
+      if (!response.ok) {
+        const errorResult = await response.json()
+        if (errorResult.message === "Insufficient balance") {
+          alert(`Warning: your bank has ${errorResult.message}`)
+          return
+        }
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+
+      if (result.success || result.message) {
+        alert('Hotel payment added successfully!')
+        setShowHotelPaymentModal(false)
+        setPropertyBankSearchTerm('')
+        handleRefresh()
+      } else {
+        alert('Failed to add hotel payment. Please try again.')
+      }
+    } catch (error) {
+      console.error("Error adding hotel payment:", error)
+      alert(`Failed to add hotel payment: ${error.message}`)
+    }
+  }
+
+  // Cab payment submission
+  const handleSubmitCabPayment = async () => {
+    try {
+      if (!cabPaymentData.bank || !cabPaymentData.toBank || !cabPaymentData.transactionAmount) {
+        alert('Please fill in all required fields (From Bank, To Bank, and Transaction Amount)')
+        return
+      }
+
+      const paymentRequestData = {
+        bank: cabPaymentData.bank,
+        toBank: cabPaymentData.toBank,
+        paymentMode: cabPaymentData.paymentMode,
+        paymentType: cabPaymentData.paymentType,
+        toBankPaymentType: cabPaymentData.toBankPaymentType,
+        transactionAmount: parseFloat(cabPaymentData.transactionAmount),
+        transactionId: cabPaymentData.transactionId,
+        transactionDate: cabPaymentData.transactionDate,
+        description: cabPaymentData.description,
+        isDualBankTransaction: cabPaymentData.isDualBankTransaction,
+        utrNumber: cabPaymentData.utrNumber,
+        image: cabPaymentData.image
+      }
+
+      const response = await fetch(
+        `${config.API_HOST}/api/banktransactions/create`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(paymentRequestData)
+        }
+      )
+
+      if (!response.ok) {
+        const errorResult = await response.json()
+        if (errorResult.message === "Insufficient balance") {
+          alert(`Warning: your bank has ${errorResult.message}`)
+          return
+        }
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+
+      if (result.success || result.message) {
+        alert('Cab payment added successfully!')
+        setShowCabPaymentModal(false)
+        setPropertyBankSearchTerm('')
+        handleRefresh()
+      } else {
+        alert('Failed to add cab payment. Please try again.')
+      }
+    } catch (error) {
+      console.error("Error adding cab payment:", error)
+      alert(`Failed to add cab payment: ${error.message}`)
+    }
+  }
+
+  // Format date
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  // Toggle accordion row
+  const toggleRow = (index) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
+  // Handle hotel verification
+  const handleHotelVerification = (hotelGroup, groupIndex) => {
+    const key = `hotel_${groupIndex}`;
+    setVerificationStates(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  // Handle transfer verification
+  const handleTransferVerification = (transfer, index) => {
+    const key = `transfer_${index}`;
+    setVerificationStates(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  // Handle verification response
+  const handleVerificationResponse = async (type, isVerified, item, index, operationId) => {
+    const key = `${type}_${index}`;
+    setVerificationStates(prev => ({
+      ...prev,
+      [key]: false
+    }));
+    
+    if (isVerified) {
+      console.log(`${type} verified:`, item, 'at index:', index);
+      
+      if (type === 'transfer') {
+        try {
+          // Update the cab verification status
+          const updatedDetailData = {
+            ...item,
+            verified: true
+          };
+          
+          await updateCabVerification(operationId, index, updatedDetailData);
+          
+          console.log('Cab verification updated successfully');
+        } catch (error) {
+          console.error('Error updating cab verification:', error);
+          // You might want to show an error message to the user here
+        }
+      } else if (type === 'hotel') {
+        try {
+          // For grouped hotels, we need to update each day separately
+          if (item.hotels && item.hotels.length > 0) {
+            // Update each hotel day separately
+            for (const hotel of item.hotels) {
+              const hotelData = {
+                verified: true
+              };
+              
+              await updateHotelVerification(operationId, hotel.day, hotelData);
+              console.log(`Hotel day ${hotel.day} verification updated successfully`);
+            }
+            
+            console.log('Hotel verification updated successfully');
+          }
+        } catch (error) {
+          console.error('Error updating hotel verification:', error);
+          // You might want to show an error message to the user here
+        }
+      }
+    } else {
+      console.log(`${type} rejected:`, item, 'at index:', index);
+      // Add your rejection logic here
+    }
+  };
+
+  // Tab management functions
+  const handleMainTabChange = (tab) => {
+    setActiveMainTab(tab);
+    // Reset sub-tab to default when main tab changes
+    if (tab === 'tomorrow' || tab === 'today' || tab === 'nextTenDays') {
+      setActiveSubTab('checkinHotel');
+    } else if (tab === 'unverified') {
+      setActiveSubTab('hotel');
+    } else if (tab === 'nonReceiptPayment' || tab === 'allReport' || tab === 'driverAssign') {
+      // These tabs don't have sub-tabs, so reset to empty
+      setActiveSubTab('');
+    }
+  };
+
+  const handleSubTabChange = (subTab) => {
+    setActiveSubTab(subTab);
+  };
+
+    // Filter data based on active tabs
+  const filterDataByTabs = (data) => {
+    if (!data || data.length === 0) return [];
+    
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(today.getDate() + 1);
+    const nextTenDays = new Date();
+    nextTenDays.setDate(today.getDate() + 10);
+    
+    return data.filter(item => {
+      const travelDate = item.leadata?.travelDate;
+      
+      // For All Report, show all items regardless of travel date
+      if (activeMainTab === 'allReport') {
+        return true;
+      }
+      
+      // For Non Receipt Payment, only show items with remaining amount > 0
+      if (activeMainTab === 'nonReceiptPayment') {
+        const remainingAmount = item.leadata?.remainingAmount || 0;
+        return remainingAmount > 0;
+      }
+      
+      // For other tabs, require travel date
+      if (!travelDate) return false;
+      
+      const travelDateTime = new Date(travelDate);
+      
+      // Filter based on main tab
+      if (activeMainTab === 'today') {
+      
+        
+        // If Check Out Hotel is selected, only show reports with hotels that have check-out dates matching today
+        if (activeSubTab === 'checkoutHotel') {
+          if (item.hotels && item.hotels.length > 0) {
+            for (const hotel of item.hotels) {
+              const checkOutDate = new Date(travelDate);
+              checkOutDate.setDate(checkOutDate.getDate() + hotel.day);
+              const normalizedCheckOutDate = normalize(checkOutDate);
+              const normalizedToday = normalize(today);
+              if (normalizedCheckOutDate.getTime() === normalizedToday.getTime() ) {
+                return true;
+              }
+            }
+          }
+          return false; // Don't show reports without relevant hotels
+        }
+        // For other sub-tabs, show reports with travel date matching today and verified items
+        if (activeSubTab === 'checkinHotel') {
+          // Check if any hotels have check-in date matching today and are verified
+          if (item.hotels && item.hotels.length > 0) {
+            for (const hotel of item.hotels) {
+              const checkInDate = new Date(travelDate);
+              checkInDate.setDate(checkInDate.getDate() + (hotel.day - 1));
+              if (checkInDate.toDateString() === today.toDateString() ) {
+                return true;
+              }
+            }
+          }
+          return false; // Don't show reports without relevant hotels
+        } else if (activeSubTab === 'checkinCab') {
+          // Check if any transfers have date matching today and are verified
+          if (item.transfer?.details && item.transfer.details.length > 0) {
+            for (const transfer of item.transfer.details) {
+              const transferDate = new Date(travelDate);
+              transferDate.setDate(transferDate.getDate() + (transfer.day - 1));
+              if (transferDate.toDateString() === today.toDateString() ) {
+                return true;
+              }
+            }
+          }
+          return false; // Don't show reports without relevant transfers
+        }
+        return travelDateTime.toDateString() === today.toDateString();
+      } else if (activeMainTab === 'tomorrow') {
+       
+        
+        // If Check Out Hotel is selected, only show reports with hotels that have check-out dates matching tomorrow
+        if (activeSubTab === 'checkoutHotel') {
+          if (item.hotels && item.hotels.length > 0) {
+            for (const hotel of item.hotels) {
+              const checkOutDate = new Date(travelDate);
+              checkOutDate.setDate(checkOutDate.getDate() + hotel.day);
+              const normalizedCheckOutDate = normalize(checkOutDate);
+              const normalizedTomorrow = normalize(tomorrow);
+              if (normalizedCheckOutDate.getTime() === normalizedTomorrow.getTime() ) {
+                return true;
+              }
+            }
+          }
+          return false; // Don't show reports without relevant hotels
+        }
+        // For other sub-tabs, show reports with travel date matching tomorrow and verified items
+        if (activeSubTab === 'checkinHotel') {
+          // Check if any hotels have check-in date matching tomorrow and are verified
+          if (item.hotels && item.hotels.length > 0) {
+            for (const hotel of item.hotels) {
+              const checkInDate = new Date(travelDate);
+              checkInDate.setDate(checkInDate.getDate() + (hotel.day - 1));
+              if (checkInDate.toDateString() === tomorrow.toDateString() ) {
+                return true;
+              }
+            }
+          }
+          return false; // Don't show reports without relevant hotels
+        } else if (activeSubTab === 'checkinCab') {
+          // Check if any transfers have date matching tomorrow and are verified
+          if (item.transfer?.details && item.transfer.details.length > 0) {
+            for (const transfer of item.transfer.details) {
+              const transferDate = new Date(travelDate);
+              transferDate.setDate(transferDate.getDate() + (transfer.day - 1));
+              if (transferDate.toDateString() === tomorrow.toDateString() ) {
+                return true;
+              }
+            }
+          }
+          return false; // Don't show reports without relevant transfers
+        }
+        return travelDateTime.toDateString() === tomorrow.toDateString();
+      } else if (activeMainTab === 'nextTenDays') {
+       
+        
+        // For Next Ten Days, check if any service dates fall within the range
+        // Check if travel date is within next 10 days
+        if (travelDateTime >= today && travelDateTime <= nextTenDays) {
+          // If Check In Cab is selected, only show reports with transfers within next 10 days (including today)
+          if (activeSubTab === 'checkinCab') {
+            if (item.transfer?.details && item.transfer.details.length > 0) {
+              for (const transfer of item.transfer.details) {
+                const transferDate = new Date(travelDate);
+                transferDate.setDate(transferDate.getDate() + (transfer.day - 1));
+                // Normalize dates to start of day for accurate comparison
+                const normalizedTransferDate = normalize(transferDate);
+                const normalizedToday = normalize(today);
+                const normalizedNextTenDays = normalize(nextTenDays);
+                
+                if (normalizedTransferDate >= normalizedToday && normalizedTransferDate <= normalizedNextTenDays ) {
+                  return true;
+                }
+              }
+            }
+            return false; // Don't show reports without relevant transfers
+          }
+          
+          // If Check In Hotel is selected, only show reports with hotels within next 10 days
+          if (activeSubTab === 'checkinHotel') {
+            if (item.hotels && item.hotels.length > 0) {
+              for (const hotel of item.hotels) {
+                const checkInDate = new Date(travelDate);
+                checkInDate.setDate(checkInDate.getDate() + (hotel.day - 1));
+                // Normalize dates to start of day for accurate comparison
+                const normalizedCheckInDate = normalize(checkInDate);
+                const normalizedToday = normalize(today);
+                const normalizedNextTenDays = normalize(nextTenDays);
+                
+                if (normalizedCheckInDate >= normalizedToday && normalizedCheckInDate <= normalizedNextTenDays ) {
+                  return true;
+                }
+              }
+            }
+            return false; // Don't show reports without relevant hotels
+          }
+          
+          // If Check Out Hotel is selected, only show reports with hotels within next 10 days
+          if (activeSubTab === 'checkoutHotel') {
+            if (item.hotels && item.hotels.length > 0) {
+              for (const hotel of item.hotels) {
+                const checkOutDate = new Date(travelDate);
+                checkOutDate.setDate(checkOutDate.getDate() + hotel.day);
+                // Normalize dates to start of day for accurate comparison
+                const normalizedCheckOutDate = normalize(checkOutDate);
+                const normalizedToday = normalize(today);
+                const normalizedNextTenDays = normalize(nextTenDays);
+                
+                if (normalizedCheckOutDate >= normalizedToday && normalizedCheckOutDate <= normalizedNextTenDays ) {
+                  return true;
+                }
+              }
+            }
+            return false; // Don't show reports without relevant hotels
+          }
+          
+          // If no specific sub-tab is selected, show all items within next 10 days
+          return true;
+        }
+        
+        return false;
+      } else if (activeMainTab === 'driverAssign') {
+        // Show all data for driver assign
+        return true;
+      } else if (activeMainTab === 'unverified') {
+        // Show only items that have verified: false
+        if (activeSubTab === 'hotel') {
+          // For hotel sub-tab, check if any hotels are unverified
+          if (item.hotels && item.hotels.length > 0) {
+            for (const hotel of item.hotels) {
+              if (hotel?.verified === false) {
+                return true;
+              }
+            }
+          }
+          return false;
+        } else if (activeSubTab === 'cab') {
+          // For cab sub-tab, check if any transfers are unverified
+          if (item.transfer?.details && item.transfer.details.length > 0) {
+            for (const transfer of item.transfer.details) {
+              if (transfer?.verified === false) {
+                return true;
+              }
+            }
+          }
+          return false;
+        }
+        return false;
+      } else if (activeMainTab === 'allReport') {
+        // Show all data for all report
+        return true;
+      } else if (activeMainTab === 'nonReceiptPayment') {
+        // Show only reports where remainingAmount > 0
+        const remainingAmount = item.leadata?.remainingAmount || 0;
+        return remainingAmount > 0;
+      }
+      
+      return true;
+    });
+  };
+
+    // Filter hotels based on sub-tab
+  const filterHotelsBySubTab = (hotels, travelDate) => {
+    if (!hotels || hotels.length === 0) return [];
+    
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(today.getDate() + 1);
+    const nextTenDays = new Date();
+    nextTenDays.setDate(today.getDate() + 10);
+    
+    // For Non Receipt Payment and All Report, show all hotels
+    if (activeMainTab === 'nonReceiptPayment' || activeMainTab === 'allReport') {
+      return hotels;
+    }
+    
+    if (activeSubTab === 'checkinHotel') {
+      // Show hotels with check-in date matching the main tab
+      if (activeMainTab === 'today') {
+        return hotels.filter(hotel => {
+          const checkInDate = new Date(travelDate);
+          checkInDate.setDate(checkInDate.getDate() + (hotel.day - 1));
+          return checkInDate.toDateString() === today.toDateString() ;
+        });
+      } else if (activeMainTab === 'tomorrow') {
+        return hotels.filter(hotel => {
+          const checkInDate = new Date(travelDate);
+          checkInDate.setDate(checkInDate.getDate() + (hotel.day - 1));
+          return checkInDate.toDateString() === tomorrow.toDateString() ;
+        });
+             } else if (activeMainTab === 'nextTenDays') {
+         // Show all hotels with check-in dates within next 10 days (including today)
+         return hotels.filter(hotel => {
+           const checkInDate = new Date(travelDate);
+           checkInDate.setDate(checkInDate.getDate() + (hotel.day - 1));
+           // Normalize dates to start of day for accurate comparison
+           const normalizedCheckInDate = normalize(checkInDate);
+           const normalizedToday = normalize(today);
+           const normalizedNextTenDays = normalize(nextTenDays);
+           
+           return normalizedCheckInDate >= normalizedToday && normalizedCheckInDate <= normalizedNextTenDays ;
+         });
+       }
+    } else if (activeSubTab === 'checkoutHotel') {
+      // Show hotels with check-out date matching the main tab
+      if (activeMainTab === 'today') {
+                 return hotels.filter(hotel => {
+           const checkOutDate = normalize(new Date(travelDate));
+           checkOutDate.setDate(checkOutDate.getDate() + hotel.day);
+           return checkOutDate.toDateString() === today.toDateString();
+         });
+       } else if (activeMainTab === 'tomorrow') {
+         return hotels.filter(hotel => {
+           const checkOutDate = normalize(new Date(travelDate));
+           checkOutDate.setDate(checkOutDate.getDate() + hotel.day);
+           return checkOutDate.toDateString() === tomorrow.toDateString() ;
+         });
+               } else if (activeMainTab === 'nextTenDays') {
+          // Show all hotels with check-out dates within next 10 days (including today)
+          return hotels.filter(hotel => {
+            const checkOutDate = normalize(new Date(travelDate));
+            checkOutDate.setDate(checkOutDate.getDate() + hotel.day);
+            // Normalize dates to start of day for accurate comparison
+            const normalizedCheckOutDate = normalize(checkOutDate);
+            const normalizedToday = normalize(today);
+            const normalizedNextTenDays = normalize(nextTenDays);
+            
+            return normalizedCheckOutDate >= normalizedToday && normalizedCheckOutDate <= normalizedNextTenDays ;
+          });
+        }
+    } else if (activeMainTab === 'unverified') {
+      // For unverified tab, show hotels based on sub-tab selection
+      if (activeSubTab === 'hotel') {
+        // Show only unverified hotels
+        return hotels.filter(hotel => hotel?.verified === false);
+      }
+    }
+    
+    return hotels;
+  };
+  function normalize(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0); // reset time to midnight
+    return d;
+  }
+  // Filter transfers based on sub-tab
+  const filterTransfersBySubTab = (transfers, travelDate) => {
+    if (!transfers || transfers.length === 0) return [];
+    
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(today.getDate() + 1);
+    const nextTenDays = new Date();
+    nextTenDays.setDate(today.getDate() + 10);
+    
+      // For Non Receipt Payment and All Report, show all transfers
+    if (activeMainTab === 'nonReceiptPayment' || activeMainTab === 'allReport') {
+      return transfers;
+    }
+    
+    if (activeSubTab === 'checkinCab') {
+      // Show cabs with date matching the main tab
+      if (activeMainTab === 'today') {
+        return transfers.filter(transfer => {
+          const cabDate = new Date(travelDate);
+          cabDate.setDate(cabDate.getDate() + (transfer.day - 1));
+          return cabDate.toDateString() === today.toDateString() ;
+        });
+      } else if (activeMainTab === 'tomorrow') {
+        return transfers.filter(transfer => {
+          const cabDate = new Date(travelDate);
+          cabDate.setDate(cabDate.getDate() + (transfer.day - 1));
+          return cabDate.toDateString() === tomorrow.toDateString() ;
+        });
+      } else if (activeMainTab === 'nextTenDays') {
+        // Show all cabs with dates within next 10 days
+        return transfers.filter(transfer => {
+            let cabDate = normalize(new Date(travelDate));
+            cabDate.setDate(cabDate.getDate() + (transfer.day - 1));
+          
+            return cabDate >= normalize(today) && cabDate <= normalize(nextTenDays) ;
+          });
+          
+             }
+     } else if (activeMainTab === 'unverified') {
+       // For unverified tab, show transfers based on sub-tab selection
+       if (activeSubTab === 'cab') {
+         // Show only unverified transfers
+         return transfers.filter(transfer => transfer?.verified === false);
+       }
+     }
+     
+     return transfers;
+  };
+
+  // Group consecutive hotels with same city and property name
+  const groupConsecutiveHotels = (hotels, travelDate) => {
+    if (!hotels || hotels.length === 0) return [];
+    
+    const grouped = [];
+    let currentGroup = null;
+    
+    for (let i = 0; i < hotels.length; i++) {
+      const hotel = hotels[i];
+      const key = `${hotel.cityName}-${hotel.propertyName}`;
+      
+      if (!currentGroup || currentGroup.key !== key) {
+        // Start new group
+        if (currentGroup) {
+          grouped.push(currentGroup);
+        }
+        currentGroup = {
+          key,
+          cityName: hotel.cityName,
+          propertyName: hotel.propertyName,
+          startDay: hotel.day,
+          endDay: hotel.day,
+          hotels: [hotel],
+          checkIn: hotel.checkIn,
+          checkOut: hotel.checkOut
+        };
+      } else {
+        // Add to current group
+        currentGroup.endDay = hotel.day;
+        currentGroup.hotels.push(hotel);
+        // Update checkOut if this hotel has a later date
+        if (hotel.checkOut && (!currentGroup.checkOut || hotel.checkOut > currentGroup.checkOut)) {
+          currentGroup.checkOut = hotel.checkOut;
+        }
+      }
+    }
+    
+    // Add the last group
+    if (currentGroup) {
+      grouped.push(currentGroup);
+    }
+    
+    // Calculate check-in and check-out dates based on travel date and day numbers
+    if (travelDate) {
+      const baseDate = new Date(travelDate);
+      grouped.forEach(group => {
+        // Check-in: travel date + (start day - 1) days
+        const checkInDate = new Date(baseDate);
+        checkInDate.setDate(baseDate.getDate() + (group.startDay - 1));
+        
+        // Check-out: travel date + end day days (since it's the day they leave)
+        const checkOutDate = new Date(baseDate);
+        checkOutDate.setDate(baseDate.getDate() + group.endDay);
+        
+        group.checkIn = checkInDate.toLocaleDateString('en-US', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        });
+        
+        group.checkOut = checkOutDate.toLocaleDateString('en-US', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        });
+      });
+    }
+    
+    return grouped;
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-4 sm:p-6 lg:p-8">
+      {/* Header Section */}
+      <div className="mb-8">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="space-y-2">
+            <h1 className="text-3xl lg:text-4xl font-bold  bg-clip-text text-black">
+              Service Report
+            </h1>
+            <p className="text-gray-600 text-lg">Lead conversion and service tracking dashboard</p>
+          </div>
+          <button 
+            onClick={handleRefresh} 
+            disabled={serviceReportLoading}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 flex items-center gap-3 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none disabled:shadow-lg"
+          >
+            {serviceReportLoading ? (
+              <>
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                </svg>
+                <span>Loading...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Refresh Data</span>
+              </>
+            )}
+          </button>
+        </div>
+        
+        {/* Payment Buttons Section */}
+        <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Payment Management</h3>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={handleOpenHotelPaymentModal}
+                className="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200 shadow-sm"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                Add Payment to Hotel
+              </button>
+              <button
+                onClick={handleOpenCabPaymentModal}
+                className="inline-flex items-center px-6 py-3 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors duration-200 shadow-sm"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                Add Payment to Cab
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Enhanced Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mt-8">
+          <div className="bg-white rounded-2xl p-2 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+            <div className="flex items-center">
+              <div className="p-3 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl">
+                <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Reports</p>
+                <p className="text-3xl font-bold text-gray-900">{serviceReport?.length || 0}</p>
+              </div>
+            </div>
+          </div>
+                 </div>
+       </div>
+
+       {/* Tabs Section */}
+       <div className="mb-8">
+         {/* Main Tabs */}
+         <div className="flex flex-wrap gap-2 mb-4">
+           <button
+             onClick={() => handleMainTabChange('tomorrow')}
+             className={`px-6  h-10 rounded-lg font-medium transition-all duration-200 ${
+               activeMainTab === 'tomorrow'
+                 ? 'bg-blue-600 text-white shadow-lg'
+                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+             }`}
+           >
+             Tomorrow
+           </button>
+           <button
+             onClick={() => handleMainTabChange('today')}
+             className={`px-6  h-10 rounded-lg font-medium transition-all duration-200 ${
+               activeMainTab === 'today'
+                 ? 'bg-blue-600 text-white shadow-lg'
+                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+             }`}
+           >
+             Today
+           </button>
+           <button
+             onClick={() => handleMainTabChange('nextTenDays')}
+             className={`px-6  h-10 rounded-lg font-medium transition-all duration-200 ${
+               activeMainTab === 'nextTenDays'
+                 ? 'bg-blue-600 text-white shadow-lg'
+                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+             }`}
+           >
+             Next Ten Days
+           </button>
+           <button
+             onClick={() => handleMainTabChange('driverAssign')}
+             className={`px-6  h-10 rounded-lg font-medium transition-all duration-200 ${
+               activeMainTab === 'driverAssign'
+                 ? 'bg-blue-600 text-white shadow-lg'
+                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+             }`}
+           >
+             Driver Assign Report
+           </button>
+                       <button
+              onClick={() => handleMainTabChange('unverified')}
+              className={`px-6  h-10 rounded-lg font-medium transition-all duration-200 ${
+                activeMainTab === 'unverified'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              Unverified
+            </button>
+            <button
+              onClick={() => handleMainTabChange('allReport')}
+              className={`px-6  h-10 rounded-lg font-medium transition-all duration-200 ${
+                activeMainTab === 'allReport'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              All Report
+            </button>
+            <button
+              onClick={() => handleMainTabChange('nonReceiptPayment')}
+              className={`px-6  h-10 rounded-lg font-medium transition-all duration-200 ${
+                activeMainTab === 'nonReceiptPayment'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              Non Receipt Payment
+            </button>
+         </div>
+
+                   {/* Sub Tabs */}
+           {(activeMainTab === 'tomorrow' || activeMainTab === 'today' || activeMainTab === 'nextTenDays') && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => handleSubTabChange('checkinHotel')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  activeSubTab === 'checkinHotel'
+                    ? 'bg-green-600 text-white shadow-md'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                }`}
+              >
+                Check In Hotel
+              </button>
+              <button
+                onClick={() => handleSubTabChange('checkinCab')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  activeSubTab === 'checkinCab'
+                    ? 'bg-green-600 text-white shadow-md'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                }`}
+              >
+                Check In Cab
+              </button>
+              <button
+                onClick={() => handleSubTabChange('checkoutHotel')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  activeSubTab === 'checkoutHotel'
+                    ? 'bg-green-600 text-white shadow-md'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                }`}
+              >
+                Check Out Hotel
+              </button>
+
+            </div>
+          )}
+
+          {/* Sub Tabs for Unverified */}
+          {activeMainTab === 'unverified' && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => handleSubTabChange('hotel')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  activeSubTab === 'hotel'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                }`}
+              >
+                Hotel
+              </button>
+              <button
+                onClick={() => handleSubTabChange('cab')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  activeSubTab === 'cab'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                }`}
+              >
+                Cab
+              </button>
+            </div>
+          )}
+       </div>
+
+              {/* Main Content */}
+       {/* Tab Content Indicator */}
+       <div className="mb-6 bg-white rounded-lg p-4 border border-gray-200">
+         <div className="flex items-center justify-between mb-4">
+           <div className="flex items-center gap-2 text-sm text-gray-600">
+             <span className="font-medium">Active Tab:</span>
+                           <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full font-medium">
+                                 {activeMainTab === 'tomorrow' && 'Tomorrow'}
+                 {activeMainTab === 'today' && 'Today'}
+                 {activeMainTab === 'nextTenDays' && 'Next Ten Days'}
+                 {activeMainTab === 'driverAssign' && 'Driver Assign Report'}
+                 {activeMainTab === 'unverified' && 'Unverified'}
+                 {activeMainTab === 'allReport' && 'All Report'}
+                 {activeMainTab === 'nonReceiptPayment' && 'Non Receipt Payment'}
+              </span>
+                           {activeMainTab !== 'driverAssign' && activeMainTab !== 'allReport' && activeMainTab !== 'nonReceiptPayment' && (
+               <>
+                 <span className="text-gray-400">•</span>
+                 <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full font-medium ">
+                   {activeSubTab === 'checkinHotel' && 'Check In Hotel'}
+                   {activeSubTab === 'checkinCab' && 'Check In Cab'}
+                   {activeSubTab === 'checkoutHotel' && 'Check Out Hotel'}
+                   {activeSubTab === 'hotel' && 'Hotel'}
+                   {activeSubTab === 'cab' && 'Cab'}
+                 </span>
+               </>
+             )}
+           </div>
+           
+           {/* Filter Summary */}
+           <div className="text-sm text-gray-600">
+             <span className="font-medium">Showing:</span>
+             <span className="ml-2 px-2 py-1 bg-gray-100 text-gray-700 rounded">
+               {filterDataByTabs(serviceReport).length} of {serviceReport?.length || 0} reports
+             </span>
+           </div>
+         </div>
+       </div>
+
+       {serviceReportLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="text-center">
+            <div className="relative">
+              <svg className="animate-spin h-16 w-16 text-blue-600 mx-auto mb-6" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+              </svg>
+            </div>
+            <p className="text-xl text-gray-600 font-medium">Loading service report data...</p>
+            <p className="text-gray-500 mt-2">Please wait while we fetch the latest information</p>
+          </div>
+        </div>
+      ) : serviceReport && serviceReport.length > 0 ? (
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+          <div className="px-6 py-6 border-b border-gray-200 ">
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2zm0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Lead Conversion Reports
+            </h2>
+            <p className="text-gray-600 mt-1">Detailed view of all lead conversion activities</p>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="">
+                <tr>
+                  <th className="px-6 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Customer Details
+                  </th>
+                 
+                
+                 
+                      <th className="px-6 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Payment Staus
+                      </th>
+                      <th className="px-6 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Completed Amount %
+                      </th>
+                      {activeMainTab === 'nonReceiptPayment' && (
+                    <>
+                      <th className="px-6 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Add Payment
+                      </th>
+
+                    </>
+                  )}
+                  <th className="px-6 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Actions
+                  </th>
+                
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-100">
+                                 {filterDataByTabs(serviceReport).map((item, index) => (
+                  <React.Fragment key={item._id || index}>
+                    <tr className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200">
+                      <td className="px-2 py-2">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-12 w-12">
+                            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-md">
+                              <span className="text-lg font-bold text-blue-700">
+                                {item.leadata?.name?.charAt(0) || 'G'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="ml-4 space-y-2">
+                            <div className="text-base font-semibold text-gray-900">
+                              {item.leadata?.name || 'N/A'}
+                            </div>
+                            <div className="text-sm text-gray-600 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                              </svg>
+                              {item.leadata?.mobile || 'N/A'}
+                            </div>
+                           
+                            <div className="text-sm text-gray-600 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              {item.leadata?.travelDate 
+                                ? new Date(item.leadata.travelDate).toLocaleDateString('en-US', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                  })
+                                : 'No date available'
+                              }
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      
+                      
+                   
+                     
+                      
+                   
+                          <td className="px-6 py-6">
+                            <div className="text-sm text-gray-900">
+                              <div className="font-semibold text-base text-red-600">
+                                <div>
+                                  Total Amount: ₹ <span className="font-bold text-black">{item.leadata?.totalAmount || 0}</span>
+                                </div>
+                                <div>
+                                  Remaining Amount: ₹ <span className="font-bold text-black">{item.leadata?.remainingAmount || 0}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-6">
+                            <div className="text-sm text-gray-900">
+                              {(() => {
+                                const totalAmount = parseFloat(item.leadata?.totalAmount) || 0;
+                                const remainingAmount = parseFloat(item.leadata?.remainingAmount) || 0;
+                                const completedAmount = totalAmount - remainingAmount;
+                                const completedPercentage = totalAmount > 0 ? Math.round((completedAmount / totalAmount) * 100) : 0;
+                                
+                                return (
+                                  <div className="text-center">
+                                    <div className="text-2xl font-bold text-green-600 mb-1">
+                                      {completedPercentage}%
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      ₹{completedAmount.toFixed(2)} completed
+                                    </div>
+                                  
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </td>
+                          {activeMainTab === 'nonReceiptPayment' && (
+                          <td className="px-6 py-6" style={{width:"300px"}}>
+                            <div className="text-sm text-gray-900">
+                              <button 
+                                onClick={() => handleOpenPaymentModal(item)}
+                                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center gap-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 20 20">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                Add Payment Request
+                              </button>
+                            </div>
+                          </td>
+                          )}                     
+                     
+                      
+                      <td className="px-6 py-6 text-sm font-medium" style={{width:"250px"}}>
+                        <button
+                          onClick={() => toggleRow(index)}
+                          className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center gap-2"
+                        >
+                          {expandedRows[index] ? (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                              </svg>
+                              Hide Details
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                              View Details
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                    
+                    {/* Accordion Row */}
+                    {expandedRows[index] && (
+                      <tr className="bg-gray-50" >
+                        <td colSpan={activeMainTab === 'nonReceiptPayment' ? "8" : "8"} className="px-6 py-6">
+                          <div className="space-y-6" >
+                          
+
+                                                           {/* Hotels - Show when Check In Hotel, Check Out Hotel is selected, when All Report is active, or when Unverified tab with hotel sub-tab is active */}
+                              {item.hotels && item.hotels.length > 0 && (activeSubTab === 'checkinHotel' || activeSubTab === 'checkoutHotel' || activeMainTab === 'allReport' || activeMainTab === 'nonReceiptPayment' || (activeMainTab === 'unverified' && activeSubTab === 'hotel')) && (
+                                <div className="bg-white p-6 rounded-xl border border-green-100 shadow-sm">
+                                  <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                    </svg>
+                                    Hotel Bookings
+                                  </h4>
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                      <thead className="bg-gray-50">
+                                        <tr>
+                                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                            Days
+                                          </th>
+                                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                            City
+                                          </th>
+                                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                            Hotel Name
+                                          </th>
+                                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                            Check In
+                                          </th>
+                                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                            Check Out
+                                          </th>
+                                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                            Nights
+                                          </th>
+                                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                            Actions
+                                          </th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="bg-white divide-y divide-gray-100">
+                                                                        {groupConsecutiveHotels(filterHotelsBySubTab(item.hotels, item.leadata?.travelDate), item.leadata?.travelDate).map((hotelGroup, groupIndex) => (
+                                          <tr key={groupIndex} className="hover:bg-gray-50">
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                              <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                                                {hotelGroup.startDay === hotelGroup.endDay 
+                                                  ? `Day ${hotelGroup.startDay}` 
+                                                  : `Day ${hotelGroup.startDay} - Day ${hotelGroup.endDay}`
+                                                }
+                                              </span>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                              <span className="text-sm font-medium text-gray-700">{hotelGroup.cityName}</span>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                              <span className="text-sm font-semibold text-gray-900">{hotelGroup.propertyName || 'Hotel Name'}</span>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                              <span className="text-sm text-gray-600">{hotelGroup.checkIn || 'N/A'}</span>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                              <span className="text-sm text-gray-600">{hotelGroup.checkOut || 'N/A'}</span>
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                              <span className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded">
+                                                {hotelGroup.hotels.length} {hotelGroup.hotels.length === 1 ? 'night' : 'nights'}
+                                              </span>
+                                            </td>
+                                                                                                                                      <td className="px-4 py-3 whitespace-nowrap">
+                                                {activeMainTab === 'unverified' ? (
+                                                  verificationStates[`hotel_${groupIndex}`] ? (
+                                                    <div className="flex gap-1">
+                                                                                                             <button
+                                                         className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-xs font-medium transition-colors duration-200"
+                                                         onClick={() => handleVerificationResponse('hotel', true, hotelGroup, groupIndex, item._id)}
+                                                       >
+                                                         Yes
+                                                       </button>
+                                                       <button
+                                                         className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs font-medium transition-colors duration-200"
+                                                         onClick={() => handleVerificationResponse('hotel', false, hotelGroup, groupIndex, item._id)}
+                                                       >
+                                                         No
+                                                       </button>
+                                                    </div>
+                                                  ) : (
+                                                    <button
+                                                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium transition-colors duration-200 flex items-center gap-1 shadow-sm hover:shadow-md"
+                                                      onClick={() => handleHotelVerification(hotelGroup, groupIndex)}
+                                                    >
+                                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                      </svg>
+                                                      Verify
+                                                    </button>
+                                                  )
+                                                ) : (activeMainTab === 'today' || activeMainTab === 'tomorrow' || activeMainTab === 'nextTenDays') ? (
+                                                  // Show verification status for today, tomorrow, and next ten days tabs
+                                                  hotelGroup.hotels.some(hotel => hotel.verified === true) ? (
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                      </svg>
+                                                      Verified
+                                                    </span>
+                                                  ) : (
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                      </svg>
+                                                      Not Verified
+                                                    </span>
+                                                  )
+                                                ) : (
+                                                  <button
+                                                    className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs font-medium transition-colors duration-200 flex items-center gap-1 shadow-sm hover:shadow-md"
+                                                    onClick={() => handleHotelVerification(hotelGroup, groupIndex)}
+                                                  >
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                    Verified
+                                                  </button>
+                                                )}
+                                              </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )}
+
+                                                          {/* Transfers - Show when Check In Cab is selected, when All Report is active, or when Unverified tab with cab sub-tab is active */}
+                              {item.transfer?.details && item.transfer.details.length > 0 && (activeSubTab === 'checkinCab' || activeMainTab === 'allReport' || activeMainTab === 'nonReceiptPayment' || (activeMainTab === 'unverified' && activeSubTab === 'cab')) && (
+                               <div className="bg-white p-6 rounded-xl border border-purple-100 shadow-sm">
+                                 <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                   <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                   </svg>
+                                   Transfer Details
+                                 </h4>
+                                 <div className="overflow-x-auto">
+                                   <table className="min-w-full divide-y divide-gray-200">
+                                     <thead className="bg-gray-50">
+                                       <tr>
+                                                                                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                            Day
+                                          </th>
+                                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                            Date
+                                          </th>
+                                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                            Cab Type
+                                          </th>
+                                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                            Cab Name
+                                          </th>
+                                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                            Actions
+                                          </th>
+                                       </tr>
+                                     </thead>
+                                     <tbody className="bg-white divide-y divide-gray-100">
+                                                                               {filterTransfersBySubTab(item.transfer.details, item.leadata?.travelDate).map((transfer, transferIndex) => {
+                                          // Calculate date for this transfer day
+                                          let transferDate = 'N/A';
+                                          if (item.leadata?.travelDate) {
+                                            const baseDate = new Date(item.leadata.travelDate);
+                                            const transferDayDate = new Date(baseDate);
+                                            transferDayDate.setDate(baseDate.getDate() + (transfer.day - 1));
+                                            transferDate = transferDayDate.toLocaleDateString('en-US', {
+                                              day: '2-digit',
+                                              month: 'short',
+                                              year: 'numeric'
+                                            });
+                                          }
+                                          
+                                          return (
+                                            <tr key={transferIndex} className="hover:bg-gray-50">
+                                              <td className="px-4 py-3 whitespace-nowrap">
+                                                <span className="text-sm font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
+                                                  Day {transfer.day}
+                                                </span>
+                                              </td>
+                                              <td className="px-4 py-3 whitespace-nowrap">
+                                                <span className="text-sm text-gray-600 font-medium">{transferDate}</span>
+                                              </td>
+                                              <td className="px-4 py-3 whitespace-nowrap">
+                                                <span className="text-sm font-medium text-gray-700">{transfer.cabType || 'N/A'}</span>
+                                              </td>
+                                              <td className="px-4 py-3 whitespace-nowrap">
+                                                <span className="text-sm font-semibold text-gray-900">{transfer.cabName || 'Cab Service'}</span>
+                                              </td>
+                                                                                                                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                  {activeMainTab === 'unverified' ? (
+                                                    verificationStates[`transfer_${transferIndex}`] ? (
+                                                      <div className="flex gap-1">
+                                                        <button
+                                                          className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-xs font-medium transition-colors duration-200"
+                                                          onClick={() => handleVerificationResponse('transfer', true, transfer, transferIndex, item._id)}
+                                                        >
+                                                          Yes
+                                                        </button>
+                                                        <button
+                                                          className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs font-medium transition-colors duration-200"
+                                                          onClick={() => handleVerificationResponse('transfer', false, transfer, transferIndex, item._id)}
+                                                        >
+                                                          No
+                                                        </button>
+                                                      </div>
+                                                    ) : (
+                                                      <button
+                                                        className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium transition-colors duration-200 flex items-center gap-1 shadow-sm hover:shadow-md"
+                                                        onClick={() => handleTransferVerification(transfer, transferIndex)}
+                                                      >
+                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                        Verify
+                                                      </button>
+                                                    )
+                                                  ) : (activeMainTab === 'today' || activeMainTab === 'tomorrow' || activeMainTab === 'nextTenDays') ? (
+                                                    // Show verification status for today, tomorrow, and next ten days tabs
+                                                    transfer.verified === true ? (
+                                                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                        Verified
+                                                      </span>
+                                                    ) : (
+                                                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                        Not Verified
+                                                      </span>
+                                                    )
+                                                  ) : (
+                                                    <button
+                                                      className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-xs font-medium transition-colors duration-200 flex items-center gap-1 shadow-sm hover:shadow-md"
+                                                      onClick={() => handleTransferVerification(transfer, transferIndex)}
+                                                    >
+                                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                        Verified
+                                                      </button>
+                                                  )}
+                                                </td>
+                                            </tr>
+                                          );
+                                        })}
+                                     </tbody>
+                                   </table>
+                                 </div>
+                               </div>
+                             )}
+
+                           
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-16 bg-white rounded-2xl shadow-lg border border-gray-100">
+          <div className="mx-auto h-24 w-24 text-gray-300 mb-6">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No reports available</h3>
+          <p className="text-gray-500 mb-6">No service report data found. Try refreshing or check back later.</p>
+          <button
+            onClick={handleRefresh}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200"
+          >
+            Refresh Data
+          </button>
+        </div>
+      )}
+
+      {/* Hotel Payment Modal */}
+      {showHotelPaymentModal && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setShowHotelPaymentModal(false)}
+          />
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl z-50 w-[600px] max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold text-gray-800">
+                  🏨 Add Payment to Hotel
+                </h3>
+                <button 
+                  onClick={() => setShowHotelPaymentModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Bank Information */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      From Bank ID
+                    </label>
+                    <select
+                      value={hotelPaymentData.bank}
+                      onChange={(e) => handleHotelPaymentDataChange('bank', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={loadingManualBanks}
+                    >
+                      <option value="">
+                        {loadingManualBanks ? 'Loading banks...' : 'Select Bank'}
+                      </option>
+                      {manualBanks.map((bank) => (
+                        <option key={bank._id} value={bank._id}>
+                          {bank.bankName} - {bank.accountNumber}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="relative property-bank-dropdown">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      To Bank ID
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={propertyBankSearchTerm}
+                        onChange={(e) => handlePropertyBankSearch(e.target.value)}
+                        onFocus={() => setShowPropertyBankDropdown(true)}
+                        placeholder={loadingHotelBank ? 'Loading banks...' : 'Search and select hotel bank...'}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={loadingHotelBank}
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                    
+                    {/* Dropdown */}
+                    {showPropertyBankDropdown && !loadingHotelBank && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                        {filteredHotelBanks.length > 0 ? (
+                          filteredHotelBanks.map((bank) => (
+                            <div
+                              key={bank._id}
+                              onClick={() => handlePropertyBankSelect(bank, 'hotel')}
+                              className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="font-medium text-gray-900">{bank.bankName}</div>
+                              <div className="text-sm text-gray-500">Account: {bank.accountNumber}</div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-gray-500 text-sm">
+                            No banks found matching "{propertyBankSearchTerm}"
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Transaction Details */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Payment Mode
+                    </label>
+                    <select
+                      value={hotelPaymentData.paymentMode}
+                      onChange={(e) => handleHotelPaymentDataChange('paymentMode', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select</option>
+                      <option value="gpay">GPay</option>
+                      <option value="credit_card">Credit Card</option>
+                      <option value="cash">Cash</option>
+                      <option value="RTGS">RTGS</option>
+                      <option value="NEFT">NEFT</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Transaction Amount
+                    </label>
+                    <input
+                      type="number"
+                      value={hotelPaymentData.transactionAmount}
+                      onChange={(e) => handleHotelPaymentDataChange('transactionAmount', e.target.value)}
+                      placeholder="Enter amount"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    To Bank Payment Type
+                  </label>
+                  <select
+                    value={hotelPaymentData.toBankPaymentType}
+                    onChange={(e) => handleHotelPaymentDataChange('toBankPaymentType', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="in">In</option>
+                    <option value="out">Out</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Transaction ID
+                  </label>
+                  <input
+                    type="text"
+                    value={hotelPaymentData.transactionId}
+                    onChange={(e) => handleHotelPaymentDataChange('transactionId', e.target.value)}
+                    placeholder="Enter transaction ID"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Transaction Date
+                  </label>
+                  <input
+                    type="date"
+                    value={hotelPaymentData.transactionDate}
+                    onChange={(e) => handleHotelPaymentDataChange('transactionDate', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={hotelPaymentData.description}
+                    onChange={(e) => handleHotelPaymentDataChange('description', e.target.value)}
+                    placeholder="Enter transaction description"
+                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    UTR Number
+                  </label>
+                  <input
+                    type="text"
+                    value={hotelPaymentData.utrNumber}
+                    onChange={(e) => handleHotelPaymentDataChange('utrNumber', e.target.value.trim())}
+                    placeholder="Enter UTR number"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Receipt Image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const imageUrl = await handleImageUpload(file);
+                        if (imageUrl) {
+                          handleHotelPaymentDataChange('image', imageUrl);
+                        }
+                      }
+                    }}
+                    disabled={uploadingImage}
+                  />
+                  {uploadingImage && (
+                    <p className="text-sm text-blue-600 mt-1">Uploading image...</p>
+                  )}
+                  {hotelPaymentData.image && (
+                    <div className="mt-2">
+                      <img 
+                        src={hotelPaymentData.image} 
+                        alt="Payment receipt" 
+                        className="w-32 h-32 object-cover rounded border border-gray-300"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowHotelPaymentModal(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmitHotelPayment}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                >
+                  Add Hotel Payment
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Cab Payment Modal */}
+      {showCabPaymentModal && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setShowCabPaymentModal(false)}
+          />
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl z-50 w-[600px] max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold text-gray-800">
+                  🚗 Add Payment to Cab
+                </h3>
+                <button 
+                  onClick={() => setShowCabPaymentModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Bank Information */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      From Bank ID
+                    </label>
+                    <select
+                      value={cabPaymentData.bank}
+                      onChange={(e) => handleCabPaymentDataChange('bank', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={loadingManualBanks}
+                    >
+                      <option value="">
+                        {loadingManualBanks ? 'Loading banks...' : 'Select Bank'}
+                      </option>
+                      {manualBanks.map((bank) => (
+                        <option key={bank._id} value={bank._id}>
+                          {bank.bankName} - {bank.accountNumber}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="relative property-bank-dropdown">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      To Bank ID
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={propertyBankSearchTerm}
+                        onChange={(e) => handlePropertyBankSearch(e.target.value)}
+                        onFocus={() => setShowPropertyBankDropdown(true)}
+                        placeholder={loadingCabBank ? 'Loading banks...' : 'Search and select cab bank...'}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={loadingCabBank}
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                    
+                    {/* Dropdown */}
+                    {showPropertyBankDropdown && !loadingCabBank && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                        {filteredCabBanks.length > 0 ? (
+                          filteredCabBanks.map((bank) => (
+                            <div
+                              key={bank.bankId}
+                              onClick={() => handlePropertyBankSelect(bank, 'cab')}
+                              className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="font-medium text-gray-900">{bank.userName}</div>
+                              <div className="text-sm text-gray-500">Account: {bank.bankId}</div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-gray-500 text-sm">
+                            No banks found matching "{propertyBankSearchTerm}"
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Transaction Details */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Payment Mode
+                    </label>
+                    <select
+                      value={cabPaymentData.paymentMode}
+                      onChange={(e) => handleCabPaymentDataChange('paymentMode', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select</option>
+                      <option value="gpay">GPay</option>
+                      <option value="credit_card">Credit Card</option>
+                      <option value="cash">Cash</option>
+                      <option value="RTGS">RTGS</option>
+                      <option value="NEFT">NEFT</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Transaction Amount
+                    </label>
+                    <input
+                      type="number"
+                      value={cabPaymentData.transactionAmount}
+                      onChange={(e) => handleCabPaymentDataChange('transactionAmount', e.target.value)}
+                      placeholder="Enter amount"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    To Bank Payment Type
+                  </label>
+                  <select
+                    value={cabPaymentData.toBankPaymentType}
+                    onChange={(e) => handleCabPaymentDataChange('toBankPaymentType', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="in">In</option>
+                    <option value="out">Out</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Transaction ID
+                  </label>
+                  <input
+                    type="text"
+                    value={cabPaymentData.transactionId}
+                    onChange={(e) => handleCabPaymentDataChange('transactionId', e.target.value)}
+                    placeholder="Enter transaction ID"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Transaction Date
+                  </label>
+                  <input
+                    type="date"
+                    value={cabPaymentData.transactionDate}
+                    onChange={(e) => handleCabPaymentDataChange('transactionDate', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={cabPaymentData.description}
+                    onChange={(e) => handleCabPaymentDataChange('description', e.target.value)}
+                    placeholder="Enter transaction description"
+                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    UTR Number
+                  </label>
+                  <input
+                    type="text"
+                    value={cabPaymentData.utrNumber}
+                    onChange={(e) => handleCabPaymentDataChange('utrNumber', e.target.value.trim())}
+                    placeholder="Enter UTR number"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Receipt Image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const imageUrl = await handleImageUpload(file);
+                        if (imageUrl) {
+                          handleCabPaymentDataChange('image', imageUrl);
+                        }
+                      }
+                    }}
+                    disabled={uploadingImage}
+                  />
+                  {uploadingImage && (
+                    <p className="text-sm text-blue-600 mt-1">Uploading image...</p>
+                  )}
+                  {cabPaymentData.image && (
+                    <div className="mt-2">
+                      <img 
+                        src={cabPaymentData.image} 
+                        alt="Payment receipt" 
+                        className="w-32 h-32 object-cover rounded border border-gray-300"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowCabPaymentModal(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmitCabPayment}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+                >
+                  Add Cab Payment
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+             {/* Payment Modal */}
+       {showPaymentModal && selectedPaymentData && (
+         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+           <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+             {/* Header */}
+             <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 rounded-t-lg">
+               <div className="flex justify-between items-center">
+                 <h3 className="text-xl font-bold text-gray-900">
+                   Unreceived Payment Report 
+                 </h3>
+                 <button
+                   onClick={handleClosePaymentModal}
+                   className="text-gray-400 hover:text-gray-600 transition-colors"
+                 >
+                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                   </svg>
+                 </button>
+               </div>
+             </div>
+
+             <div className="p-6 space-y-6">
+               {/* Customer and Cost Overview */}
+               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                 
+                   <div>
+                     <span className="font-semibold text-gray-700">Name:</span>
+                     <div className="font-bold text-blue-900">Mr. Nitish</div>
+                   </div>
+                   <div>
+                     <span className="font-semibold text-gray-700">Total Package Cost:</span>
+                     <div className="font-bold text-blue-900">₹ {selectedPaymentData.leadata?.totalAmount || '0'}</div>
+                   </div>
+                   <div>
+                     <span className="font-semibold text-gray-700">Total Paid Amount:</span>
+                     <div className="font-bold text-blue-900">₹ {(selectedPaymentData.leadata?.totalAmount || 0) - (selectedPaymentData.leadata?.remainingAmount || 0)}</div>
+                   </div>
+                   <div>
+                     <span className="font-semibold text-gray-700">Total Due Amount:</span>
+                     <div className="font-bold text-blue-900">₹ {selectedPaymentData.leadata?.remainingAmount || '0'}</div>
+                   </div>
+                 </div>
+               </div>
+
+               {/* Payment Details Input */}
+               <div className="space-y-4">
+                 <h4 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">Payment Details</h4>
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+                   
+                   <div>
+                     <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
+                     <select 
+                       value={paymentFormData.paymentMode}
+                       onChange={(e) => handleFormInputChange('paymentMode', e.target.value)}
+                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                     >
+                       <option value="">Select</option>
+                                        <option value="gpay">GPay</option>
+                                        <option value="credit_card">Credit Card</option>
+                                        <option value="cash">Cash</option>
+                     </select>
+                   </div>
+                   
+                   <div>
+                     <label className="block text-sm font-medium text-gray-700 mb-1">To Account</label>
+                     <select 
+                       value={paymentFormData.toAccount}
+                       onChange={(e) => handleFormInputChange('toAccount', e.target.value)}
+                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                     >
+                       <option value="">Select To Account</option>
+                       {banks && banks.map((bank, index) => (
+                         <option key={bank._id || index} value={bank._id}>
+                           {bank.bankName} - {bank.accountNumber}
+                         </option>
+                       ))}
+                     </select>
+                   </div>
+                   
+                   <div>
+                     <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
+                     <select 
+                       value={paymentFormData.paymentType}
+                       onChange={(e) => handleFormInputChange('paymentType', e.target.value)}
+                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                     >
+                       <option value="Payment">Payment</option>
+                       <option value="IN">In</option>
+                       <option value="OUT">Out</option>
+                     </select>
+                   </div>
+                   
+                   <div>
+                     <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Amount</label>
+                     <input
+                       type="number"
+                       value={paymentFormData.transactionAmount}
+                       onChange={(e) => handleFormInputChange('transactionAmount', e.target.value)}
+                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                     />
+                   </div>
+                   
+                   <div>
+                     <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Id/Check No.</label>
+                     <input
+                       type="text"
+                       value={paymentFormData.transactionId}
+                       onChange={(e) => handleFormInputChange('transactionId', e.target.value)}
+                       placeholder="Transaction Id/Check No."
+                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                     />
+                   </div>
+                   
+                   <div>
+                     <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Date</label>
+                     <input
+                       type="datetime-local"
+                       value={paymentFormData.transactionDate}
+                       onChange={(e) => handleFormInputChange('transactionDate', e.target.value)}
+                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                     />
+                   </div>
+                   
+                 
+                   
+                   <div className="md:col-span-2">
+                     <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Description</label>
+                     <textarea
+                       value={paymentFormData.transactionDescription}
+                       onChange={(e) => handleFormInputChange('transactionDescription', e.target.value)}
+                       placeholder="Description"
+                       rows="3"
+                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                     />
+                   </div>
+                 </div>
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                   <div>
+                     <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
+                     <input
+                       type="text"
+                       value={selectedPaymentData.leadata?.totalAmount || '45500'}
+                       readOnly
+                       className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md"
+                     />
+                   </div>
+                   
+                   <div>
+                     <label className="block text-sm font-medium text-gray-700 mb-1">Total Due</label>
+                     <input
+                       type="text"
+                       value={selectedPaymentData.leadata?.remainingAmount || '0'}
+                       readOnly
+                       className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md"
+                     />
+                   </div>
+                 </div>
+               </div>
+
+             
+             </div>
+
+             {/* Action Button */}
+             <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 rounded-b-lg">
+               <div className="flex justify-center">
+                 <button
+                   onClick={handleSubmitPayment}
+                   className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                 >
+                   Submit
+                 </button>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
+    </div>
+  );
+}
+
+export default ServiceReport;
  //line 1 updated  legacy_createStore
  import React, { useState } from 'react'
  import { useBankManagement } from './bankManagementContext'
